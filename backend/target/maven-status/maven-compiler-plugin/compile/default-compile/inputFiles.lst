@@ -1,7 +1,14 @@
 /Users/vishrutharavi/Documents/wecureit/backend/src/main/java/com/wecureit/WecureitApplication.java
 /Users/vishrutharavi/Documents/wecureit/backend/src/main/java/com/wecureit/config/FirebaseConfig.java
 /Users/vishrutharavi/Documents/wecureit/backend/src/main/java/com/wecureit/controller/AuthController.java
+/Users/vishrutharavi/Documents/wecureit/backend/src/main/java/com/wecureit/controller/admin/AdminController.java
+/Users/vishrutharavi/Documents/wecureit/backend/src/main/java/com/wecureit/controller/doctor/DoctorController.java
+/Users/vishrutharavi/Documents/wecureit/backend/src/main/java/com/wecureit/controller/patient/PatientController.java
 /Users/vishrutharavi/Documents/wecureit/backend/src/main/java/com/wecureit/dto/request/SignupRequest.java
+/Users/vishrutharavi/Documents/wecureit/backend/src/main/java/com/wecureit/dto/response/AdminLoginResponse.java
+/Users/vishrutharavi/Documents/wecureit/backend/src/main/java/com/wecureit/dto/response/AuthResponse.java
+/Users/vishrutharavi/Documents/wecureit/backend/src/main/java/com/wecureit/dto/response/DoctorLoginResponse.java
+/Users/vishrutharavi/Documents/wecureit/backend/src/main/java/com/wecureit/dto/response/PatientLoginResponse.java
 /Users/vishrutharavi/Documents/wecureit/backend/src/main/java/com/wecureit/entity/Admin.java
 /Users/vishrutharavi/Documents/wecureit/backend/src/main/java/com/wecureit/entity/Doctor.java
 /Users/vishrutharavi/Documents/wecureit/backend/src/main/java/com/wecureit/entity/Patient.java

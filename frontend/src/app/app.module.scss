@@ -1,0 +1,173 @@
+.wrapper {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #fff5f5, #fff0f0);
+  display: flex;
+  flex-direction: column;
+}
+
+.hero {
+  flex: 1;
+  text-align: center;
+  padding: 2.5rem 1rem 3rem; 
+}
+
+
+.title {
+  font-size: 3rem;
+  font-weight: 800;
+  background: linear-gradient(to right, #ef4444);
+  -webkit-background-clip: text;
+  color: transparent;
+}
+
+.subtitle {
+  margin-top: 0.5rem;
+  color: #6b7280;
+}
+
+.hipaaBanner {
+  margin: 1.5rem auto;
+  padding: 0.75rem;
+  max-width: 600px;
+  background: #fee2e2;
+  color: #991b1b;
+  font-weight: 700;
+  border-radius: 6px;
+}
+
+.card {
+  margin: 2rem auto;
+  max-width: 420px;
+  padding: 2rem;
+  background: rgba(255, 255, 255, 0.8);
+  border-radius: 12px;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+}
+
+.icon {
+  color: #ef4444;
+  margin-bottom: 1rem;
+}
+
+.primaryBtn {
+  margin-top: 1.5rem;
+  width: 100%;
+  padding: 0.75rem;
+  background: #ef4444;
+  box-shadow: 0 8px 20px rgba(239,68,68,0.35);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.primaryBtn:hover {
+  background: #dc2626;
+  transform: translateY(-1px);
+  box-shadow: 0 12px 28px rgba(239,68,68,0.45);
+}
+
+
+.registerBox {
+  margin: 2rem auto;
+  max-width: 520px;
+  padding: 1.25rem;
+  background: #fff;
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  justify-content: space-between;
+}
+
+
+.registerLeft {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.registerText {
+  display: flex;
+  flex-direction: column;
+}
+.registerTitle {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #7f1d1d;
+}
+
+.registerSubtitle {
+  font-size: 0.95rem;
+  color: #374151;
+}
+
+
+.secondaryBtn {
+  margin-left: auto; /* ⬅ pushes button to the far right */
+
+  background: linear-gradient(135deg, #ef4444);
+  color: white;
+  border: none;
+
+  padding: 0.75rem 1.75rem;
+  border-radius: 10px;
+
+  font-size: 1rem;
+  font-weight: 600;
+
+  cursor: pointer;
+  box-shadow: 0 8px 20px rgba(239,68,68,0.35);
+
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.secondaryBtn:hover {
+  background: #dc2626;
+  transform: translateY(-1px);
+  box-shadow: 0 12px 28px rgba(239,68,68,0.45);
+}
+
+
+.footer {
+  text-align: center;
+  padding: 1rem;
+  background: linear-gradient(to right, #dc2626);
+  color: white;
+}
+
+/* Floating Buttons */
+.fabDoctor,
+.fabAdmin {
+  position: fixed;
+  bottom: 24px;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: #ef4444;
+  color: white;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 20px rgba(239,68,68,0.35);
+}
+
+.fabDoctor {
+  right: 88px;
+}
+
+.fabAdmin {
+  right: 24px;
+}
+
+.fabDoctor:hover,
+.fabAdmin:hover {
+  background: #dc2626;
+  transform: translateY(-1px);
+  box-shadow: 0 12px 28px rgba(239,68,68,0.45);
+}
+
