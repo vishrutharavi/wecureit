@@ -1,0 +1,13 @@
+/Users/vishrutharavi/Documents/wecureit/backend/src/main/java/com/wecureit/WecureitApplication.java
+/Users/vishrutharavi/Documents/wecureit/backend/src/main/java/com/wecureit/config/FirebaseConfig.java
+/Users/vishrutharavi/Documents/wecureit/backend/src/main/java/com/wecureit/controller/AuthController.java
+/Users/vishrutharavi/Documents/wecureit/backend/src/main/java/com/wecureit/dto/request/SignupRequest.java
+/Users/vishrutharavi/Documents/wecureit/backend/src/main/java/com/wecureit/entity/Admin.java
+/Users/vishrutharavi/Documents/wecureit/backend/src/main/java/com/wecureit/entity/Doctor.java
+/Users/vishrutharavi/Documents/wecureit/backend/src/main/java/com/wecureit/entity/Patient.java
+/Users/vishrutharavi/Documents/wecureit/backend/src/main/java/com/wecureit/repository/AdminRepository.java
+/Users/vishrutharavi/Documents/wecureit/backend/src/main/java/com/wecureit/repository/DoctorRepository.java
+/Users/vishrutharavi/Documents/wecureit/backend/src/main/java/com/wecureit/repository/PatientRepository.java
+/Users/vishrutharavi/Documents/wecureit/backend/src/main/java/com/wecureit/security/FirebaseAuthFilter.java
+/Users/vishrutharavi/Documents/wecureit/backend/src/main/java/com/wecureit/security/SecurityConfig.java
+/Users/vishrutharavi/Documents/wecureit/backend/src/main/java/com/wecureit/service/AuthService.java
