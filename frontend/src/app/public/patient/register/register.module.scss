@@ -1,0 +1,146 @@
+.signupCard {
+  max-width: 540px;
+  margin: 2rem auto;
+  padding: 1.5rem;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(16,24,40,0.08);
+}
+
+.title {
+  margin: 0 0 0.25rem 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.subtitle {
+  margin: 0 0 1rem 0;
+  color: #6b7280;
+}
+
+.input {
+  display: block;
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  margin: 0.5rem 0;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 0.95rem;
+}
+
+.eyeButton {
+  position: absolute;
+  right: 8px;
+  background: transparent;
+  border: none;
+  padding: 6px;
+  cursor: pointer;
+}
+
+.primaryBtn {
+  margin-top: 1rem;
+  width: 100%;
+  padding: 0.75rem;
+  background: linear-gradient(90deg,#ef4444,#f43f5e);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+
+
+.stepNav {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.backBtn {
+  margin: 0.75rem auto 0.5rem auto;
+  display: block;
+  width: 100%;
+  padding: 0.75rem;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  color: #111827; /* dark text */
+  cursor: pointer;
+  font-size: 0.95rem;
+  box-shadow: 0 1px 2px rgba(16,24,40,0.04);
+}
+.wrapper {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #fff5f5, #fff0f0);
+}
+
+.card {
+  width: 100%;
+  max-width: 420px;
+  padding: 2.5rem;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 14px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.12);
+  text-align: center;
+}
+
+.icon {
+  color: #ef4444;
+  margin-bottom: 1rem;
+}
+
+.title {
+  font-size: 1.75rem;
+  font-weight: 700;
+  margin-bottom: 0.25rem;
+}
+
+.subtitle {
+  color: #6b7280;
+  margin-bottom: 1.5rem;
+}
+
+.input {
+  width: 100%;
+  padding: 0.75rem;
+  margin-bottom: 1rem;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  font-size: 1rem;
+}
+
+.input:focus {
+  outline: none;
+  border-color: #ef4444;
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.2);
+}
+
+
+.passwordField {
+  position: relative;
+  width: 100%;
+}
+
+.passwordField input {
+  width: 100%;
+  padding: 0.75rem 2.5rem 0.75rem 0.75rem;
+}
+
+.eyeButton {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #9ca3af;
+}
+
+.eyeButton:hover {
+  color: #ef4444;
+}
