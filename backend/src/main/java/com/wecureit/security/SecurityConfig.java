@@ -17,24 +17,27 @@ public class SecurityConfig {
 
     @Bean
     SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-        http
-            .csrf(csrf -> csrf.disable())
-            .httpBasic(basic -> basic.disable())
-            .formLogin(form -> form.disable())
-            .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/public/**","/api/auth/**").permitAll()
-                .requestMatchers("/api/patient/**").hasRole("PATIENT")
-                .requestMatchers("/api/doctor/**").hasRole("DOCTOR")
-                .requestMatchers("/api/admin/**").hasRole("ADMIN")
-                .anyRequest().authenticated()
-            )
-            .addFilterBefore(
-                firebaseAuthFilter,
-                UsernamePasswordAuthenticationFilter.class
-            )
-            ;
+    http
+        .csrf(csrf -> csrf.disable())
+        .httpBasic(basic -> basic.disable())
+        .formLogin(form -> form.disable())
+        .authorizeHttpRequests(auth -> auth
+            
+            .requestMatchers("/api/auth/**").permitAll()
+
+            .requestMatchers("/api/patient/**").hasRole("PATIENT")
+            .requestMatchers("/api/doctor/**").hasRole("DOCTOR")
+            .requestMatchers("/api/admin/**").hasRole("ADMIN")
+
+            .anyRequest().authenticated()
+        )
+        .addFilterBefore(
+            firebaseAuthFilter,
+            UsernamePasswordAuthenticationFilter.class
+        );
+
+    return http.build();
+}
 
 
-        return http.build();
-    }
 }
