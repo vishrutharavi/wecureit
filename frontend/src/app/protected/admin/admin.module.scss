@@ -1,0 +1,427 @@
+/* ========================
+   ADMIN PAGE LAYOUT
+======================== */
+
+.admin-wrapper, .wrapper {
+  min-height: 100vh;
+  padding: 1.5rem 2rem;
+  background: linear-gradient(135deg, #fff5f5, #fff0f0);
+}
+
+.admin-content, .content {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.admin-header, .header {
+  margin-bottom: 1.75rem;
+}
+
+.admin-title, .title {
+  font-size: 2.5rem;
+  font-weight: 800;
+  background: linear-gradient(to right, #ef4444, #f43f5e);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+}
+
+.admin-subtitle, .subtitle {
+  color: #6b7280;
+  margin-top: 0.25rem;
+}
+
+.admin-tabs, .tabs {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 2rem;
+}
+
+.admin-tab, .tab {
+  padding: 0.6rem 1.25rem;
+  border-radius: 999px;
+  border: 1px solid #fecaca;
+  background: white;
+  font-weight: 600;
+  color: #7f1d1d;
+  cursor: pointer;
+}
+
+.admin-tabActive, .active {
+  background: linear-gradient(135deg, #ef4444, #f43f5e);
+  color: white;
+  border: none;
+}
+
+.admin-card, .card {
+  /* make the card clearly visible on pale backgrounds */
+  background: #ffffff;
+  border-radius: 14px;
+  margin-top: 2.5rem;
+  padding: 2rem;
+  box-shadow: 0 30px 60px rgba(16, 24, 40, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.12);
+}
+
+.admin-cardHeader, .cardHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.25rem;
+}
+
+.admin-primaryBtn, .primaryBtn {
+  padding: 0.75rem 1.5rem;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #ef4444, #f43f5e);
+  color: white;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+}
+
+/* ========================
+   MODAL BASE
+======================== */
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+}
+
+.modal-container {
+  width: 760px;
+  /* red-themed modal background */
+  background: linear-gradient(180deg, #fff5f5 0%, #fff1f2 50%, #ffffff 100%);
+  border-radius: 16px;
+  padding: 2rem;
+  box-shadow: 0 40px 80px rgba(16,24,40,0.12);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.modal-title {
+  font-size: 1.6rem;
+  font-weight: 800;
+  background: linear-gradient(to right, #ef4444, #f43f5e);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+}
+
+.modal-section {
+  margin-bottom: 1.5rem;
+}
+
+/* form layout: two-column rows for basic inputs */
+.modal-row-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  align-items: center;
+}
+
+
+.modal-section h4 {
+  margin-bottom: 0.75rem;
+  color: #7f1d1d;
+  font-weight: 700;
+}
+
+.modal-input {
+  width: 100%;
+  padding: 0.7rem;
+  border-radius: 8px;
+  border: 1px solid #fca5a5;
+  margin-bottom: 0.75rem;
+  background: #fff;
+  /* ensure consistent box sizing and explicit height to match selects */
+  box-sizing: border-box;
+  height: 48px;
+  line-height: 1.2;
+}
+
+/* placeholder color for inputs to match the design */
+.modal-input::placeholder {
+  color: #9ca3af; /* match address/facility placeholder tone */
+  opacity: 1; /* ensure color is applied consistently across browsers */
+}
+
+/* header close button inside modal */
+.modal-header button {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0.25rem;
+  border-radius: 6px;
+}
+.modal-header button:hover {
+  background: rgba(0,0,0,0.04);
+}
+
+/* ========================
+   DOCTOR MODAL
+======================== */
+
+.doctor-specialtyGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 0.5rem;
+}
+
+.doctor-checkbox {
+  background: white;
+  padding: 0.5rem;
+  border-radius: 999px;
+  border: 1px solid #fecaca;
+  font-size: 0.85rem;
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+/* grid used by lists of item cards (doctors / facilities) */
+.doctorGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1.5rem;
+  margin-top: 1.5rem;
+}
+
+/* modal-grid and modal-checkbox are used by the AddDoctorModal component */
+.modal-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 0.5rem;
+}
+
+.modal-checkbox {
+  background: white;
+  padding: 0.5rem;
+  border-radius: 999px;
+  border: 1px solid #fecaca;
+  font-size: 0.85rem;
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+/* specialty box styling */
+/* specialty box styling defined later as a white panel */
+
+.state-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.state-select {
+  /* make the select sizing match inputs exactly */
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.7rem;
+  height: 48px;
+  border-radius: 8px;
+  border: 1px solid #fca5a5;
+  background: #fff;
+  display: block;
+  /* normalize native select appearance so it visually matches inputs */
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  padding-right: 1.25rem; /* space for a custom arrow */
+  font-size: 1rem;
+  line-height: 1.2;
+}
+
+/* Force exact parity between inputs and selects in two-column rows */
+.modal-row-grid .modal-input,
+.modal-row-grid .state-select {
+  height: 48px;
+  box-sizing: border-box;
+  padding-left: 1rem;
+  padding-right: 1rem;
+  display: flex;
+  align-items: center;
+  font-size: 1rem;
+
+  /* ensure the text inside inputs and selects is vertically centered in Chrome */
+  line-height: 48px;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+/* custom arrow for selects so native rendering doesn't change sizing in Chrome */
+.state-select {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='10' viewBox='0 0 14 10'><path fill='%23333' d='M7 10L0 0h14z'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+}
+
+.state-select:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(244, 63, 94, 0.08);
+}
+
+/* Show placeholder color in the collapsed select when no value is chosen.
+   This uses the :invalid selector — add `required` on selects so the
+   placeholder option (value="") keeps the select invalid until a real
+   state is chosen. */
+.state-select {
+  color: #111827; /* default (chosen) color */
+}
+
+.state-select:invalid {
+  color: #9ca3af; /* same as input placeholders */
+}
+
+.state-select option[value=""] {
+  color: #9ca3af; /* ensure dropdown option text for placeholder matches */
+}
+
+.state-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.5rem;
+  background: #fff1f1;
+  border: 1px solid #ffdede;
+  color: #7f1d1d;
+  border-radius: 999px;
+  font-size: 0.85rem;
+}
+
+/* footer with actions */
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.secondaryBtn {
+  padding: 0.6rem 1rem;
+  border-radius: 8px;
+  background: white;
+  color: #374151;
+  border: 1px solid #e5e7eb;
+  cursor: pointer;
+}
+
+/* ========================
+   FACILITY MODAL
+======================== */
+
+.facility-info {
+  background: #fee2e2;
+  padding: 0.75rem;
+  border-radius: 8px;
+  color: #7f1d1d;
+  font-size: 0.85rem;
+  margin-bottom: 1.25rem;
+}
+
+.facility-room {
+  border: 1px solid #fecaca;
+  border-radius: 12px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  background: white;
+}
+
+.facility-specialtyGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 0.5rem;
+}
+
+.facility-checkbox {
+  background:#f6b1b1;
+  padding: 0.5rem;
+  border-radius: 999px;
+  border: 1px solid #fecaca;
+  font-size: 0.85rem;
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+/* state-container (white panel) */
+.state-container {
+  background: #ffffff;
+  border: 1px solid #f3f4f6;
+  padding: 1rem;
+  border-radius: 8px;
+  margin-bottom: 0.75rem;
+  box-shadow: 0 6px 18px rgba(16,24,40,0.03);
+}
+
+.specialty-box {
+  border: 1px solid #f3f4f6;
+  background: #ffffff;
+  padding: 1rem;
+  border-radius: 8px;
+}
+
+/* Generic item card (doctor / facility) - aliases for older component class names */
+.itemCard {
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 1.25rem 1.5rem;
+  border: 1px solid #eef2f6;
+  box-shadow: 0 10px 30px rgba(16,24,40,0.06);
+}
+
+.itemCardHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.itemCardTitle {
+  font-size: 1.125rem;
+  font-weight: 700;
+  margin: 0 0 0.25rem 0;
+}
+
+.itemCardEmail {
+  color: #4b5563;
+  margin: 0 0 0.5rem 0;
+}
+
+.itemActions {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.badge {
+  background: #eef2ff;
+  color: #3730a3;
+  padding: 0.25rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+}
+
+.delete {
+  color: #dc2626;
+  cursor: pointer;
+}

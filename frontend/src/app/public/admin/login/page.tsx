@@ -3,27 +3,45 @@
 import { useState } from "react";
 import { login } from "@/lib/auth";
 import { apiFetch } from "@/lib/api";
+import type { User as FirebaseUser } from "firebase/auth";
+import { getIdTokenResult } from "firebase/auth";
 import styles from "./login.module.scss";
 import { Lock } from "lucide-react";
 import { useRouter } from "next/navigation";
 
-
-export default function DoctorLogin() {
+export default function AdminLogin() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const router = useRouter();
 
   async function handleLogin() {
-    const token = await login(email, password);
+    try {
+      const user = await login(email, password);
+      const token = await (user as FirebaseUser).getIdToken(true);
 
-    const me = await apiFetch("/api/doctor/me", token);
-    console.log(me);
+      // persist token for subsequent requests/UI
+      if (typeof window !== "undefined") {
+        localStorage.setItem("idToken", token);
+      }
 
-    alert("Logged in");
+      // inspect claims (helps debug missing 'role' claim)
+      try {
+        const result = await getIdTokenResult(user as FirebaseUser);
+        console.log("ID token claims:", result.claims);
+      } catch (e) {
+        console.warn("Could not read token result", e);
+      }
+
+      const me = await apiFetch("/api/admin/me", token);
+      console.log(me);
+
+      router.push("/protected/admin");
+    } catch (err: unknown) {
+      console.error("Admin login failed", err);
+      const msg = err instanceof Error ? err.message : String(err);
+      alert("Admin login failed: " + msg);
+    }
   }
-
-  const router = useRouter();
-  
-
 
   return (
     <div className={styles.wrapper}>
@@ -32,6 +50,7 @@ export default function DoctorLogin() {
 
         <h2 className={styles.title}>Admin Portal</h2>
         <p className={styles.subtitle}>Login to access your dashboard</p>
+
         <input
           className={styles.input}
           placeholder="Email"
@@ -50,9 +69,8 @@ export default function DoctorLogin() {
         </button>
 
         <button className={styles.backBtn} onClick={() => router.push("/")}>
-            ← Back to Home
+          ← Back to Home
         </button>
-
       </div>
     </div>
   );

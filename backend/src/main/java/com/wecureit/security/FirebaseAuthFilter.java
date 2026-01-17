@@ -22,16 +22,21 @@ import jakarta.servlet.http.HttpServletResponse;
 public class FirebaseAuthFilter extends OncePerRequestFilter {
 
     @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        return request.getRequestURI().startsWith("/api/auth/");
+    }
+
+    @Override
     protected void doFilterInternal(
-            HttpServletRequest request,
-            HttpServletResponse response,
-            FilterChain filterChain
+        HttpServletRequest request,
+        HttpServletResponse response,
+        FilterChain filterChain
     ) throws ServletException, IOException {
 
         String authHeader = request.getHeader("Authorization");
 
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            filterChain.doFilter(request, response);
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             return;
         }
 
@@ -39,20 +44,30 @@ public class FirebaseAuthFilter extends OncePerRequestFilter {
 
         try {
             FirebaseToken decodedToken =
-                    FirebaseAuth.getInstance().verifyIdToken(token);
-            
+                FirebaseAuth.getInstance().verifyIdToken(token);
+
+            // System.out.println("Firebase UID: " + decodedToken.getUid());
+            // System.out.println("Firebase Claims: " + decodedToken.getClaims());
+
             String role = (String) decodedToken.getClaims().get("role");
+
+            if (role == null || role.isBlank()) {
+                response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                return;
+            }
+
+            role = role.toUpperCase(); 
 
             List<GrantedAuthority> authorities = List.of(
                 new SimpleGrantedAuthority("ROLE_" + role)
             );
 
             UsernamePasswordAuthenticationToken authentication =
-                    new UsernamePasswordAuthenticationToken(
-                            decodedToken.getUid(),
-                            null,
-                            authorities
-                    );
+                new UsernamePasswordAuthenticationToken(
+                    decodedToken.getUid(),
+                    null,
+                    authorities
+                );
 
             SecurityContextHolder.getContext().setAuthentication(authentication);
 
