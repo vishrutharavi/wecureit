@@ -40,4 +40,6 @@ public class SecurityConfig {
 
         return http.build();
     }
+
+    // CORS is configured in `com.wecureit.config.CorsConfig`.
 }

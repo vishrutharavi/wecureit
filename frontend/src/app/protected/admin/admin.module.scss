@@ -103,6 +103,19 @@
   box-shadow: 0 40px 80px rgba(16,24,40,0.12);
 }
 
+/* make modal vertically constrained and scrollable when content is tall */
+.modal-container {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 96px);
+}
+
+.modal-body {
+  overflow: auto;
+  flex: 1 1 auto;
+  padding-right: 6px; /* room for scrollbar without shifting layout */
+}
+
 .modal-header {
   display: flex;
   justify-content: space-between;
@@ -317,6 +330,18 @@
   color: #374151;
   border: 1px solid #e5e7eb;
   cursor: pointer;
+}
+
+/* near other modal styles */
+.state-delete-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 999px;
+}
+.state-delete-btn:hover {
+  background: rgba(239,68,68,0.06); /* subtle hover */
 }
 
 /* ========================

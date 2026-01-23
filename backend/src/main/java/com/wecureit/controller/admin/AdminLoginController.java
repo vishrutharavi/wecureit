@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/admin")
-public class AdminController {
+public class AdminLoginController {
 
     @GetMapping("/me")
     public ResponseEntity<?> me(Authentication authentication) {

@@ -1,0 +1,82 @@
+:root {
+  --doctor-primary: #ef4444;
+  --doctor-dark: #991b1b;
+  --doctor-light: #fee2e2;
+  --doctor-bg: #fff5f5;
+}
+
+.wrapper {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #fff5f5, #fff);
+  padding: 2rem;
+}
+
+.title {
+  font-size: 2rem;
+  font-weight: 800;
+  background: linear-gradient(to right, #ef4444, #f43f5e);
+  -webkit-background-clip: text;
+  color: transparent;
+}
+
+.selected {
+  border: 2px solid var(--doctor-primary);
+  background: #fff;
+  box-shadow: 0 10px 25px rgba(239, 68, 68, 0.25);
+}
+
+.primaryBtn {
+  background: linear-gradient(135deg, #ef4444, #f43f5e);
+  color: white;
+  border-radius: 10px;
+  padding: 0.75rem 1.25rem;
+  font-weight: 600;
+}
+
+.dateGrid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0.75rem;
+}
+
+.dateCard {
+  background: #fff;
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+  padding: 0.75rem;
+  cursor: pointer;
+  text-align: center;
+}
+
+.facilityGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 1rem;
+}
+
+.facilityCard {
+  background: #fff;
+  border: 1px solid #fecaca;
+  border-radius: 12px;
+  padding: 1rem;
+  cursor: pointer;
+}
+
+.timeRow {
+  display: flex;
+  gap: 1.5rem;
+}
+
+.infoBox {
+  margin-top: 1rem;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  padding: 0.75rem;
+  border-radius: 10px;
+}
+
+.actionsRight {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 1.5rem;
+}

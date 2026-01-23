@@ -12,6 +12,9 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseToken;
+import com.wecureit.repository.AdminRepository;
+import com.wecureit.repository.DoctorRepository;
+import com.wecureit.repository.PatientRepository;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -20,6 +23,18 @@ import jakarta.servlet.http.HttpServletResponse;
 
 @Component
 public class FirebaseAuthFilter extends OncePerRequestFilter {
+
+    private final AdminRepository adminRepository;
+    private final DoctorRepository doctorRepository;
+    private final PatientRepository patientRepository;
+
+    public FirebaseAuthFilter(AdminRepository adminRepository,
+                              DoctorRepository doctorRepository,
+                              PatientRepository patientRepository) {
+        this.adminRepository = adminRepository;
+        this.doctorRepository = doctorRepository;
+        this.patientRepository = patientRepository;
+    }
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
@@ -37,6 +52,10 @@ public class FirebaseAuthFilter extends OncePerRequestFilter {
 
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            response.setContentType("application/json");
+            String msg = "Missing or invalid Authorization header";
+            System.out.println("FirebaseAuthFilter - rejecting request " + request.getRequestURI() + " : " + msg);
+            response.getWriter().write("{\"error\":\"" + msg + "\"}");
             return;
         }
 
@@ -46,17 +65,43 @@ public class FirebaseAuthFilter extends OncePerRequestFilter {
             FirebaseToken decodedToken =
                 FirebaseAuth.getInstance().verifyIdToken(token);
 
-            // System.out.println("Firebase UID: " + decodedToken.getUid());
-            // System.out.println("Firebase Claims: " + decodedToken.getClaims());
+            // debug: print UID and full claims map to help diagnose authorization issues
+            System.out.println("FirebaseAuthFilter - decoded UID: " + decodedToken.getUid());
+            System.out.println("FirebaseAuthFilter - claims: " + decodedToken.getClaims());
 
-            String role = (String) decodedToken.getClaims().get("role");
+            String role = null;
+            Object claim = decodedToken.getClaims().get("role");
+            if (claim != null) {
+                role = claim.toString().trim();
+            }
+
+            // Fallback: if claim missing, try DB lookup by firebase uid
+            if (role == null || role.isBlank()) {
+                String uid = decodedToken.getUid();
+                // check admin
+                if (adminRepository.findByFirebaseUid(uid).isPresent()) {
+                    role = "ADMIN";
+                } else if (doctorRepository.findByFirebaseUid(uid).isPresent()) {
+                    role = "DOCTOR";
+                } else if (patientRepository.findByFirebaseUid(uid).isPresent()) {
+                    role = "PATIENT";
+                }
+            }
 
             if (role == null || role.isBlank()) {
+                String uid = decodedToken.getUid();
+                String msg = "No role claim present and no DB mapping for uid=" + uid;
+                System.out.println("FirebaseAuthFilter - " + msg + " requestUri=" + request.getRequestURI());
                 response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                response.setContentType("application/json");
+                response.getWriter().write("{\"error\":\"" + msg + "\"}");
                 return;
             }
 
-            role = role.toUpperCase(); 
+            role = role.toUpperCase();
+
+            // debug logging - remove or replace with proper logger in production
+            System.out.println("FirebaseAuthFilter - uid=" + decodedToken.getUid() + " role=" + role);
 
             List<GrantedAuthority> authorities = List.of(
                 new SimpleGrantedAuthority("ROLE_" + role)
@@ -73,6 +118,10 @@ public class FirebaseAuthFilter extends OncePerRequestFilter {
 
         } catch (Exception e) {
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            response.setContentType("application/json");
+            String msg = "Token verification failed: " + e.getMessage();
+            System.out.println("FirebaseAuthFilter - token verification failed for request " + request.getRequestURI() + " : " + e.getMessage());
+            response.getWriter().write("{\"error\":\"" + msg.replaceAll("\"", "\\\"") + "\"}");
             return;
         }
 

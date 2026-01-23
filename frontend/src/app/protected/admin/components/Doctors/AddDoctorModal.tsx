@@ -1,201 +1,322 @@
-// src/app/protected/admin/components/Doctors/AddDoctorModal.tsx
 "use client";
 
 import styles from "../../admin.module.scss";
-import { X } from "lucide-react";
-import { useDoctorMeta } from "./useDoctors";
-import { useState } from "react";
-import { useEffect } from "react";
+import { useState, useEffect } from "react";
+import { auth } from "@/lib/firebase";
 import { apiFetch } from "@/lib/api";
+import { createDoctor, addDoctorLicense } from "@/lib/admin/adminApi";
+import { useDoctorMeta } from "./useDoctors";
 import type { Doctor } from "../../types";
+import { Trash2 } from "lucide-react";
 
 type Props = {
   onClose: () => void;
   onCreated?: (d: Doctor) => void;
   onUpdated?: (d: Doctor) => void;
-  initialDoctor?: Doctor | undefined;
+  initialDoctor?: Doctor;
 };
 
-export default function AddDoctorModal({ onClose, onCreated, onUpdated, initialDoctor }: Props) {
-  const { states, specialities, loading } = useDoctorMeta();
-
-  useEffect(() => {
-    // runtime debug: log when modal mounts so user can confirm it's mounted
-    console.log("[AddDoctorModal] mount/update, loading=", loading, "states.length=", states.length);
-  }, [loading, states.length]);
-
+export default function AddDoctorModal({
+  onClose,
+  onCreated,
+  onUpdated,
+  initialDoctor,
+}: Props) {
   const [form, setForm] = useState({
     name: "",
     email: "",
     gender: "",
     password: "",
-    stateCodes: [] as string[],
-    specialityCodes: [] as string[],
   });
-  const [selectedState, setSelectedState] = useState<string>("");
 
-  // if editing an existing doctor, populate the form when modal mounts
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const { states, specialities } = useDoctorMeta();
+
+  const [licenses, setLicenses] = useState<Array<{ licenseId?: string; stateCode: string; specialityCodes: string[] }>>([
+    { stateCode: "", specialityCodes: [] },
+  ]);
+
+  function addStateLicense() {
+    setLicenses((s) => [...s, { stateCode: "", specialityCodes: [] }]);
+  }
+
+  function toggleSpeciality(licenseIdx: number, code: string) {
+    setLicenses((prev) => {
+      const copy = prev.map((p) => ({ ...p, specialityCodes: [...p.specialityCodes] }));
+      const arr = copy[licenseIdx].specialityCodes;
+      const idx = arr.indexOf(code);
+      if (idx >= 0) arr.splice(idx, 1);
+      else arr.push(code);
+      return copy;
+    });
+  }
+
   useEffect(() => {
     if (initialDoctor) {
+  // This effect updates the controlled form when `initialDoctor` changes.
+  // We intentionally call setState here to populate the edit form. The
+  // react-hooks/set-state-in-effect rule warns about cascading renders
+  // but in this component the update is deliberate and scoped to the
+  // `initialDoctor` prop change only.
       setForm({
         name: initialDoctor.name ?? "",
         email: initialDoctor.email ?? "",
         gender: initialDoctor.gender ?? "",
         password: "",
-        stateCodes: initialDoctor.states ?? [],
-        specialityCodes: initialDoctor.specialties ?? [],
       });
+
+      // fetch existing licenses for this doctor and pre-populate the grid
+      (async () => {
+        try {
+          const token = await auth.currentUser?.getIdToken();
+          if (!token) return;
+          const licList = await (await import('@/lib/admin/adminApi')).getDoctorLicenses(token, initialDoctor.id);
+
+          // group by stateCode
+          const map = new Map<string, string[]>();
+          for (const l of licList || []) {
+            const sc = (l.stateCode || '').toUpperCase();
+            const sp = (l.specialityCode || '').toUpperCase();
+            if (!map.has(sc)) map.set(sc, []);
+            if (!map.get(sc)!.includes(sp)) map.get(sc)!.push(sp);
+          }
+
+          const grouped = Array.from(map.entries()).map(([stateCode, specialityCodes]) => ({ stateCode, specialityCodes }));
+          if (grouped.length) setLicenses(grouped.map((g) => ({ stateCode: g.stateCode, specialityCodes: g.specialityCodes })));
+        } catch (err) {
+          console.error('Failed to load doctor licenses', err);
+        }
+      })();
     }
   }, [initialDoctor]);
 
-  function toggle(list: string[], value: string) {
-    return list.includes(value)
-      ? list.filter(v => v !== value)
-      : [...list, value];
-  }
-
   async function handleSubmit() {
-    if (!form.name || !form.email || !form.gender) {
-      alert("Fill all required fields");
+    if (!form.name || !form.email || !form.gender || !form.password) {
+      alert("All fields are required");
+      return;
+    }
+
+  // prevent duplicate submissions
+  if (isSubmitting) return;
+  setIsSubmitting(true);
+
+    const token = await auth.currentUser?.getIdToken();
+    if (!token) {
+      alert("Not authenticated");
       return;
     }
 
     try {
       if (initialDoctor) {
-        // update existing doctor
-        const updated = await apiFetch(`/api/admin/doctors/${initialDoctor.id}`, undefined, {
-          method: "PUT",
-          body: JSON.stringify(form),
-        });
-        if (onUpdated) onUpdated(updated as Doctor);
+        const updated = await apiFetch(
+          `/api/admin/doctors/${initialDoctor.id}`,
+          token,
+          {
+            method: "PUT",
+            body: JSON.stringify(form),
+          }
+        );
+        onUpdated?.(updated as Doctor);
       } else {
-        const created = await apiFetch("/api/admin/doctors", undefined, {
-          method: "POST",
-          body: JSON.stringify(form),
-        });
-        if (onCreated) onCreated(created as Doctor);
+        // create doctor via admin API
+  const created = (await createDoctor(token, { name: form.name, email: form.email, gender: form.gender, password: form.password, })) as Doctor;
+
+        // for each license entry, post one license record per speciality selected
+        for (const lic of licenses) {
+          if (!lic.stateCode) continue;
+          for (const spec of lic.specialityCodes) {
+            await addDoctorLicense(token, created.id, { stateCode: lic.stateCode, specialityCode: spec });
+          }
+        }
+
+        onCreated?.(created as Doctor);
+      }
+      onClose();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      // if backend returned 409 conflict, inform user that doctor exists
+      if (msg.includes("API 409") || msg.includes("409")) {
+        alert("Doctor already exists");
+      } else {
+        alert(msg || "Failed to save doctor");
       }
     } finally {
-      onClose();
+      setIsSubmitting(false);
     }
   }
 
-  if (loading) return null;
+  async function handleDeleteLicense(idx: number) {
+  const lic = licenses[idx];
+  // if unsaved (no licenseId), just remove locally
+  if (!lic.licenseId) {
+    setLicenses((prev) => prev.filter((_, i) => i !== idx));
+    return;
+  }
+
+  // saved license - deactivate via backend to persist removal
+  try {
+    const token = await auth.currentUser?.getIdToken();
+    if (!token) throw new Error("Not authenticated");
+
+    // call deactivate endpoint
+    await apiFetch(`/api/admin/doctor-licenses/${lic.licenseId}/deactivate`, token, {
+      method: "PATCH",
+    });
+
+    // on success, remove the license locally
+    setLicenses((prev) => prev.filter((_, i) => i !== idx));
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    alert(msg || "Failed to delete license");
+  }
+}
 
   return (
     <div className={styles['modal-overlay']}>
       <div className={styles['modal-container']}>
+        {/* Header */}
         <div className={styles['modal-header']}>
-          <h2>{initialDoctor ? "Edit Doctor" : "Add Doctor"}</h2>
-          <button onClick={onClose} aria-label="Close modal"><X /></button>
+          <h2 className={styles['modal-title']}>{initialDoctor ? "Edit Doctor" : "Add Doctor"}</h2>
+          <button onClick={onClose} aria-label="Close">✕</button>
         </div>
 
-        {/* BASIC INFO */}
-        <div className={styles['modal-section']}>
-          <div className={styles['modal-row-grid']}>
-            <input
-              className={styles['modal-input']}
-              placeholder="Doctor Name"
-              value={form.name}
-              onChange={e => setForm({ ...form, name: e.target.value })}
-            />
-            <input
-              className={styles['modal-input']}
-              placeholder="Email"
-              value={form.email}
-              onChange={e => setForm({ ...form, email: e.target.value })}
-            />
+        {/* Body (scrollable) */}
+        <div className={styles['modal-body']}>
+          {/* Form */}
+          <div className={styles['modal-section']}>
+            <div className={styles['modal-row-grid']} style={{ marginBottom: 12 }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: 6 }}>Full Name *</label>
+                <input
+                  className={styles['modal-input']}
+                  placeholder="Doctor Name"
+                  value={form.name}
+                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                />
+              </div>
 
-            <input
-              type="password"
-              className={styles['modal-input']}
-              placeholder="Create secure password for doctor"
-              value={form.password}
-              onChange={e => setForm({ ...form, password: e.target.value })}
-            />
-
-            <select
-              className={styles['modal-input']}
-              value={form.gender}
-              onChange={e => setForm({ ...form, gender: e.target.value })}
-            >
-              <option value="">Select gender</option>
-              <option value="MALE">Male</option>
-              <option value="FEMALE">Female</option>
-              <option value="OTHER">Other</option>
-            </select>
-          </div>
-        </div>
-
-        {/* STATES: dropdown + added state chips + nested specialties container */}
-        <div className={styles['modal-section']}>
-          <div className={styles['state-container']}>
-            <h4>State</h4>
-            <div className={styles['state-row']}>
-              <select
-                className={styles['state-select']}
-                value={selectedState}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setSelectedState(val);
-                  // immediately add the selected state to the form and clear the select
-                  if (val && !form.stateCodes.includes(val)) {
-                    setForm({ ...form, stateCodes: [...form.stateCodes, val] });
-                    setSelectedState("");
-                  }
-                }}
-              >
-                <option value="">Select state</option>
-                {states.map(s => (
-                  <option key={s.code} value={s.code}>{s.name}</option>
-                ))}
-              </select>
-            </div>
-
-            <div style={{ marginBottom: '0.75rem' }}>
-              {form.stateCodes.map(code => {
-                const s = states.find(st => st.code === code);
-                if (!s) return null;
-                return (
-                  <span key={code} className={styles['state-chip']} style={{ marginRight: 8 }}>
-                    {s.name}
-                  </span>
-                );
-              })}
-            </div>
-
-            {/* nested specialties container inside the state block */}
-            <div>
-              <h4>Specialities</h4>
-              <div className={styles['specialty-box']}>
-                <div className={styles['doctor-specialtyGrid']}>
-                  {specialities.map(sp => (
-                    <label key={sp.code} className={styles['modal-checkbox']}>
-                      <input
-                        type="checkbox"
-                        checked={form.specialityCodes.includes(sp.code)}
-                        onChange={() =>
-                          setForm({
-                            ...form,
-                            specialityCodes: toggle(form.specialityCodes, sp.code),
-                          })
-                        }
-                      />
-                      {sp.name}
-                    </label>
-                  ))}
-                </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: 6 }}>Email *</label>
+                <input
+                  className={styles['modal-input']}
+                  placeholder="Email"
+                  value={form.email}
+                  disabled={!!initialDoctor} 
+                  onChange={(e) => setForm({ ...form, email: e.target.value })}
+                />
               </div>
             </div>
-          </div>
-        </div>
 
-        <div className={styles['modal-footer']}>
-          <button className={styles['secondaryBtn']} onClick={onClose}>
+                   {!initialDoctor && (
+                     <div style={{ marginBottom: 12 }}>
+                       <label style={{ display: 'block', marginBottom: 6 }}>Password *</label>
+                       <input
+                         className={styles['modal-input']}
+                         placeholder="Password"
+                         type="password"
+                         value={form.password}
+                         onChange={(e) => setForm({ ...form, password: e.target.value })}
+                       />
+                     </div>
+                   )}
+
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ display: 'block', marginBottom: 6 }}>Gender *</label>
+              <select
+                className={styles['modal-input']}
+                value={form.gender}
+                onChange={(e) => setForm({ ...form, gender: e.target.value })}
+                style={{ width: '100%' }}
+              >
+                <option value="">Select gender</option>
+                <option value="MALE">Male</option>
+                <option value="FEMALE">Female</option>
+                <option value="OTHER">Other</option>
+              </select>
+            </div>
+          </div>
+
+          {/* State licenses section */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <h4 style={{ margin: 0 }}>State Licenses *</h4>
+            <button className={styles.primaryBtn} onClick={addStateLicense}>+ Add State</button>
+          </div>
+
+          <div className={styles['facility-info']}>
+            <strong>Example:</strong>
+            <div style={{ marginTop: 6 }}>
+              Virginia license with multiple specialties like Cardiology and General Practice
+            </div>
+          </div>
+
+          <div>
+            {licenses.map((lic, idx) => (
+              <div key={idx} className={styles['state-container']} style={{ position: 'relative' }}>
+                {licenses.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteLicense(idx)}
+                    aria-label="Delete license"
+                    style={{
+                      position: 'absolute',
+                      right: 12,
+                      top: 12,
+                      background: 'transparent',
+                      border: 'none',
+                      cursor: 'pointer',
+                      padding: 6,
+                    }}
+                  >
+                    <Trash2 color="#ef4444" size={16} />
+                  </button>
+                )}
+                <div style={{ marginBottom: 8 }}>
+                  <label style={{ display: 'block', marginBottom: 6 }}>State *</label>
+                  <select
+                    className={styles['state-select']}
+                    value={lic.stateCode}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setLicenses((prev) => prev.map((p, i) => (i === idx ? { ...p, stateCode: v } : p)));
+                    }}
+                  >
+                    <option value="">Select state</option>
+                    {states.map((s) => (
+                      <option key={s.code} value={s.code}>{s.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', marginBottom: 8 }}>Specialties * (select multiple)</label>
+                  <div className={styles['specialty-box']}>
+                    <div className={styles['modal-grid']}>
+                      {specialities.map((sp) => (
+                        <label key={sp.code} className={styles['modal-checkbox']}>
+                          <input
+                            type="checkbox"
+                            checked={lic.specialityCodes.includes(sp.code)}
+                            onChange={() => toggleSpeciality(idx, sp.code)}
+                          />
+                          {sp.name}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+  </div>
+
+  {/* Footer */}
+  <div className={styles['modal-footer']}>
+          <button className={styles.secondaryBtn} onClick={onClose}>
             Cancel
           </button>
-          <button className={styles['primaryBtn']} onClick={handleSubmit}>
-            Create Doctor
+          <button className={styles.primaryBtn} onClick={handleSubmit}>
+            {initialDoctor ? "Save Changes" : "Create Doctor"}
           </button>
         </div>
       </div>

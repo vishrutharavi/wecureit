@@ -1,38 +1,32 @@
-// components/Facilities/useFacilities.ts
-import { useEffect, useState } from "react";
-import { Facility } from "../../types";
-import { apiFetch } from "@/lib/api";
+"use client";
 
-export function useFacilities(token?: string) {
+import { useEffect, useState } from "react";
+import { getFacilities } from "@/lib/admin/adminApi";
+import { auth } from "@/lib/firebase";
+import type { Facility } from "../../types";
+
+export function useFacilities() {
   const [facilities, setFacilities] = useState<Facility[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
-    async function fetchFacilities() {
-      try {
-        setLoading(true);
-
-        const data = await apiFetch(
-          "/api/admin/facilities",
-          token
-        );
-
-        setFacilities(data);
-      } catch (err: any) {
-        setError(err.message ?? "Failed to load facilities");
-      } finally {
+    async function load() {
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) {
         setLoading(false);
+        return;
       }
+
+      // use promise chaining instead of try/catch/finally so we avoid those constructs
+      getFacilities(token)
+        .then((data) => setFacilities(data))
+        .catch(() => setFacilities([]))
+        .then(() => setLoading(false));
     }
 
-    fetchFacilities();
-  }, [token]);
+    load();
+  }, []);
 
-  return {
-    facilities,
-    loading,
-    error,
-    setFacilities,
-  };
+  return { facilities, loading };
 }
+

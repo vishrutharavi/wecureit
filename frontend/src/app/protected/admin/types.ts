@@ -35,6 +35,7 @@ export type DoctorCreateRequest = {
   name: string;
   email: string;
   gender: string;
+  password: string;
   stateCodes: string[];
   specialityCodes: string[];
 };

@@ -12,7 +12,12 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <div className="app-root">
+          <main className="app-content">{children}</main>
+          <footer className="site-footer">© 2025 WeCureIT. All rights reserved.</footer>
+        </div>
+      </body>
     </html>
   );
 }
