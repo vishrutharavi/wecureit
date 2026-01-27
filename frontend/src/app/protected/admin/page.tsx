@@ -10,6 +10,7 @@ import AddDoctorModal from "./components/Doctors/AddDoctorModal";
 import AddFacilityModal from "./components/Facilities/AddFacilityModal";
 import type { Doctor } from "./types";
 import { useDoctors } from "./components/Doctors/useDoctors";
+import { useDoctorMeta } from "./components/Doctors/useDoctors";
 import { auth } from "@/lib/firebase";
 import { deactivateDoctor } from "@/lib/admin/adminApi";
 
@@ -21,6 +22,7 @@ export default function AdminPage() {
 
   // fetch doctors and facilities from hooks
   const { doctors: fetchedDoctors, loading: doctorsLoading } = useDoctors();
+  const { states: metaStates, specialities: metaSpecialities } = useDoctorMeta();
 
   // local only for newly created/updated doctors so UI can optimistically show changes
   const [localAddedDoctors, setLocalAddedDoctors] = useState<Doctor[]>([]);
@@ -33,6 +35,11 @@ export default function AdminPage() {
   const [deletedDoctorIds, setDeletedDoctorIds] = useState<Set<string>>(new Set());
 
   const visibleDoctors = doctors.filter((d) => !deletedDoctorIds.has(d.id));
+
+  // always show doctors in alphabetical order by name
+  const sortedVisibleDoctors = [...visibleDoctors].sort((a, b) =>
+    (a.name || "").localeCompare(b.name || "", undefined, { sensitivity: "base" })
+  );
 
   async function handleDelete(doctor: Doctor) {
     const user = auth.currentUser;
@@ -98,7 +105,9 @@ export default function AdminPage() {
           {tab === "doctors" ? (
             !doctorsLoading ? (
               <DoctorGrid
-                doctors={visibleDoctors}
+                doctors={sortedVisibleDoctors}
+                metaStates={metaStates}
+                metaSpecialities={metaSpecialities}
                 onEdit={(d) => {
                   setEditingDoctor(d);
                   setShowAdd(true);

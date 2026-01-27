@@ -10,5 +10,6 @@ import com.wecureit.entity.Doctor;
 
 public interface DoctorRepository extends JpaRepository<Doctor, UUID> {
     Optional<Doctor> findByFirebaseUid(String firebaseUid);
+    Optional<Doctor> findByEmail(String email);
     List<Doctor> findByIsActiveTrue();
 }

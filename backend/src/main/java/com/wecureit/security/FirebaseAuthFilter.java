@@ -88,6 +88,21 @@ public class FirebaseAuthFilter extends OncePerRequestFilter {
                 }
             }
 
+            // Additional fallback: if still missing, try resolving by email present in the token
+            if (role == null || role.isBlank()) {
+                String email = decodedToken.getEmail();
+                if (email != null && !email.isBlank()) {
+                    // check admin by email
+                    if (adminRepository.findByEmail(email).isPresent()) {
+                        role = "ADMIN";
+                    } else if (doctorRepository.findByEmail(email).isPresent()) {
+                        role = "DOCTOR";
+                    } else if (patientRepository.findByEmail(email).isPresent()) {
+                        role = "PATIENT";
+                    }
+                }
+            }
+
             if (role == null || role.isBlank()) {
                 String uid = decodedToken.getUid();
                 String msg = "No role claim present and no DB mapping for uid=" + uid;

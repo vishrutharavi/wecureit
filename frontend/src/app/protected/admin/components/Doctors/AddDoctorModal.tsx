@@ -36,6 +36,10 @@ export default function AddDoctorModal({
   const [licenses, setLicenses] = useState<Array<{ licenseId?: string; stateCode: string; specialityCodes: string[] }>>([
     { stateCode: "", specialityCodes: [] },
   ]);
+  // map of stateCode -> array of licenseIds that already exist on the server
+  const [originalLicenseMap, setOriginalLicenseMap] = useState<Record<string, string[]>>({});
+  // set of existing pairs 'STATE|SPEC' to help detect new additions
+  const [originalPairs, setOriginalPairs] = useState<Set<string>>(new Set());
 
   function addStateLicense() {
     setLicenses((s) => [...s, { stateCode: "", specialityCodes: [] }]);
@@ -73,17 +77,27 @@ export default function AddDoctorModal({
           if (!token) return;
           const licList = await (await import('@/lib/admin/adminApi')).getDoctorLicenses(token, initialDoctor.id);
 
-          // group by stateCode
+          // group by stateCode and remember license ids per speciality
           const map = new Map<string, string[]>();
+          const idMap: Record<string, string[]> = {};
+          const pairs = new Set<string>();
           for (const l of licList || []) {
             const sc = (l.stateCode || '').toUpperCase();
             const sp = (l.specialityCode || '').toUpperCase();
+            const lid = l.id;
             if (!map.has(sc)) map.set(sc, []);
             if (!map.get(sc)!.includes(sp)) map.get(sc)!.push(sp);
+
+            if (!idMap[sc]) idMap[sc] = [];
+            if (lid && !idMap[sc].includes(lid)) idMap[sc].push(lid);
+
+            pairs.add(`${sc}|${sp}`);
           }
 
           const grouped = Array.from(map.entries()).map(([stateCode, specialityCodes]) => ({ stateCode, specialityCodes }));
           if (grouped.length) setLicenses(grouped.map((g) => ({ stateCode: g.stateCode, specialityCodes: g.specialityCodes })));
+          setOriginalLicenseMap(idMap);
+          setOriginalPairs(pairs);
         } catch (err) {
           console.error('Failed to load doctor licenses', err);
         }
@@ -92,7 +106,8 @@ export default function AddDoctorModal({
   }, [initialDoctor]);
 
   async function handleSubmit() {
-    if (!form.name || !form.email || !form.gender || !form.password) {
+    // password is only required when creating a new doctor
+    if (!form.name || !form.email || !form.gender || (!initialDoctor && !form.password)) {
       alert("All fields are required");
       return;
     }
@@ -110,13 +125,32 @@ export default function AddDoctorModal({
     try {
       if (initialDoctor) {
         const updated = await apiFetch(
-          `/api/admin/doctors/${initialDoctor.id}`,
+          `/api/admin/doctors/${initialDoctor.id}/update`,
           token,
           {
             method: "PUT",
-            body: JSON.stringify(form),
+            body: JSON.stringify({ name: form.name, gender: form.gender }),
           }
         );
+
+        // after updating doctor core fields, ensure any newly-added licenses are created
+        for (const lic of licenses) {
+          if (!lic.stateCode) continue;
+          for (const spec of lic.specialityCodes) {
+            const pair = `${lic.stateCode.toUpperCase()}|${spec.toUpperCase()}`;
+            if (!originalPairs.has(pair)) {
+              // create missing license on server
+              try {
+                await addDoctorLicense(token, initialDoctor.id, { stateCode: lic.stateCode, specialityCode: spec });
+                // mark created so we don't duplicate if called again
+                originalPairs.add(pair);
+              } catch (err) {
+                console.error("Failed to add license", err);
+              }
+            }
+          }
+        }
+
         onUpdated?.(updated as Doctor);
       } else {
         // create doctor via admin API
@@ -148,24 +182,30 @@ export default function AddDoctorModal({
 
   async function handleDeleteLicense(idx: number) {
   const lic = licenses[idx];
-  // if unsaved (no licenseId), just remove locally
-  if (!lic.licenseId) {
+  // if there are saved license ids for this state, deactivate them all; otherwise just remove locally
+  const state = lic.stateCode?.toUpperCase() ?? "";
+  const serverIds = originalLicenseMap[state] ?? [];
+  if (serverIds.length === 0) {
     setLicenses((prev) => prev.filter((_, i) => i !== idx));
     return;
   }
 
-  // saved license - deactivate via backend to persist removal
   try {
     const token = await auth.currentUser?.getIdToken();
     if (!token) throw new Error("Not authenticated");
 
-    // call deactivate endpoint
-    await apiFetch(`/api/admin/doctor-licenses/${lic.licenseId}/deactivate`, token, {
-      method: "PATCH",
-    });
+    // deactivate each saved license id for this state
+    for (const id of serverIds) {
+      await apiFetch(`/api/admin/doctor-licenses/${id}/deactivate`, token, { method: "PATCH" });
+    }
 
-    // on success, remove the license locally
+    // on success, remove the state row locally and clear original mapping
     setLicenses((prev) => prev.filter((_, i) => i !== idx));
+    setOriginalLicenseMap((prev) => {
+      const copy = { ...prev };
+      delete copy[state];
+      return copy;
+    });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     alert(msg || "Failed to delete license");
@@ -191,8 +231,9 @@ export default function AddDoctorModal({
                 <input
                   className={styles['modal-input']}
                   placeholder="Doctor Name"
-                  value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                    value={form.name}
+                    disabled={!!initialDoctor}
+                    onChange={(e) => setForm({ ...form, name: e.target.value })}
                 />
               </div>
 
@@ -202,7 +243,7 @@ export default function AddDoctorModal({
                   className={styles['modal-input']}
                   placeholder="Email"
                   value={form.email}
-                  disabled={!!initialDoctor} 
+                  disabled={!!initialDoctor}
                   onChange={(e) => setForm({ ...form, email: e.target.value })}
                 />
               </div>
@@ -226,6 +267,7 @@ export default function AddDoctorModal({
               <select
                 className={styles['modal-input']}
                 value={form.gender}
+                disabled={!!initialDoctor}
                 onChange={(e) => setForm({ ...form, gender: e.target.value })}
                 style={{ width: '100%' }}
               >

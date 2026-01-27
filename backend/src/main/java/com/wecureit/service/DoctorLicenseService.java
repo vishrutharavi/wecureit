@@ -1,20 +1,28 @@
 package com.wecureit.service;
 
+import java.util.List;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.wecureit.dto.response.DoctorLicenseResponse;
 import com.wecureit.entity.DoctorLicense;
 import com.wecureit.repository.DoctorLicenseRepository;
+import com.wecureit.repository.SpecialityRepository;
+import com.wecureit.repository.StateRepository;
 
 @Service
 public class DoctorLicenseService {
 
     private final DoctorLicenseRepository repo;
+    private final StateRepository stateRepository;
+    private final SpecialityRepository specialityRepository;
 
-    public DoctorLicenseService(DoctorLicenseRepository repo) {
+    public DoctorLicenseService(DoctorLicenseRepository repo, StateRepository stateRepository, SpecialityRepository specialityRepository) {
         this.repo = repo;
+        this.stateRepository = stateRepository;
+        this.specialityRepository = specialityRepository;
     }
 
     @Transactional
@@ -50,8 +58,13 @@ public class DoctorLicenseService {
         repo.save(license);
     }
 
-    public java.util.List<DoctorLicense> getActiveLicensesForDoctor(UUID doctorId) {
-        return repo.findByDoctorIdAndIsActiveTrue(doctorId);
+    public List<DoctorLicenseResponse> getActiveLicensesForDoctor(UUID doctorId) {
+        List<DoctorLicense> rows = repo.findByDoctorIdAndIsActiveTrue(doctorId);
+        return rows.stream().map(r -> {
+            String stateName = stateRepository.findById(r.getStateCode()).map(s -> s.getStateName()).orElse(r.getStateCode());
+            String specialityName = specialityRepository.findById(r.getSpecialityCode()).map(s -> s.getSpecialityName()).orElse(r.getSpecialityCode());
+            return new DoctorLicenseResponse(r.getId(), r.getDoctorId(), r.getStateCode(), r.getSpecialityCode(), r.isActive(), stateName, specialityName);
+        }).toList();
     }
 }
 

@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -91,5 +92,19 @@ public class AdminDoctorController {
         d.setIsActive(false);
         doctorRepo.save(d);
         return ResponseEntity.ok(Map.of("message", "Doctor deactivated"));
+    }
+
+    @PutMapping({"/{doctorId}", "/{doctorId}/update"})
+    public ResponseEntity<?> updateDoctor(@PathVariable UUID doctorId, @RequestBody com.wecureit.dto.request.UpdateDoctorRequest req) {
+        Optional<Doctor> maybe = doctorRepo.findById(doctorId);
+        if (maybe.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("message", "Doctor not found"));
+        }
+
+        Doctor d = maybe.get();
+        if (req.getName() != null) d.setName(req.getName());
+        if (req.getGender() != null) d.setGender(req.getGender());
+        doctorRepo.save(d);
+        return ResponseEntity.ok(d);
     }
 }
