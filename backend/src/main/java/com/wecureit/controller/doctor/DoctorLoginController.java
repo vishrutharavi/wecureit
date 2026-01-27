@@ -7,10 +7,11 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/doctor")
-public class DoctorController {
+public class DoctorLoginController {
     
     @GetMapping("/me")
     public String me(Authentication authentication) {
         return "Hello doctor with UID: " + authentication.getName();
     }
+
 }

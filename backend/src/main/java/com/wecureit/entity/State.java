@@ -2,35 +2,28 @@ package com.wecureit.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
-
 
 @Entity
 @Table(name = "state")
 public class State {
-	@Id
-	@GeneratedValue(strategy = GenerationType.IDENTITY)
-	private Long id;
 
-	@Column(nullable = false, unique = true)
-	private String name;
+    @Id
+    @Column(name = "state_code", length = 2)
+    private String stateCode;
 
-	public Long getId() {
-		return id;
-	}
+    @Column(name = "state_name", nullable = false, unique = true)
+    private String stateName;
 
-	public void setId(Long id) {
-		this.id = id;
-	}
+    @Column(name = "id", insertable = false, updatable = false)
+    private Long id;
 
-	public String getName() {
-		return name;
-	}
+    public String getStateCode() { return stateCode; }
+    public void setStateCode(String stateCode) { this.stateCode = stateCode; }
 
-	public void setName(String name) {
-		this.name = name;
-	}
+    public String getStateName() { return stateName; }
+    public void setStateName(String stateName) { this.stateName = stateName; }
+
+    public Long getId() { return id; }
 }

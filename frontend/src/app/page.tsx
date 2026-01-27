@@ -69,10 +69,7 @@ export default function HomePage() {
         <Lock />
       </button>
 
-      {/* Footer */}
-      <footer className={styles.footer}>
-        © 2025 WeCureIT. All rights reserved.
-      </footer>
+      {/* Footer moved to RootLayout (persistent footer for all pages) */}
     </div>
   );
 }

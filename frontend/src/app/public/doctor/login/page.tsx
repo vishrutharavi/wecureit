@@ -6,6 +6,7 @@ import { apiFetch } from "@/lib/api";
 import styles from "./login.module.scss";
 import { Stethoscope } from "lucide-react";
 import { useRouter } from "next/navigation";
+import type { User as FirebaseUser } from "firebase/auth";
 
 
 export default function DoctorLogin() {
@@ -13,12 +14,21 @@ export default function DoctorLogin() {
   const [password, setPassword] = useState("");
 
   async function handleLogin() {
-    const token = await login(email, password);
+    try {
+      const user = await login(email, password);
+      const idToken = await (user as FirebaseUser).getIdToken();
 
-    const me = await apiFetch("/api/doctor/me", token);
-    console.log(me);
+      const me = await apiFetch("/api/doctor/me", idToken);
+      console.log(me);
 
-    alert("Logged in");
+      alert("Logged in successfully");
+      // navigate to doctor dashboard
+      window.location.href = "/doctor";
+    } catch (err: unknown) {
+      console.error("Login failed", err);
+      const msg = err instanceof Error ? err.message : String(err);
+      alert("Login failed: " + msg);
+    }
   }
 
   const router = useRouter();
