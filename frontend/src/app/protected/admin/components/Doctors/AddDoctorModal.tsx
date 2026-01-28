@@ -4,7 +4,7 @@ import styles from "../../admin.module.scss";
 import { useState, useEffect } from "react";
 import { auth } from "@/lib/firebase";
 import { apiFetch } from "@/lib/api";
-import { createDoctor, addDoctorLicense } from "@/lib/admin/adminApi";
+import { createDoctor, addDoctorLicense, getDoctors } from "@/lib/admin/adminApi";
 import { useDoctorMeta } from "./useDoctors";
 import type { Doctor } from "../../types";
 import { Trash2 } from "lucide-react";
@@ -112,6 +112,25 @@ export default function AddDoctorModal({
       return;
     }
 
+    // when creating a new doctor, require at least one license with state and at least one speciality
+    if (!initialDoctor) {
+      const hasAnyLicense = licenses.some((l) => (l.stateCode || '').trim() !== '' && (l.specialityCodes || []).length > 0);
+      if (!hasAnyLicense) {
+        alert('Please add at least one state license with one or more specialties before creating a doctor');
+        return;
+      }
+
+      // additionally, ensure there are no partially filled license rows (state without specialties or specialties without state)
+      for (const l of licenses) {
+        const hasState = (l.stateCode || '').trim() !== '';
+        const hasSpecs = (l.specialityCodes || []).length > 0;
+        if ((hasState && !hasSpecs) || (!hasState && hasSpecs)) {
+          alert('Please ensure each license row has both a State and at least one Specialty, or remove incomplete rows');
+          return;
+        }
+      }
+    }
+
   // prevent duplicate submissions
   if (isSubmitting) return;
   setIsSubmitting(true);
@@ -154,7 +173,21 @@ export default function AddDoctorModal({
         onUpdated?.(updated as Doctor);
       } else {
         // create doctor via admin API
-  const created = (await createDoctor(token, { name: form.name, email: form.email, gender: form.gender, password: form.password, })) as Doctor;
+        // check duplicates by email (active doctors only). backend /api/admin/doctors returns only active doctors.
+        try {
+          const existing = (await getDoctors(token)) as Doctor[];
+          const emailNorm = form.email.trim().toLowerCase();
+          const duplicate = existing.some((d) => (d.email || '').trim().toLowerCase() === emailNorm);
+          if (duplicate) {
+            alert('A doctor with this email already exists. Please check active doctors before creating.');
+            setIsSubmitting(false);
+            return;
+          }
+        } catch (err) {
+          console.warn('Failed to validate existing doctors before create, proceeding', err);
+        }
+
+        const created = (await createDoctor(token, { name: form.name, email: form.email, gender: form.gender, password: form.password, })) as Doctor;
 
         // for each license entry, post one license record per speciality selected
         for (const lic of licenses) {

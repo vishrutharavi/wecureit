@@ -164,6 +164,9 @@
   line-height: 1.2;
 }
 
+/* non-editable room number display used in AddFacilityModal to avoid showing an input */
+
+
 /* placeholder color for inputs to match the design */
 .modal-input::placeholder {
   color: #9ca3af; /* match address/facility placeholder tone */
@@ -363,6 +366,10 @@
   padding: 1rem;
   margin-bottom: 1rem;
   background: white;
+  box-sizing: border-box;
+  /* allow children (capsules) to remain visible so their rounded corners are not clipped */
+  overflow: visible;
+  padding-right: 8px; /* small inner padding so chips don't butt against the rounded edge */
 }
 
 .facility-specialtyGrid {
@@ -380,6 +387,10 @@
   display: flex;
   gap: 0.4rem;
   align-items: center;
+  /* allow chip text to wrap when it is long so the pill grows vertically */
+  white-space: normal;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 /* state-container (white panel) */
@@ -418,7 +429,7 @@
 .itemCardTitle {
   font-size: 1.125rem;
   font-weight: 700;
-  margin: 0 0 0.25rem 0;
+  margin: 0 0 0.5rem 0;
 }
 
 .itemCardEmail {
@@ -450,3 +461,146 @@
   color: #dc2626;
   cursor: pointer;
 }
+
+/* Additional facility card polish (matching provided design) */
+.facilityHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.facilityActions {
+  display: flex;
+  gap: 8px;
+}
+.iconBtn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  border-radius: 8px;
+}
+
+.locationRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #64748b;
+  font-size: 0.95rem;
+  margin-top: 6px;
+}
+.locationIcon { flex: 0 0 16px; }
+
+.facilityAddress { margin-top: 12px; }
+.addressLabel { color: #374151; font-weight: 500; margin-bottom: 4px; }
+.addressText { color: #111827; font-size: 0.95rem; margin-bottom: 8px; }
+
+.facilityMetaRow { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+.totalRoomsLabel { color: #374151; font-weight: 500; }
+.roomsCountBadge {
+  background: #dcfce7;
+  color: #166534;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.supportedSpecialties { margin-top: 8px; }
+.supportedLabel { color: #374151; font-weight: 500; margin-bottom: 6px; }
+.specialtyChips { display: flex; flex-wrap: wrap; gap: 8px; }
+.specialtyChips {
+  /* ensure chips wrap and never overflow the card */
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-width: 100%;
+  box-sizing: border-box;
+  word-break: break-word;
+}
+.specialtyChip {
+  /* legacy default - keep for backwards compatibility */
+  background: #eef2ff;
+  color: #3730a3;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 0.88rem;
+  white-space: nowrap;
+}
+
+/* facility-level specialty capsule: red themed */
+.facilitySpecialtyChip {
+  background: #fee2e2; /* pale red */
+  color: #7f1d1d; /* dark red text */
+  padding: 8px 14px;
+  border-radius: 999px;
+  font-size: 0.92rem;
+  border: 1px solid #fecaca;
+  /* allow long names to wrap inside the capsule and expand vertically */
+  white-space: normal;
+  display: inline-flex;
+  align-items: center;
+  text-align: center;
+  word-break: break-word;
+  max-width: 100%;
+  line-height: 1.1;
+}
+
+/* room-level specialty capsule (white on room red box) */
+.roomSpecialtyChip {
+  background: #ffffff;
+  color: #111827; /* use black/dark text inside room chips */
+  padding: 8px 12px; /* a little extra horizontal padding to avoid tight wrap */
+  border-radius: 999px;
+  font-size: 0.9rem;
+  border: 1px solid #fecaca;
+  /* allow capsule to grow vertically when text is long */
+  white-space: normal;
+  display: inline-flex;
+  align-items: center;
+  text-align: center;
+  word-break: break-word;
+  max-width: 100%;
+  line-height: 1.1;
+}
+
+.cardDivider { border: none; border-top: 1px solid #e6eef6; margin: 8px 0; }
+
+/* Room details heading - use red to match facility/license styling */
+.roomDetailsTitle { color: #7f1d1d; font-weight: 700; margin-bottom: 8px; }
+.roomDetails { display: flex; flex-direction: column; gap: 8px; }
+
+.roomRow {
+  /* match doctor licenses box: pale red background with roomy padding */
+  background: #fee2e2; /* same as facility info panels */
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  border: 1px solid #fecaca;
+}
+.roomLabel { min-width: 90px; color: #7f1d1d; font-weight: 700; }
+
+.roomLabel { min-width: 90px; color: #7f1d1d; font-weight: 700; flex: 0 0 90px; }
+.roomText { color: #7f1d1d; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; flex: 1 1 auto; min-width: 0; max-width: calc(100% - 110px); }
+
+/* make sure flex children can shrink inside the room container
+   so long chip elements don't overflow the rounded box */
+.roomText, .facility-room, .roomRow {
+  min-width: 0;
+}
+
+.roomRow {
+  /* allow chips to remain visible; ensure roomy inner padding */
+  overflow: visible;
+  padding-right: 8px;
+}
+
+.noSpecialty { color: #94a3b8; font-size: 0.9rem; }
+.noRooms { color: #94a3b8; font-size: 0.95rem; }

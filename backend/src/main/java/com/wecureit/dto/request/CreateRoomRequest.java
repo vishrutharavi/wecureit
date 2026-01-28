@@ -11,7 +11,7 @@ public class CreateRoomRequest {
     private UUID facilityId;
 
     // roomName is optional; if omitted the service will default it to roomNumber
-    private String roomName;
+    // roomName removed — DB no longer stores a separate room_name column
 
     @NotBlank
     private String roomNumber;
@@ -27,13 +27,7 @@ public class CreateRoomRequest {
         this.facilityId = facilityId;
     }
 
-    public String getRoomName() {
-        return roomName;
-    }
-
-    public void setRoomName(String roomName) {
-        this.roomName = roomName;
-    }
+    // roomName getters/setters removed
 
     public String getRoomNumber() {
         return roomNumber;
