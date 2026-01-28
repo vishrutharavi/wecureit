@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import styles from "./admin.module.scss";
 import AdminHeader from "./components/AdminHeader";
 import AdminTabs from "./components/AdminTabs";
@@ -32,6 +33,21 @@ export default function AdminPage() {
       // ignore
     }
   }, []);
+
+  const router = useRouter();
+
+  // redirect to admin login if not authenticated
+  useEffect(() => {
+    let unsub = () => {};
+    try {
+      unsub = auth.onAuthStateChanged((user) => {
+        if (!user) {
+          try { router.push('/public/admin/login'); } catch {}
+        }
+      });
+    } catch {}
+    return () => { try { unsub(); } catch {} };
+  }, [router]);
 
   // keep URL in sync when tab changes so refresh restores the same tab
   useEffect(() => {
@@ -119,10 +135,10 @@ export default function AdminPage() {
             </div>
 
               <button
-                className={styles.primaryBtn}
+                className={styles.viewAppointmentsBtn}
                 data-testid="admin-add-btn"
                 onClick={() => {
-                  setEditingDoctor(null); 
+                  setEditingDoctor(null);
                   setShowAdd(true);
       }}
               >

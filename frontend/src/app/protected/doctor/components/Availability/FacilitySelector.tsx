@@ -20,6 +20,20 @@ type Props = {
 export default function FacilitySelector({ facilities, selectedFacility, setSelectedFacility }: Props) {
   return (
     <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+        <div style={{ color: '#666' }}>Choose a facility</div>
+        <div>
+          <button
+            type="button"
+            className={styles.secondaryBtn}
+            onClick={() => setSelectedFacility(null)}
+            disabled={selectedFacility === null}
+            aria-label="Clear facility selection"
+          >
+            Clear selection
+          </button>
+        </div>
+      </div>
       <div className={styles.facilityGrid}>
         {facilities.map((f) => (
           <button

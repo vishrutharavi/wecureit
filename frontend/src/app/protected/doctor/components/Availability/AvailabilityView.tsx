@@ -5,12 +5,15 @@ import { useState } from "react";
 import DatePickerGrid from "./DatePickerGrid";
 import FacilitySelector from "./FacilitySelector";
 import TimeRangePicker from "./TimeRangePicker";
+import ViewAvailabilityModal from "./ViewAvailabilityModal";
+import AvailabilitySummary from "./AvailabilitySummary";
 
 export default function AvailabilityView() {
-  const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().slice(0,10));
+  // require explicit user selection for date/start/end so Add Availability stays disabled until all fields are chosen
+  const [selectedDate, setSelectedDate] = useState<string>("");
   const [selectedFacility, setSelectedFacility] = useState<string | null>(null);
-  const [startTime, setStartTime] = useState("09:00");
-  const [endTime, setEndTime] = useState("17:00");
+  const [startTime, setStartTime] = useState("");
+  const [endTime, setEndTime] = useState("");
   const [weekIndex, setWeekIndex] = useState<number>(1);
 
   const parseMinutes = (t: string) => {
@@ -21,6 +24,7 @@ export default function AvailabilityView() {
   const totalMinutes = Math.max(0, parseMinutes(endTime) - parseMinutes(startTime));
   const totalHours = +(totalMinutes / 60).toFixed(2);
   const minHoursSatisfied = totalHours >= 4;
+  const canAdd = !!selectedDate && !!selectedFacility && !!startTime && !!endTime && minHoursSatisfied;
 
   const facilities = [
     { id: "1", name: "Downtown Medical Center", city: "Washington DC", rooms: 12 },
@@ -28,18 +32,47 @@ export default function AvailabilityView() {
     { id: "3", name: "Bethesda Health Center", city: "Bethesda", rooms: 9 },
   ];
 
+  // pending (unsaved) availabilities shown in the summary
+  const [pending, setPending] = useState<Array<{ id: string; date: string; facilityId: string | null; facilityName: string; start: string; end: string; hours: number }>>([]);
+  // saved availabilities (persisted) — local state until backend wiring
+  const [saved, setSaved] = useState<typeof pending>([]);
+  const [showSavedModal, setShowSavedModal] = useState(false);
+  const [hideSavedInline, setHideSavedInline] = useState(false);
+  
+  const handleSaveSchedule = () => {
+    setSaved((s) => [...s, ...pending]);
+    setPending([]);
+    setShowSavedModal(true);
+    // hide the inline saved availabilities container after saving (we show modal instead)
+    setHideSavedInline(true);
+  };
+
+  const handleRemovePending = (id: string) => setPending(prev => prev.filter(x => x.id !== id));
+
+  // Handler for date selection: reset facility and times when user picks a different date.
+  // Using an explicit handler avoids calling setState synchronously inside a useEffect,
+  // which can trigger lint warnings about cascading updates.
+  const handleSelectDate = (iso: string) => {
+    setSelectedDate(iso);
+    setSelectedFacility(null);
+    // require user to explicitly pick start/end after changing date
+    setStartTime("");
+    setEndTime("");
+  };
+
   return (
-    <div className={styles.scheduleContainer}>
+    <>
+    <div className={styles.scheduleContainer} style={{ position: 'relative' }}>
       <h2>Set Your Availability</h2>
       <p className={styles.subtitle}>
-        Choose date, facility, and working hours. Minimum 4 hours per day.
+        Choose date, facility, and working hours.
       </p>
 
       <section className={styles.section}>
         <h4>1. Select Date</h4>
         <DatePickerGrid
           selectedDate={selectedDate}
-          setSelectedDate={setSelectedDate}
+          setSelectedDate={handleSelectDate}
           weekIndex={weekIndex}
           setWeekIndex={setWeekIndex}
         />
@@ -66,25 +99,49 @@ export default function AvailabilityView() {
         {/* total hours box removed per design */}
       </section>
 
-      <div style={{ marginTop: 12 }}>
-        {!minHoursSatisfied && (
-          <div className={styles.warningBox} role="alert">Minimum 4 hours required to add availability ({totalHours} hrs)</div>
+      
+        {(startTime && endTime && !minHoursSatisfied) && (
+          <div className={styles.warningBox} role="alert">Minimum 4 hours required to add availability</div>
         )}
 
         <div className={styles.actionsRight}>
           <button
-            className={styles.primaryBtn}
-            disabled={!minHoursSatisfied}
-            title={!minHoursSatisfied ? 'Total shift must be at least 4 hours' : 'Add Availability'}
+            className={styles.viewAppointmentsBtn}
+            disabled={!canAdd}
+            title={
+              !selectedDate ? 'Select a date' :
+              !selectedFacility ? 'Select a facility' :
+              !startTime || !endTime ? 'Select start and end times' :
+              !minHoursSatisfied ? 'Total shift must be at least 4 hours' : 'Add Availability'
+            }
             onClick={() => {
-              // TODO: call backend API to save availability
-              console.log('Add Availability', { selectedDate, selectedFacility, startTime, endTime });
+              if (!canAdd) return;
+              // add to pending summary
+              const facility = facilities.find(f => f.id === selectedFacility) ?? { id: selectedFacility ?? '0', name: 'Unknown Facility' };
+              const id = `${selectedDate}-${selectedFacility}-${startTime}-${endTime}`;
+              setPending(prev => prev.some(p => p.id === id) ? prev : [...prev, { id, date: selectedDate, facilityId: selectedFacility, facilityName: facility.name, start: startTime, end: endTime, hours: +(totalHours) }]);
             }}
           >
             Add Availability
           </button>
         </div>
-      </div>
+        {/* capsule button inside the container to view saved availabilities */}
+        <div style={{ position: 'absolute', right: 20, top: 20 }}>
+          <button className={styles.viewAppointmentsBtn} onClick={() => setShowSavedModal(true)}>View availabilities</button>
+        </div>
+
+  <ViewAvailabilityModal open={showSavedModal} onClose={() => setShowSavedModal(false)} items={saved} onRemove={(id) => setSaved(prev => prev.filter(x => x.id !== id))} />
     </div>
+
+    {/* Availability summary rendered in a separate container below the Set Availability card */}
+    <AvailabilitySummary
+      pending={pending}
+      saved={saved}
+      onSaveSchedule={handleSaveSchedule}
+      onRemovePending={handleRemovePending}
+      onViewSaved={() => setShowSavedModal(true)}
+      showSavedInline={!hideSavedInline}
+    />
+  </>
   );
 }

@@ -313,9 +313,9 @@ export default function AddDoctorModal({
           </div>
 
           {/* State licenses section */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
             <h4 style={{ margin: 0 }}>State Licenses *</h4>
-            <button className={styles.primaryBtn} onClick={addStateLicense}>+ Add State</button>
+            <button className={styles.viewAppointmentsBtn} onClick={addStateLicense}>+ Add State</button>
           </div>
 
           <div className={styles['facility-info']}>
@@ -386,11 +386,11 @@ export default function AddDoctorModal({
   </div>
 
   {/* Footer */}
-  <div className={styles['modal-footer']}>
+        <div className={styles['modal-footer']}>
           <button className={styles.secondaryBtn} onClick={onClose}>
             Cancel
           </button>
-          <button className={styles.primaryBtn} onClick={handleSubmit}>
+          <button className={styles.viewAppointmentsBtn} onClick={handleSubmit}>
             {initialDoctor ? "Save Changes" : "Create Doctor"}
           </button>
         </div>

@@ -22,6 +22,7 @@ export default function TimeRangePicker({ startTime, endTime, setStartTime, setE
       <div style={{ flex: 1 }}>
         <label style={{ fontSize: 16, fontWeight: 800, color: 'var(--doctor-dark)', display: 'block', marginBottom: 8 }}>Start</label>
         <select className={styles.timeSelect} value={startTime} onChange={(e) => setStartTime(e.target.value)}>
+          <option value="">Select start</option>
           {times.map(t => <option key={t} value={t}>{t}</option>)}
         </select>
       </div>
@@ -29,6 +30,7 @@ export default function TimeRangePicker({ startTime, endTime, setStartTime, setE
       <div style={{ flex: 1 }}>
         <label style={{ fontSize: 16, fontWeight: 800, color: 'var(--doctor-dark)', display: 'block', marginBottom: 8 }}>End</label>
         <select className={styles.timeSelect} value={endTime} onChange={(e) => setEndTime(e.target.value)}>
+          <option value="">Select end</option>
           {times.map(t => <option key={t} value={t}>{t}</option>)}
         </select>
       </div>

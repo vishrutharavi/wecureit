@@ -2,6 +2,7 @@
 import React, { useState } from "react";
 import { FiX } from "react-icons/fi";
 import styles from "../../doctor.module.scss";
+import AddNoteModal from "../Notes/AddNoteModal";
 
 type Appointment = {
   id: string;
@@ -30,13 +31,13 @@ export default function AppointmentModal({
   const [filter, setFilter] = useState<'UPCOMING' | 'CANCELLED' | 'ALL'>('UPCOMING');
   const [items, setItems] = useState<Appointment[]>(initialAppointments);
   const [completedMenuId, setCompletedMenuId] = useState<string | null>(null);
-  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
-  const [notes, setNotes] = useState<Record<string, string>>({});
+  const [openAddNoteId, setOpenAddNoteId] = useState<string | null>(null);
   const [completedIds, setCompletedIds] = useState<Record<string, boolean>>({});
   if (!open) return null;
 
   const upcoming = items.filter((a) => a.status === "UPCOMING");
   const cancelled = items.filter((a) => a.status === "CANCELLED");
+  const selectedAddNoteAppointment = items.find(it => it.id === openAddNoteId) || null;
 
   return (
     <div className={styles['modal-overlay']} onClick={onClose}>
@@ -88,26 +89,13 @@ export default function AppointmentModal({
                         </div>
                         {completedMenuId === a.id && (
                           <div className={styles.completedMenu}>
-                 <button className={`${styles.completedPrimaryBtn}`} onClick={() => { setEditingNoteId(a.id); setCompletedIds(prev => ({ ...prev, [a.id]: true })); setCompletedMenuId(null); }}>Add a note</button>
+                 <button className={`${styles.completedPrimaryBtn}`} onClick={() => { setOpenAddNoteId(a.id); setCompletedIds(prev => ({ ...prev, [a.id]: true })); setCompletedMenuId(null); }}>Add a note</button>
                  <button className={`${styles.completedSecondaryBtn}`} onClick={() => { setCompletedIds(prev => ({ ...prev, [a.id]: true })); setCompletedMenuId(null); }}>Add later</button>
                           </div>
                         )}
-                        {completedIds[a.id] && !editingNoteId && <div style={{ fontSize: 12, color: '#6b6b6b' }}>Completed</div>}
+                        {completedIds[a.id] && !openAddNoteId && <div style={{ fontSize: 12, color: '#6b6b6b' }}>Completed</div>}
                       </div>
-                      {editingNoteId === a.id && (
-                        <div className={styles.noteBox}>
-                          <textarea
-                            className={styles.noteTextarea}
-                            value={notes[a.id] ?? ''}
-                            onChange={(e) => setNotes(prev => ({ ...prev, [a.id]: e.target.value }))}
-                            placeholder="Add a clinical note..."
-                          />
-                          <div className={styles.noteActions}>
-                            <button className={styles.secondaryBtn} onClick={() => setEditingNoteId(null)}>Add later</button>
-                            <button className={styles.primaryBtn} onClick={() => { /* save note locally */ setEditingNoteId(null); }}>Save note</button>
-                          </div>
-                        </div>
-                      )}
+                      {/* inline editor removed in favor of modal */}
                     </div>
                   ))
                 ) : (
@@ -137,6 +125,15 @@ export default function AppointmentModal({
             )}
           </section>
         </div>
+        {selectedAddNoteAppointment && (
+          <AddNoteModal
+            open={!!openAddNoteId}
+            onClose={() => setOpenAddNoteId(null)}
+            patientName={selectedAddNoteAppointment.patientName}
+            dateLabel={formatHourRange(selectedAddNoteAppointment.start, selectedAddNoteAppointment.end)}
+            timeLabel={getDurationLabel(selectedAddNoteAppointment.start, selectedAddNoteAppointment.end)}
+          />
+        )}
 
         <div className={styles['modal-footer']} style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
           <button className={styles.secondaryBtn} onClick={onClose}>Close</button>

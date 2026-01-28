@@ -164,7 +164,7 @@ export default function AddFacilityModal({ onClose, initialFacility, onSaved }: 
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
           <h4 style={{ margin: 0 }}>Rooms</h4>
-          <button className={styles.primaryBtn} onClick={addRoom}>+ Add Room</button>
+          <button className={styles.viewAppointmentsBtn} onClick={addRoom}>+ Add Room</button>
         </div>
 
   {rooms.map((room) => (
@@ -229,7 +229,7 @@ export default function AddFacilityModal({ onClose, initialFacility, onSaved }: 
         <div className={styles['modal-footer']}>
           <button className={styles.secondaryBtn} onClick={onClose} disabled={loading}>Cancel</button>
           <button
-            className={styles.primaryBtn}
+            className={styles.viewAppointmentsBtn}
             disabled={loading}
             onClick={async () => {
                 // validation for create mode only: require all facility-level fields
