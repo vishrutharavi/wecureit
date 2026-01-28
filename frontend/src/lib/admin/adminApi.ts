@@ -21,18 +21,58 @@ export async function getFacilities(token: string) {
   return apiFetch("/api/admin/facilities", token);
 }
 
+export async function updateFacility(token: string, facilityId: string, payload: {
+  name?: string;
+  address?: string;
+  city?: string;
+  stateCode?: string;
+  zipCode?: string;
+}) {
+  return apiFetch(`/api/admin/facilities/updateFacility/${facilityId}`, token, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deactivateFacility(token: string, facilityId: string) {
+  return apiFetch(`/api/admin/facilities/${facilityId}/delete`, token, {
+    method: "PATCH",
+  });
+}
+
 export async function createRoom(
   token: string,
   facilityId: string,
   payload: {
-    roomName: string;
     roomNumber: string;
     specialityCode: string;
   }
 ) {
-  return apiFetch(`/api/admin/facilities/${facilityId}/rooms`, token, {
+  // backend expects POST /api/admin/rooms with facilityId in the body
+  const body = { facilityId, roomNumber: payload.roomNumber, specialityCode: payload.specialityCode };
+  return apiFetch(`/api/admin/rooms`, token, {
     method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export async function updateRoom(
+  token: string,
+  roomId: string,
+  payload: {
+    roomNumber?: string;
+    specialityCode?: string;
+  }
+) {
+  return apiFetch(`/api/admin/rooms/${roomId}`, token, {
+    method: "PUT",
     body: JSON.stringify(payload),
+  });
+}
+
+export async function deactivateRoom(token: string, roomId: string) {
+  return apiFetch(`/api/admin/rooms/${roomId}/deactivate`, token, {
+    method: "PATCH",
   });
 }
 

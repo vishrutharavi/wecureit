@@ -23,16 +23,23 @@ public class RoomService {
 
         Room r = new Room();
         r.setFacilityId(req.getFacilityId());
-        // default roomName to roomNumber when not provided to satisfy DB not-null constraint
-        String roomName = req.getRoomName();
-        if (roomName == null || roomName.isBlank()) {
-            roomName = req.getRoomNumber();
-        }
-        r.setRoomName(roomName);
+        // DB no longer stores separate room_name; rely on roomNumber as the canonical label
         r.setRoomNumber(req.getRoomNumber());
         r.setSpecialityCode(req.getSpecialityCode());
 
         return roomRepo.save(r);
+    }
+
+    @Transactional
+    public Room updateRoom(UUID roomId, com.wecureit.dto.request.UpdateRoomRequest request) {
+        Room room = roomRepo.findById(roomId).orElseThrow(() -> new RuntimeException("Room not found"));
+        if (request.roomNumber != null) {
+            room.setRoomNumber(request.roomNumber);
+        }
+        if (request.specialityCode != null) {
+            room.setSpecialityCode(request.specialityCode);
+        }
+        return roomRepo.save(room);
     }
 
     @Transactional

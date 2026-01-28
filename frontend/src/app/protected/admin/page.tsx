@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import styles from "./admin.module.scss";
 import AdminHeader from "./components/AdminHeader";
 import AdminTabs from "./components/AdminTabs";
@@ -15,7 +15,35 @@ import { auth } from "@/lib/firebase";
 import { deactivateDoctor } from "@/lib/admin/adminApi";
 
 export default function AdminPage() {
+  // start with a stable server/client-matching default to avoid hydration mismatches
   const [tab, setTab] = useState<"doctors" | "facilities">("doctors");
+
+  // after mount, read the URL and update the tab if needed (client-only)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const q = params.get("tab");
+      if (q === "facilities" || q === "doctors") {
+        // schedule update asynchronously to avoid synchronous setState in effect
+        setTimeout(() => setTab(q), 0);
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  // keep URL in sync when tab changes so refresh restores the same tab
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      params.set("tab", tab);
+      const newUrl = `${window.location.pathname}?${params.toString()}`;
+      window.history.replaceState({}, "", newUrl);
+    } catch {
+      // ignore
+    }
+  }, [tab]);
 
   const [showAdd, setShowAdd] = useState(false);
   const [editingDoctor, setEditingDoctor] = useState<Doctor | null>(null);

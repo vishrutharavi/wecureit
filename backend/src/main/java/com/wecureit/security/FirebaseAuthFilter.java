@@ -70,9 +70,11 @@ public class FirebaseAuthFilter extends OncePerRequestFilter {
             System.out.println("FirebaseAuthFilter - claims: " + decodedToken.getClaims());
 
             String role = null;
+            String roleSource = null;
             Object claim = decodedToken.getClaims().get("role");
             if (claim != null) {
                 role = claim.toString().trim();
+                roleSource = "claim";
             }
 
             // Fallback: if claim missing, try DB lookup by firebase uid
@@ -81,10 +83,13 @@ public class FirebaseAuthFilter extends OncePerRequestFilter {
                 // check admin
                 if (adminRepository.findByFirebaseUid(uid).isPresent()) {
                     role = "ADMIN";
+                    roleSource = "db-uid";
                 } else if (doctorRepository.findByFirebaseUid(uid).isPresent()) {
                     role = "DOCTOR";
+                    roleSource = "db-uid";
                 } else if (patientRepository.findByFirebaseUid(uid).isPresent()) {
                     role = "PATIENT";
+                    roleSource = "db-uid";
                 }
             }
 
@@ -95,10 +100,13 @@ public class FirebaseAuthFilter extends OncePerRequestFilter {
                     // check admin by email
                     if (adminRepository.findByEmail(email).isPresent()) {
                         role = "ADMIN";
+                        roleSource = "db-email";
                     } else if (doctorRepository.findByEmail(email).isPresent()) {
                         role = "DOCTOR";
+                        roleSource = "db-email";
                     } else if (patientRepository.findByEmail(email).isPresent()) {
                         role = "PATIENT";
+                        roleSource = "db-email";
                     }
                 }
             }
@@ -116,7 +124,7 @@ public class FirebaseAuthFilter extends OncePerRequestFilter {
             role = role.toUpperCase();
 
             // debug logging - remove or replace with proper logger in production
-            System.out.println("FirebaseAuthFilter - uid=" + decodedToken.getUid() + " role=" + role);
+            System.out.println("FirebaseAuthFilter - uid=" + decodedToken.getUid() + " role=" + role + " (source=" + roleSource + ")");
 
             List<GrantedAuthority> authorities = List.of(
                 new SimpleGrantedAuthority("ROLE_" + role)

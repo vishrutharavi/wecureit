@@ -1,6 +1,5 @@
 package com.wecureit.entity;
 
-import java.time.Instant;
 import java.util.UUID;
 
 import jakarta.persistence.Column;
@@ -21,8 +20,7 @@ public class Room {
     @Column(name = "facility_id", nullable = false)
     private UUID facilityId;
 
-    @Column(name = "room_name", nullable = false, length = 100)
-    private String roomName;
+    // note: 'room_name' column removed from DB - we no longer store a separate room name
 
     @Column(name = "room_number", nullable = false, length = 255)
     private String roomNumber;
@@ -32,12 +30,6 @@ public class Room {
 
     @Column(name = "is_active")
     private Boolean active = true;
-
-    @Column(name = "created_at", updatable = false, insertable = false)
-    private Instant createdAt;
-
-    @Column(name = "updated_at", insertable = false)
-    private Instant updatedAt;
 
 
     public UUID getId() {
@@ -52,13 +44,7 @@ public class Room {
         this.facilityId = facilityId;
     }
 
-    public String getRoomName() {
-        return roomName;
-    }
-
-    public void setRoomName(String roomName) {
-        this.roomName = roomName;
-    }
+    // roomName accessor removed
 
     public String getRoomNumber() {
         return roomNumber;
@@ -84,11 +70,5 @@ public class Room {
         this.active = active;
     }
 
-    public Instant getCreatedAt() {
-        return createdAt;
-    }
-
-    public Instant getUpdatedAt() {
-        return updatedAt;
-    }
+    
 }
