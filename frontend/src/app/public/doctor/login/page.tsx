@@ -19,11 +19,16 @@ export default function DoctorLogin() {
       const idToken = await (user as FirebaseUser).getIdToken();
 
       const me = await apiFetch("/api/doctor/me", idToken);
-      console.log(me);
+      console.log('doctor me', me);
 
-      alert("Logged in successfully");
-      // navigate to doctor dashboard
-      window.location.href = "/doctor";
+      // persist a lightweight doctor profile for client usage
+      try {
+        if (me) localStorage.setItem('doctorProfile', JSON.stringify(me));
+      } catch {}
+
+      alert(me && (me.name || me.email) ? `Logged in as ${me.name ?? me.email}` : 'Logged in successfully');
+  // navigate to doctor dashboard (protected route)
+  window.location.href = "/protected/doctor";
     } catch (err: unknown) {
       console.error("Login failed", err);
       const msg = err instanceof Error ? err.message : String(err);

@@ -24,8 +24,8 @@ export async function apiFetch(
   if (!text) return null;
   try {
     return JSON.parse(text);
-  } catch (e) {
-    // If parsing fails, rethrow a clearer error
-    throw new Error(`Failed to parse JSON response: ${e instanceof Error ? e.message : String(e)} (raw: ${text})`);
+  } catch {
+    // If response is not JSON, return raw text (some endpoints return plain text)
+    return text;
   }
 }

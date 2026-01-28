@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import styles from "./doctor.module.scss";
 import DoctorHeader from "./components/DoctorHeader";
 import DoctorTabs from "./components/DoctorTabs";
@@ -11,10 +11,22 @@ import NotesView from "./components/Notes/NotesView";
 
 export default function DoctorPage() {
   const [tab, setTab] = useState<"schedule" | "availability" | "notes">("schedule");
+  const [doctorName, setDoctorName] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('doctorProfile');
+      if (raw) {
+        const obj = JSON.parse(raw);
+        // defer to avoid synchronous setState in effect
+        setTimeout(() => setDoctorName(obj.name ?? obj.email ?? undefined), 0);
+      }
+    } catch {}
+  }, []);
 
   return (
     <div className={styles.wrapper}>
-      <DoctorHeader />
+  <DoctorHeader doctorName={doctorName} />
       <DoctorTabs active={tab} onChange={setTab} />
 
       {tab === "schedule" && <ScheduleView />}
