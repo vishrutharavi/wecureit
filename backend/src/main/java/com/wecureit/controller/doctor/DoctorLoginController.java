@@ -1,7 +1,9 @@
 package com.wecureit.controller.doctor;
 
-import org.springframework.security.core.Authentication;
+import java.util.Optional;
+
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -9,7 +11,6 @@ import org.springframework.web.bind.annotation.RestController;
 import com.wecureit.dto.response.DoctorLoginResponse;
 import com.wecureit.entity.Doctor;
 import com.wecureit.repository.DoctorRepository;
-import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/doctor")
