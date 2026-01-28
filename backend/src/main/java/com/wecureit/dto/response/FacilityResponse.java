@@ -1,8 +1,7 @@
 package com.wecureit.dto.response;
 
-import java.util.UUID;
 import java.util.List;
-import com.wecureit.dto.response.RoomResponse;
+import java.util.UUID;
 
 public class FacilityResponse {
 
