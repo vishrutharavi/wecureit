@@ -80,6 +80,25 @@
   cursor: pointer;
 }
 
+/* Match the doctor portal's brighter red action button used for 'View appointments' */
+.viewAppointmentsBtn {
+  background: linear-gradient(135deg, #ef4444, #991b1b);
+  color: white;
+  padding: 0.6rem 0.95rem;
+  border-radius: 10px;
+  border: none;
+  font-weight: 800;
+  box-shadow: 0 8px 18px rgba(239,68,68,0.18);
+  cursor: pointer;
+}
+
+.viewAppointmentsBtn:hover {
+  /* align admin hover behavior with doctor Set Availability hover */
+  background: #dc2626;
+  transform: translateY(-1px);
+  box-shadow: 0 12px 28px rgba(239,68,68,0.45);
+}
+
 /* ========================
    MODAL BASE
 ======================== */

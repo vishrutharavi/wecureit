@@ -38,7 +38,7 @@ export default function SignOutButton({ redirectTo = "/public/admin/login" }: Pr
       onClick={handleSignOut}
       disabled={loading}
       aria-label="Sign out"
-      className={styles.primaryBtn}
+      className={styles.viewAppointmentsBtn}
     >
       {loading ? "Signing out…" : "Sign out"}
     </button>

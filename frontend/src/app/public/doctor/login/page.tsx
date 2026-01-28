@@ -12,6 +12,7 @@ import type { User as FirebaseUser } from "firebase/auth";
 export default function DoctorLogin() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const router = useRouter();
 
   async function handleLogin() {
     try {
@@ -19,19 +20,29 @@ export default function DoctorLogin() {
       const idToken = await (user as FirebaseUser).getIdToken();
 
       const me = await apiFetch("/api/doctor/me", idToken);
-      console.log(me);
+      console.log('doctor me', me);
 
-      alert("Logged in successfully");
-      // navigate to doctor dashboard
-      window.location.href = "/doctor";
+      // persist a lightweight doctor profile for client usage
+      try {
+        if (me) localStorage.setItem('doctorProfile', JSON.stringify(me));
+      } catch {}
+      // mark that we just logged in so the dashboard can show a non-blocking message
+      try {
+        sessionStorage.setItem(
+          'doctorJustLoggedIn',
+          JSON.stringify({ name: me && (me.name || me.email) ? (me.name ?? me.email) : 'Doctor', time: Date.now() })
+        );
+      } catch {}
+
+      // navigate to doctor dashboard (protected route)
+      router.push('/protected/doctor');
     } catch (err: unknown) {
       console.error("Login failed", err);
       const msg = err instanceof Error ? err.message : String(err);
       alert("Login failed: " + msg);
     }
   }
-
-  const router = useRouter();
+  
   
 
 
