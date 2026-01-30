@@ -41,6 +41,27 @@
   font-size: 1rem;
 }
 
+/* Password wrapper so the eye button can be positioned */
+.passwordWrap {
+  position: relative;
+}
+.passwordWrap .input {
+  padding-right: 44px; /* space for eye button */
+}
+.eyeBtn {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: #6b7280;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .input:focus {
   outline: none;
   border-color: #ef4444;
@@ -64,6 +85,28 @@
   background: #dc2626;
   transform: translateY(-1px);
   box-shadow: 0 12px 28px rgba(239, 68, 68, 0.45);
+}
+
+/* Reuse the brighter red action used across the app */
+.viewAppointmentsBtn {
+  background: linear-gradient(135deg, #ef4444, #991b1b);
+  color: white;
+  padding: 0.95rem 1rem;
+  border-radius: 10px;
+  border: none;
+  font-size: 1.05rem;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 12px 28px rgba(239,68,68,0.35);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+  width: 100%;
+  margin-top: 1rem;
+}
+
+.viewAppointmentsBtn:hover {
+  background: #dc2626;
+  transform: translateY(-1px);
+  box-shadow: 0 12px 28px rgba(239,68,68,0.45);
 }
 
 .backBtn {

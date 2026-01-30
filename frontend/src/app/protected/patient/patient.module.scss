@@ -1,0 +1,1095 @@
+:root {
+  --patient-primary: #ef4444;
+  --patient-dark: #991b1b;
+  --patient-light: #fee2e2;
+}
+
+/* page-level wrapper and subtitle (adapted from doctor theme) */
+.wrapper {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #fff5f5, #fff);
+  /* Reduce top padding so pages sit higher on screen */
+  padding: 1rem;
+}
+
+.subtitle {
+  color: var(--patient-dark);
+  margin-top: 6px;
+  font-size: 0.95rem;
+}
+
+/* Solid white panel variant used on patient home for clearer contrast */
+.panelWhite {
+  margin: 1rem 0;
+  width: 100%;
+  background: #ffffff;
+  border: 1px solid rgba(239,68,68,0.06);
+  border-radius: 12px;
+  padding: 1.25rem 1.5rem;
+  box-shadow: 0 18px 36px rgba(239,68,68,0.04);
+}
+
+/* AppointmentHistory specific tweaks moved from inline styles */
+.ahHeader {
+  margin-bottom: 8px;
+}
+
+.panelTopSpacing {
+  margin-top: 12px;
+}
+
+.searchRow {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.searchLeft {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.filtersRow {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.appointmentHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.doctorRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.metaRow {
+  display: flex;
+  gap: 24px;
+  margin-top: 14px;
+  align-items: center;
+}
+
+.metaItem {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  color: #9ca3af;
+}
+
+.metaItem .mutedText {
+  color: #111827;
+}
+
+.divider {
+  margin: 16px 0;
+  border: none;
+  border-top: 1px solid rgba(224, 224, 224, 0.6);
+}
+
+.remarksRow {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.iconMuted {
+  color: #9ca3af;
+  margin-top: 2px;
+}
+
+.remarksTitle {
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.remarksText {
+  color: #374151;
+}
+
+/* appointment entry card used inside patient upcoming list */
+.appointmentCard {
+  background: #ffffff;
+  border: 1px solid rgba(239,68,68,0.06);
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 10px 28px rgba(239,68,68,0.04);
+  margin-bottom: 14px;
+}
+
+.appointmentCard h3 { margin: 0; }
+
+.listWrap {
+  margin-top: 18px;
+}
+
+.appointmentCardHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.dateLabel {
+  font-weight: 800;
+  color: #7f1d1d;
+}
+
+.timeLabel {
+  margin-top: 8px;
+  color: #6b7280;
+}
+
+.doctorName {
+  margin-top: 8px;
+  font-weight: 700;
+}
+
+.facilityName {
+  margin-top: 6px;
+  color: #7f1d1d;
+}
+
+.infoBox {
+  margin-top: 1rem;
+  background: #fffaf9;
+  border: 1px solid rgba(254,202,202,0.6);
+  padding: 0.75rem 1rem;
+  border-radius: 10px;
+  color: #991b1b;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Small helpers used by Home component */
+.infoBoxSpacing {
+  margin-top: 12px;
+}
+
+.infoBoxInner {
+  flex: 1;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.infoBoxNote {
+  color: #6b7280;
+  margin-left: 12px;
+}
+
+/* prominent red capsule for specialties */
+.smallBadge {
+  background: var(--patient-primary);
+  color: #fff;
+  border: 1px solid rgba(153,27,27,0.12);
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+/* Pale cancel button used in patient appointment cards (white with light red outline and red text) */
+.cancelBtn {
+  width: 100%;
+  /* Brighter primary red appearance to match other prominent CTAs */
+  background: linear-gradient(135deg, var(--patient-primary), var(--patient-dark));
+  color: #ffffff;
+  border: none;
+  padding: 0.65rem 0.9rem;
+  border-radius: 8px;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 8px 20px rgba(239,68,68,0.18);
+  transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.12s ease;
+}
+.cancelBtn:hover {
+  background: #dc2626;
+  transform: translateY(-1px);
+  box-shadow: 0 12px 28px rgba(239,68,68,0.36);
+}
+
+.cancelBtn:active {
+  transform: translateY(0);
+  box-shadow: 0 6px 16px rgba(239,68,68,0.24);
+}
+
+/* Home-specific layout helpers */
+.homeRoot {
+  padding: 18px;
+}
+
+.bookWrap {
+  margin-bottom: 18px;
+}
+
+.bookPanel {
+  text-align: center;
+  padding: 14px 24px;
+  margin-top: -40px;
+}
+
+/* Larger centered book panel variant used by Home component */
+.bookPanelCenter {
+  padding: 40px;
+  min-height: 220px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.bookTitleLarge {
+  font-size: 20px;
+}
+
+.bookSubtitleSpacing {
+  margin-bottom: 12px;
+}
+
+.bookButtonLarge {
+  padding: 14px 28px;
+  font-size: 18px;
+  border-radius: 12px;
+}
+
+.bookIcon {
+  font-size: 36px;
+  color: var(--patient-primary);
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bookTitle {
+  font-weight: 800;
+  margin-bottom: 8px;
+}
+
+.bookSubtitle {
+  color: #6b7280;
+  margin-bottom: 12px;
+}
+
+.upcomingHeaderTitle {
+  margin: 6px 0 8px 0;
+  font-weight: 800;
+}
+
+.upcomingHeaderSubtitle {
+  color: #6b7280;
+  margin-bottom: 12px;
+}
+
+.upcomingPanel {
+  padding: 12px 22px;
+}
+
+/* Prominent red CTA used on patient home (matches doctor style) */
+.viewAppointmentsBtn {
+  background: linear-gradient(135deg, var(--patient-primary), var(--patient-dark));
+  color: white;
+  padding: 0.6rem 0.95rem;
+  border-radius: 10px;
+  border: none;
+  font-weight: 800;
+  box-shadow: 0 8px 18px rgba(239,68,68,0.18);
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.viewAppointmentsBtn:hover {
+  background: #dc2626;
+  transform: translateY(-1px);
+  box-shadow: 0 12px 28px rgba(239,68,68,0.45);
+}
+
+.viewAppointmentsBtn[disabled], .viewAppointmentsBtn:disabled {
+  background: linear-gradient(180deg, #f3f4f6, #ffffff) !important;
+  color: #9ca3af !important;
+  border: 1px solid #e5e7eb !important;
+  box-shadow: none !important;
+  cursor: not-allowed !important;
+  opacity: 0.85;
+  transform: none !important;
+}
+
+/* -----------------------------
+   My Profile / Account styles
+   ----------------------------- */
+.profileHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.profileHeaderLeft {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.profileTitle {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--patient-dark);
+}
+
+.profileSubtitle {
+  color: #6b7280;
+  font-size: 0.95rem;
+}
+
+.editProfileBtn {
+  background: linear-gradient(135deg, var(--patient-primary), var(--patient-dark));
+  color: #fff;
+  padding: 0.55rem 0.85rem;
+  border-radius: 10px;
+  border: none;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 10px 28px rgba(239,68,68,0.14);
+  cursor: pointer;
+}
+
+.editProfileBtn svg { opacity: .98; width: 16px; height: 16px }
+
+.sectionCard {
+  margin: 1rem 0;
+  width: 100%;
+}
+
+.sectionHeader {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+/* Generic section layout helpers used by MyProfile components */
+.sectionGrid {
+  display: grid;
+  gap: 12px;
+}
+
+.sectionActionsRight {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.actionRow {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.cancelSecondary {
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.threeColGrid {
+  display: grid;
+  grid-template-columns: 1fr 140px 120px;
+  gap: 12px;
+}
+
+/* Two-column grid helper used by PersonalInfo and other sections */
+.twoColGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+/* Variation of sectionActionsRight with bottom spacing */
+.sectionActionsRightSpacing {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 12px;
+}
+
+/* Small utility to add spacing to icons inside buttons */
+.iconSpacing { margin-right: 8px; }
+
+/* Payment-specific helpers */
+.paymentGridSpacing {
+  margin-top: 12px;
+  align-items: start;
+}
+
+.smallInput {
+  width: 90px;
+}
+
+.mediumInput {
+  width: 120px;
+}
+
+.errorText {
+  color: #ef4444;
+  font-size: 12px;
+  margin-top: 6px;
+}
+
+.cardListItem {
+  margin-bottom: 12px;
+}
+
+.cardInnerRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.deleteSecondary {
+  margin-left: 12px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.sectionIcon {
+  color: var(--patient-primary);
+  background: linear-gradient(180deg, rgba(239,68,68,0.06), rgba(239,68,68,0.02));
+  padding: 8px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sectionTitle {
+  font-weight: 700;
+}
+
+.sectionSubtitle {
+  color: #6b7280;
+  font-size: 0.92rem;
+}
+
+.fieldGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.fieldRow {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.fieldLabel {
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.readField {
+  background: #eef3f7; /* pale blue/grey field */
+  padding: 12px 14px;
+  border-radius: 10px;
+  color: #111827;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+}
+
+/* Input variant that matches the read-only field look so editable fields keep the same size */
+.inputField {
+  background: #eef3f7;
+  padding: 12px 14px;
+  border-radius: 12px;
+  color: #111827;
+  min-height: 44px;
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid transparent;
+  outline: none;
+  font-size: 16px;
+}
+.inputField:focus {
+  /* keep subtle focus (no large blue ring) so the visual size doesn't change */
+  outline: none;
+  box-shadow: none;
+  border-color: rgba(0,0,0,0.06);
+}
+
+.fullWidth {
+  grid-column: 1 / -1;
+}
+
+.cardContent {
+  margin-top: 6px;
+}
+
+.paymentGrid {
+  display: grid;
+  grid-template-columns: 1fr 180px 120px;
+  gap: 12px;
+  align-items: center;
+}
+
+@media (max-width: 720px) {
+  .paymentGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.sectionFooter {
+  margin-top: 12px;
+}
+
+.profileNote {
+  color: #6b7280;
+  font-size: 0.92rem;
+}
+
+/* subtle card padding override for My Profile so inner spacing matches screenshots */
+.panelWhite.profilePanel {
+  padding: 18px 20px;
+}
+
+/* Status badges for appointment history */
+.statusBadge {
+  padding: 6px 10px;
+  border-radius: 14px;
+  font-weight: 700;
+  display: inline-block;
+}
+
+.statusCompleted {
+  background: #d1fae5; /* pale green */
+  color: #065f46;
+}
+
+.statusCancelled {
+  background: #fee2e2; /* pale red */
+  color: #991b1b;
+}
+
+.searchInputWrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.filterPill {
+  padding: 8px 12px;
+  border-radius: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.filterActive {
+  background: var(--patient-primary);
+  color: #fff;
+  border: none;
+}
+
+.filterInactive {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  color: #111827;
+}
+
+/* Page title and header/tab styles (copied/adapted from doctor theme) */
+.title {
+  font-size: 2rem;
+  font-weight: 800;
+  background: linear-gradient(to right, var(--patient-primary), #f43f5e);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.loginBanner {
+  background: linear-gradient(90deg, rgba(239,68,68,0.06), rgba(255,250,250,0.02));
+  border: 1px solid rgba(239,68,68,0.12);
+  color: var(--patient-dark);
+  padding: 8px 12px;
+  border-radius: 8px;
+  margin-bottom: 12px;
+  text-align: center;
+  font-weight: 700;
+}
+
+.header {
+  display: flex;
+  /* center items vertically so the welcome title aligns with action buttons */
+  align-items: center;
+  gap: 2rem;
+  margin-bottom: 0.75rem;
+}
+
+/* Header layout helpers for patient header */
+.headerSpaceBetween {
+  justify-content: space-between;
+}
+
+.headerLeftColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+  text-align: left;
+}
+
+.titleLeft {
+  text-align: left;
+}
+
+.headerActions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Booking page layout */
+.bookingGrid {
+  display: grid;
+  grid-template-columns: 1fr 360px;
+  gap: 20px;
+  align-items: start;
+}
+
+@media (max-width: 880px) {
+  .bookingGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.bookingHeader {
+  margin-bottom: 12px;
+}
+
+.backLink {
+  text-decoration: none;
+  color: var(--patient-primary);
+  display: inline-block;
+}
+
+.bookingTitle {
+  margin-top: 12px;
+}
+
+/* mini calendar styles used by DatePickerGrid */
+.miniCalendar {
+  /* Make the mini calendar wide enough for 7 columns at comfortable touch size
+     and stay responsive on small screens */
+  width: 300px;
+  max-width: 100%;
+}
+.miniCalendarWrap {
+  display: flex;
+  justify-content: center;
+}
+.miniCalendarHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px;
+  color: #374151;
+}
+.miniCalendarNav {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 18px;
+  color: var(--patient-primary);
+}
+.miniCalendarGrid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid rgba(224,224,224,0.7);
+  border-radius: 8px;
+  background: #fff;
+}
+.miniCalendarWeekday {
+  text-align: center;
+  font-size: 12px;
+  color: #6b7280;
+}
+.miniCalendarCellEmpty { height: 36px; }
+.miniCalendarDay, .miniCalendarDaySelected {
+  /* ensure each day fills its grid cell so wide badges don't overflow */
+  width: 100%;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  background: transparent;
+}
+
+.miniCalendarDayDisabled {
+  width: 100%;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  border-radius: 8px;
+  border: none;
+  cursor: not-allowed;
+  background: transparent;
+  color: #9ca3af;
+  opacity: 0.75;
+}
+.miniCalendarDay:hover { background: rgba(239,68,68,0.06); }
+.miniCalendarDaySelected {
+  background: var(--patient-primary);
+  color: #fff;
+}
+
+/* Duration toggle and time slot controls */
+.durationGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.durationBtn {
+  padding: 14px 18px;
+  border-radius: 10px;
+  border: 1px solid rgba(239,68,68,0.08);
+  background: linear-gradient(180deg, #fff8f8, #ffffff);
+  color: var(--patient-dark);
+  font-weight: 700;
+  cursor: pointer;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.durationBtn:hover {
+  box-shadow: 0 8px 20px rgba(239,68,68,0.06);
+  transform: translateY(-1px);
+}
+
+.durationBtnActive {
+  padding: 14px 18px;
+  border-radius: 10px;
+  border: none;
+  background: linear-gradient(135deg, var(--patient-primary), var(--patient-dark));
+  color: #fff;
+  font-weight: 800;
+  box-shadow: 0 12px 28px rgba(239,68,68,0.18);
+  transform: translateY(-2px);
+}
+
+.timeSlotsGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.timeSlotBtn {
+  padding: 12px 8px;
+  border-radius: 8px;
+  border: none;
+  background: linear-gradient(180deg, #fff5f5, #fff);
+  color: #7f1d1d;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(239,68,68,0.06);
+}
+
+.timeSlotBtnActive {
+  background: linear-gradient(135deg, var(--patient-primary), var(--patient-dark));
+  color: #fff;
+}
+
+.timeSlotBtn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  background: linear-gradient(180deg, #fafafa, #fff);
+  color: #9ca3af;
+  box-shadow: none;
+}
+
+/* Selected summary row shown under available time slots when a start time is chosen */
+/* selected summary removed - sidebar shows the appointment selection */
+
+/* Selection summary styling for booking sidebar */
+.summaryWrapper {
+  background: var(--patient-light);
+  border-radius: 12px;
+  padding: 14px;
+}
+
+.summaryCard {
+  background: #ffffff;
+  border: 1px solid rgba(239,68,68,0.06);
+  border-radius: 12px;
+  padding: 14px;
+  margin-bottom: 12px;
+}
+
+.summaryCard .labelMuted {
+  color: #6b7280;
+  margin-bottom: 8px;
+  font-weight: 700;
+}
+
+.summaryCard .contentPrimary {
+  font-weight: 700;
+  color: #111827;
+}
+
+.continueBtn {
+  width: 100%;
+  /* Prominent red gradient for primary CTA (used by Continue / Book actions) */
+  background: linear-gradient(135deg, var(--patient-primary), var(--patient-dark));
+  color: #fff;
+  padding: 12px 16px;
+  border-radius: 10px;
+  border: none;
+  font-weight: 800;
+  margin-top: 10px;
+  cursor: pointer;
+  box-shadow: 0 12px 30px rgba(239,68,68,0.18);
+  transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.12s ease;
+}
+
+.continueBtn:not(:disabled):hover {
+  transform: translateY(-2px);
+  filter: brightness(0.98);
+  box-shadow: 0 16px 36px rgba(239,68,68,0.24);
+}
+
+.continueBtn:disabled {
+  background: linear-gradient(180deg, #f3f4f6, #ffffff);
+  color: #9ca3af;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin: 0.75rem 0 1.25rem 0;
+}
+
+/* Tabs layout helpers */
+.tabsLeftRow {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.tabsRightActions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: 999px;
+  padding: 0.6rem 1rem;
+  background: transparent;
+  border: 1px solid rgba(153, 27, 27, 0.08);
+  color: var(--patient-dark);
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 1.05rem;
+}
+
+.tab svg { opacity: 0.95; width: 18px; height: 18px }
+
+/* Appointment confirmation modal styles */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.36);
+  z-index: 9000;
+}
+.modal-container {
+  background: #fff;
+  border-radius: 12px;
+  max-width: 640px;
+  width: calc(100% - 48px);
+  box-shadow: 0 30px 80px rgba(16,24,40,0.35);
+  overflow: hidden;
+}
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  background: linear-gradient(135deg, #fff5f5, #ffecec);
+  border-bottom: 1px solid rgba(239,68,68,0.06);
+}
+.modal-title {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--patient-dark);
+}
+.modal-body {
+  padding: 20px;
+}
+.confirmation-badge-wrap {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 12px;
+}
+.confirmation-badge {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: rgba(239,68,68,0.06);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.confirmation-check {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--patient-primary);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+}
+.confirmation-heading {
+  text-align: center;
+  margin-bottom: 16px;
+}
+.confirmation-heading-title {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--patient-dark);
+}
+.confirmation-heading-sub {
+  color: #6b7280;
+  margin-top: 6px;
+}
+.confirmation-number-box {
+  background: #fff;
+  border-radius: 8px;
+  padding: 14px;
+  border: 1px solid rgba(239,68,68,0.06);
+  margin-bottom: 12px;
+}
+.confirmation-number-label {
+  font-size: 13px;
+  color: #6b7280;
+  margin-bottom: 8px;
+}
+.confirmation-number-value {
+  font-weight: 800;
+  color: var(--patient-primary);
+  font-size: 18px;
+}
+.confirmation-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.mt12 { margin-top: 12px; }
+.mt18 { margin-top: 18px; }
+.mt6 { margin-top: 6px; }
+.muted { color: #6b7280; }
+.grid-two-col-12 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.time-note { margin-top: 8px; color: #6b7280; }
+
+/* Cost summary / booking totals */
+.noticeBox {
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(239,68,68,0.06);
+  background: #fff;
+}
+.noticeBoxTitle {
+  color: var(--patient-primary);
+  font-weight: 700;
+}
+.amountRight {
+  text-align: right;
+  font-weight: 700;
+}
+.totalsContainer {
+  border-top: 1px solid rgba(224,224,224,0.6);
+  padding-top: 8px;
+  margin-top: 8px;
+}
+.totalsRow {
+  display: flex;
+  justify-content: space-between;
+}
+.totalsTax {
+  display: flex;
+  justify-content: space-between;
+  color: #6b7280;
+  margin-top: 6px;
+}
+.totalAmountRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 12px;
+}
+.totalValue {
+  color: var(--patient-primary);
+  font-weight: 900;
+  font-size: 18px;
+}
+.confirmation-row-label { color: #6b7280; }
+.confirmation-row-value { text-align: right; font-weight: 700; }
+.modal-footer { margin-top: 14px; display: flex; justify-content: center; }
+
+
+.tab.active {
+  background: linear-gradient(180deg, var(--patient-light), #fff);
+  border: 1px solid var(--patient-primary);
+  box-shadow: 0 8px 24px rgba(239,68,68,0.14);
+  color: var(--patient-dark);
+  font-weight: 800;
+  transform: translateY(-2px);
+}
+
+

@@ -28,7 +28,7 @@ export default function HomePage() {
           <p>Book visits and manage your records easily</p>
 
           <button
-            className={styles.primaryBtn}
+            className={styles.viewAppointmentsBtn}
             onClick={() => router.push("/public/patient/login")}
           >
             Login as Patient →
