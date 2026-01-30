@@ -8,8 +8,9 @@
 .wrapper {
   min-height: 100vh;
   background: linear-gradient(135deg, #fff5f5, #fff);
-  padding: 2rem;
-.warningBox {
+  /* Reduce top padding so pages sit higher on screen */
+  padding: 1rem;
+  .warningBox {
   margin-bottom: 8px;
   background: linear-gradient(180deg, rgba(254,236,236,0.3), #fff);
   border: 1px solid rgba(254,202,202,0.6);
@@ -103,22 +104,7 @@
   transform: none !important;
 }
 
-.smallBadge {
-  background: #fff;
-  border: 1px solid rgba(239,68,68,0.1);
-  padding: 6px 8px;
-  border-radius: 999px;
-  font-size: 12px;
-}
-
-.appointmentCard {
-  /* brighter red-tinted interior card */
-  background: linear-gradient(180deg, #fff6f6 0%, #fff0f0 60%);
-  border: 1px solid rgba(239,68,68,0.18);
-  border-radius: 12px;
-  padding: 16px;
-  box-shadow: 0 12px 40px rgba(239,68,68,0.10);
-}
+/* patient-specific styles moved to patient.module.scss */
 
 /* compact card variant used for smaller modals / summary cards */
 .compactCard {
@@ -221,6 +207,7 @@
 }
 
 .infoBox {
+  /* patient infoBox moved to patient.module.scss; keep a fallback here */
   margin-top: 1rem;
   background: linear-gradient(180deg, rgba(254,236,236,0.45), #fff);
   border: 1px solid rgba(254,202,202,0.6);
@@ -241,9 +228,10 @@
 /* Header + Tabs */
 .header {
   display: flex;
-  align-items: flex-start;
+  /* center items vertically so the welcome title aligns with the sign-out button */
+  align-items: center;
   gap: 2rem;
-  margin-bottom: 1rem;
+  margin-bottom: 0.75rem;
 }
 
 .subtitle {
@@ -704,6 +692,24 @@
 .specialtyPill { padding: 4px 8px; border-radius: 999px; background: var(--doctor-primary); color: #fff; font-size: 12px; font-weight: 700; }
 .filterSelect { padding: 8px; border-radius: 8px; }
 .cardSpacing { margin-bottom: 12px; }
+
+/* Pale cancel button used in patient appointment cards (white with light red outline and red text) */
+.cancelBtn {
+  /* patient cancel button moved to patient.module.scss; keep fallback */
+  width: 100%;
+  background: linear-gradient(180deg, #fff, #fff);
+  border: 1px solid rgba(239,68,68,0.08);
+  color: var(--doctor-primary);
+  padding: 0.65rem 0.9rem;
+  border-radius: 8px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.cancelBtn:hover {
+  background: linear-gradient(180deg, rgba(254,236,236,0.7), #fff);
+  box-shadow: 0 8px 20px rgba(239,68,68,0.06);
+  transform: translateY(-1px);
+}
 .licenseBadgeGreen { font-size: 12px; color: #38a169; margin-left: 8px; }
 .licenseBadgeGray { font-size: 12px; color: #a0aec0; margin-left: 8px; }
 .noteText { margin-top: 10px; color: #333; }
@@ -729,4 +735,16 @@
 .textRight { text-align: right; }
 .flex1 { flex: 1; }
 .justifyBetween { justify-content: space-between; }
+
+
+/* Solid white panel variant used on patient home for clearer contrast */
+.panelWhite {
+  margin: 1rem 0;
+  width: 100%;
+  background: #ffffff;
+  border: 1px solid rgba(239,68,68,0.06);
+  border-radius: 12px;
+  padding: 1.25rem 1.5rem;
+  box-shadow: 0 18px 36px rgba(239,68,68,0.04);
+}
 
