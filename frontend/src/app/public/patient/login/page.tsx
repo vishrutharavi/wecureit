@@ -13,6 +13,7 @@ export default function PatientLogin() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
 
   async function handleLogin() {
     try {
@@ -48,7 +49,10 @@ export default function PatientLogin() {
     } catch (err: unknown) {
       console.error("Login failed", err);
       const msg = err instanceof Error ? err.message : String(err);
-      alert("Login failed: " + msg);
+      const lower = msg.toLowerCase();
+      const friendly = (lower.includes('wrong') || lower.includes('password') || lower.includes('auth/')) ? 'Incorrect email or password' : msg;
+      setToast(friendly);
+      setTimeout(() => setToast(null), 4000);
     }
   }
 
@@ -93,6 +97,8 @@ export default function PatientLogin() {
         <button className={styles.backBtn} onClick={() => router.push("/")}>
             ← Back to Home
         </button>
+
+        {toast && <div className={styles.toast}>{toast}</div>}
 
       </div>
     </div>

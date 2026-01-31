@@ -13,6 +13,7 @@ export default function DoctorLogin() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
   const router = useRouter();
 
   async function handleLogin() {
@@ -26,6 +27,8 @@ export default function DoctorLogin() {
       // persist a lightweight doctor profile for client usage
       try {
         if (me) localStorage.setItem('doctorProfile', JSON.stringify(me));
+        // persist id token so subsequent API calls can include it
+        try { localStorage.setItem('doctorToken', idToken); } catch {}
       } catch {}
       // mark that we just logged in so the dashboard can show a non-blocking message
       try {
@@ -40,7 +43,10 @@ export default function DoctorLogin() {
     } catch (err: unknown) {
       console.error("Login failed", err);
       const msg = err instanceof Error ? err.message : String(err);
-      alert("Login failed: " + msg);
+      const lower = msg.toLowerCase();
+      const friendly = (lower.includes('wrong') || lower.includes('password') || lower.includes('auth/')) ? 'Incorrect email or password' : msg;
+      setToast(friendly);
+      setTimeout(() => setToast(null), 4000);
     }
   }
   
@@ -84,6 +90,8 @@ export default function DoctorLogin() {
         <button className={styles.backBtn} onClick={() => router.push("/")}>
             ← Back to Home
         </button>
+
+    {toast && <div className={styles.toast}>{toast}</div>}
 
       </div>
     </div>

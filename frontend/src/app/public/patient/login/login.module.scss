@@ -117,3 +117,14 @@
   cursor: pointer;
   font-size: 0.9rem;
 }
+
+.toast {
+  margin-top: 12px;
+  padding: 10px 12px;
+  background: #fee2e2;
+  border: 1px solid rgba(239,68,68,0.12);
+  color: #991b1b;
+  border-radius: 8px;
+  font-weight: 700;
+  text-align: center;
+}
