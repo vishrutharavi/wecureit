@@ -11,6 +11,10 @@ type Item = {
   start: string;
   end: string;
   hours: number;
+  specialities?: string[];
+  roomsCount?: number;
+  facilityAddress?: string;
+  facilityState?: string;
 };
 
 type Props = {
@@ -46,9 +50,28 @@ export default function AvailabilitySummary({ pending, saved, onSaveSchedule, on
                     <div style={{ color: '#6b7280', fontSize: 13 }}>{new Date(p.date).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</div>
 
                     <div style={{ marginTop: 10 }}>
-                      <span className={styles.badge}> {p.facilityName} </span>
+                      {/* Capsule 1: Specialities */}
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                        {(p.specialities && p.specialities.length > 0) ? (
+                          p.specialities.map((s) => (
+                            <span key={s} className={styles.specialtyPill}>{s}</span>
+                          ))
+                        ) : (
+                          <span className={styles.badge}>{p.facilityName}</span>
+                        )}
+                      </div>
+
+                      {/* facility name below the specialty pills, above timings */}
                       <div style={{ marginTop: 8, color: '#111', fontWeight: 700 }}>{p.facilityName}</div>
-                      <div style={{ color: '#6b7280', fontSize: 13 }}>{p.start} - {p.end}</div>
+                      {p.facilityAddress && (
+                        <div style={{ color: '#6b7280', fontSize: 13 }}>{p.facilityAddress}{p.facilityState ? `, ${p.facilityState}` : ''}</div>
+                      )}
+
+                      {/* Capsule 2: Timings + rooms */}
+                      <div style={{ marginTop: 8, display: 'flex', gap: 10, alignItems: 'center' }}>
+                        <div style={{ color: '#111', fontWeight: 700 }}>{p.start} - {p.end}</div>
+                        <div className={styles.appointmentDurationPill}>{p.roomsCount ?? 0} rooms</div>
+                      </div>
                     </div>
                   </div>
 
@@ -73,7 +96,21 @@ export default function AvailabilitySummary({ pending, saved, onSaveSchedule, on
               <div key={sItem.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 12, borderRadius: 8, background: '#fff' }}>
                 <div>
                   <div style={{ fontWeight: 800 }}>{new Date(sItem.date).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}</div>
-                  <div style={{ color: '#6b7280' }}>{sItem.start} - {sItem.end}</div>
+                  <div style={{ marginTop: 8, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                    {(sItem.specialities && sItem.specialities.length > 0) ? (
+                      sItem.specialities.map((s) => <span key={s} className={styles.specialtyPill}>{s}</span>)
+                    ) : (
+                      <span className={styles.badge}>{sItem.facilityName}</span>
+                    )}
+                  </div>
+                  <div style={{ marginTop: 8, color: '#111', fontWeight: 700 }}>{sItem.facilityName}</div>
+                  {sItem.facilityAddress && (
+                    <div style={{ color: '#6b7280', fontSize: 13 }}>{sItem.facilityAddress}{sItem.facilityState ? `, ${sItem.facilityState}` : ''}</div>
+                  )}
+                  <div style={{ marginTop: 6, display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <div style={{ color: '#6b7280' }}>{sItem.start} - {sItem.end}</div>
+                    <div className={styles.appointmentDurationPill}>{sItem.roomsCount ?? 0} rooms</div>
+                  </div>
                 </div>
                 <div>
                   <button className={styles.viewAppointmentsBtn} onClick={onViewSaved}>View availability</button>

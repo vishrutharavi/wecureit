@@ -15,5 +15,7 @@ public interface DoctorLicenseRepository extends JpaRepository<DoctorLicense, UU
         String stateCode,
         String specialityCode
     );
+
+    boolean existsByDoctorIdAndStateCodeAndSpecialityCodeAndIsActiveTrue(UUID doctorId, String stateCode, String specialityCode);
 }
 

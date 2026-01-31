@@ -1,11 +1,49 @@
 "use client";
 
 import styles from "../../doctor.module.scss";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import DatePickerGrid from "./DatePickerGrid";
 import FacilitySelector from "./FacilitySelector";
 import TimeRangePicker from "./TimeRangePicker";
 import ViewAvailabilityModal from "./ViewAvailabilityModal";
+import { apiFetch, showInlineToast } from '@/lib/api';
+
+type AvailabilityResp = {
+  id: string;
+  workDate: string;
+  startTime: string;
+  endTime: string;
+  allowWalkIn?: boolean;
+  bookable?: boolean;
+  isBookable?: boolean;
+  facilityId?: string;
+  roomsTotal?: number;
+  occupiedRooms?: number;
+  availableRooms?: number;
+  facilityName?: string; // Added facilityName
+  facilityAddress?: string; // Added facilityAddress
+  facilityState?: string; // Added facilityState
+  roomAssignedId?: string;
+  roomAssignmentStatus?: string;
+};
+
+type SavedItem = {
+  id: string;
+  date: string;
+  facilityId: string | null;
+  facilityName: string;
+  start: string;
+  end: string;
+  hours: number;
+  allowWalkIn?: boolean;
+  isBookable?: boolean;
+  specialities?: string[];
+  roomsCount?: number;
+  facilityAddress?: string;
+  facilityState?: string;
+  assigned?: boolean;
+};
+type FacilityApi = { id: string; name: string; city?: string; state?: string; rooms?: Array<Record<string, unknown>>; address?: string; specialityCodes?: string[] };
 import AvailabilitySummary from "./AvailabilitySummary";
 
 export default function AvailabilityView() {
@@ -26,25 +64,157 @@ export default function AvailabilityView() {
   const minHoursSatisfied = totalHours >= 4;
   const canAdd = !!selectedDate && !!selectedFacility && !!startTime && !!endTime && minHoursSatisfied;
 
-  const facilities = [
-    { id: "1", name: "Downtown Medical Center", city: "Washington DC", rooms: 12 },
-    { id: "2", name: "Alexandria Main Hospital", city: "Alexandria", rooms: 15 },
-    { id: "3", name: "Bethesda Health Center", city: "Bethesda", rooms: 9 },
-  ];
+  const [facilities, setFacilities] = useState<Array<{ id: string; name: string; city?: string; state?: string; rooms?: number; address?: string; roomsArray?: Array<Record<string, unknown>>; specialities?: string[]; specialityCodes?: string[] }>>([]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const raw = localStorage.getItem('doctorProfile');
+        if (!raw) return; // not logged in
+        const doc = JSON.parse(raw);
+        const doctorId = doc.id;
+        const token = localStorage.getItem('doctorToken') ?? undefined;
+        const resp = await apiFetch(`/api/doctors/${doctorId}/facilities`, token);
+        if (Array.isArray(resp)) {
+          setFacilities((resp as FacilityApi[]).map((f) => {
+            const roomsArr = (f.rooms || []) as Array<Record<string, unknown>>;
+            // prefer human-friendly 'specialty' from backend RoomResponse, fall back to common keys
+            const specs = Array.from(new Set(roomsArr.map(r => (r['specialty'] ?? r['speciality'] ?? r['specialityCode'] ?? r['speciality_code'] ?? '').toString()).filter(s => s)));
+        const specCodes = Array.from(new Set(roomsArr.map(r => (r['specialityCode'] ?? r['speciality'] ?? '').toString()).filter(s => s)));
+        return { id: f.id, name: f.name, city: f.city, state: f.state ?? '', rooms: (roomsArr || []).length, address: f.address, roomsArray: roomsArr, specialities: specs, specialityCodes: specCodes };
+          }));
+        }
+      } catch (err) {
+        console.error('Failed to load facilities for doctor', err);
+      }
+    })();
+  }, []);
+
+  // load saved availabilities for this doctor so they persist across refresh
+  useEffect(() => {
+    (async () => {
+      try {
+        const raw = localStorage.getItem('doctorProfile');
+        if (!raw) return;
+        const doc = JSON.parse(raw);
+        const doctorId = doc.id;
+        const token = localStorage.getItem('doctorToken') ?? undefined;
+        const resp: AvailabilityResp[] = await apiFetch(`/api/doctors/${doctorId}/availability`, token);
+        if (Array.isArray(resp)) {
+          const mapped: SavedItem[] = resp.map(r => {
+            const facility = r.facilityId ? facilities.find(f => f.id === r.facilityId) : undefined;
+            return {
+              id: r.id,
+              date: r.workDate,
+              facilityId: r.facilityId ?? null,
+              facilityName: r.facilityName ?? facility?.name ?? 'Unknown',
+              start: r.startTime,
+              end: r.endTime,
+              hours: Math.max(0, (parseMinutes(r.endTime) - parseMinutes(r.startTime)) / 60),
+              specialities: [],
+              roomsCount: typeof r.availableRooms === 'number' ? r.availableRooms : undefined,
+              facilityAddress: r.facilityAddress ?? facility?.address,
+              facilityState: r.facilityState ?? facility?.state,
+              allowWalkIn: r.allowWalkIn ?? false,
+              isBookable: r.bookable ?? (r.isBookable ?? true),
+              assigned: Boolean(r.roomAssignedId) || (r.roomAssignmentStatus === 'ASSIGNED'),
+            };
+          });
+          setSaved(mapped);
+        }
+      } catch (err) {
+        console.error('Failed to load saved availabilities', err);
+      }
+    })();
+  }, [facilities]);
 
   // pending (unsaved) availabilities shown in the summary
-  const [pending, setPending] = useState<Array<{ id: string; date: string; facilityId: string | null; facilityName: string; start: string; end: string; hours: number }>>([]);
+  const [pending, setPending] = useState<Array<{ id: string; date: string; facilityId: string | null; facilityName: string; start: string; end: string; hours: number; specialities?: string[]; roomsCount?: number; specialityCode?: string; facilityAddress?: string; facilityState?: string }>>([]);
   // saved availabilities (persisted) — local state until backend wiring
-  const [saved, setSaved] = useState<typeof pending>([]);
+  const [saved, setSaved] = useState<SavedItem[]>([]);
   const [showSavedModal, setShowSavedModal] = useState(false);
-  const [hideSavedInline, setHideSavedInline] = useState(false);
   
   const handleSaveSchedule = () => {
-    setSaved((s) => [...s, ...pending]);
-    setPending([]);
-    setShowSavedModal(true);
-    // hide the inline saved availabilities container after saving (we show modal instead)
-    setHideSavedInline(true);
+    // call backend to persist pending items
+    (async () => {
+      try {
+  const raw = localStorage.getItem('doctorProfile');
+        if (!raw) throw new Error('Not authenticated as doctor');
+        const doc = JSON.parse(raw);
+        const doctorId = doc.id;
+  const token = localStorage.getItem('doctorToken') ?? undefined;
+
+        const payload = pending.map(p => ({
+          workDate: p.date,
+          startTime: p.start,
+          endTime: p.end,
+          specialityCode: p.specialityCode ?? undefined,
+          facilityId: p.facilityId
+        }));
+
+  const resp: AvailabilityResp[] = await apiFetch(`/api/doctors/${doctorId}/availability`, token, { method: 'POST', body: JSON.stringify(payload) });
+        // resp is array of saved availability responses
+        if (Array.isArray(resp)) {
+          // map server response back to saved items, preserving facilityName and hours from pending
+          const savedFromResp: SavedItem[] = resp.map((r: AvailabilityResp) => {
+            const matching = pending.find(p => p.date === r.workDate && p.start === r.startTime && p.end === r.endTime);
+            const roomsCount = (typeof r.availableRooms === 'number') ? r.availableRooms : (matching?.roomsCount ?? 0);
+            return {
+              id: r.id,
+              date: r.workDate,
+              facilityId: matching?.facilityId ?? null,
+              facilityName: r.facilityName ?? matching?.facilityName ?? 'Unknown',
+              start: r.startTime,
+              end: r.endTime,
+              hours: matching?.hours ?? 0,
+              specialities: matching?.specialities ?? [],
+              roomsCount,
+              facilityAddress: r.facilityAddress ?? ((matching && (facilities.find(f => f.id === matching.facilityId)?.address)) ?? undefined),
+              facilityState: r.facilityState ?? ((matching && (facilities.find(f => f.id === matching.facilityId)?.state)) ?? undefined),
+              // attach server flags if present
+              allowWalkIn: r.allowWalkIn ?? false,
+              isBookable: r.bookable ?? (r.isBookable ?? true),
+              assigned: Boolean(r.roomAssignedId) || (r.roomAssignmentStatus === 'ASSIGNED'),
+            };
+          });
+
+          // update saved list locally and show modal; do not render saved items inline
+          setSaved((s) => [...s, ...savedFromResp]);
+          setPending([]);
+          setShowSavedModal(true);
+
+          const nonBookable = resp.filter((r: AvailabilityResp) => !r.bookable);
+          if (nonBookable.length > 0) {
+            const proceed = window.confirm('Some of your saved availabilities have no rooms assigned and are not bookable. Do you want to mark them as Walk-in only so patients cannot book online?');
+            if (proceed) {
+              // call PATCH to set allow_walk_in for each and update UI
+              for (const nb of nonBookable) {
+                try {
+                  await apiFetch(`/api/doctors/${doctorId}/availability/${nb.id}`, token, { method: 'PATCH', body: JSON.stringify({ allowWalkIn: true }) });
+                } catch (err) {
+                  console.error('Failed to set walk-in for', nb.id, err);
+                }
+              }
+              // Update local saved items to reflect walk-in change
+              setSaved(prev => prev.map(s => nonBookable.find(n => n.id === s.id) ? { ...s, allowWalkIn: true, isBookable: false } : s));
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Failed to save schedule', err);
+        const msg = (err as Error).message || String(err);
+        const lower = msg.toLowerCase();
+        // Prefer showing a duplicate-specific toast when the message mentions duplication
+        if (/duplicate|already exists|already added|conflict/i.test(lower) || /API\s409/i.test(msg)) {
+          showInlineToast('Availability already exists for the selected facility, date and time.');
+        } else if (/API\s401|API\s403/i.test(msg) && !/duplicate|already exists|conflict/i.test(lower)) {
+          // Only show auth message if it's not actually a duplicate conflict
+          showInlineToast('Authentication or authorization error. Please log in.');
+        } else {
+          showInlineToast('Failed to save schedule: ' + (msg.replace(/^API \d+: ?/, '') || 'Unknown error'));
+        }
+      }
+    })();
   };
 
   const handleRemovePending = (id: string) => setPending(prev => prev.filter(x => x.id !== id));
@@ -114,12 +284,28 @@ export default function AvailabilityView() {
               !startTime || !endTime ? 'Select start and end times' :
               !minHoursSatisfied ? 'Total shift must be at least 4 hours' : 'Add Availability'
             }
-            onClick={() => {
+              onClick={async () => {
               if (!canAdd) return;
               // add to pending summary
-              const facility = facilities.find(f => f.id === selectedFacility) ?? { id: selectedFacility ?? '0', name: 'Unknown Facility' };
+              const facility = facilities.find(f => f.id === selectedFacility) ?? { id: selectedFacility ?? '0', name: 'Unknown Facility' } as (typeof facilities)[number];
               const id = `${selectedDate}-${selectedFacility}-${startTime}-${endTime}`;
-              setPending(prev => prev.some(p => p.id === id) ? prev : [...prev, { id, date: selectedDate, facilityId: selectedFacility, facilityName: facility.name, start: startTime, end: endTime, hours: +(totalHours) }]);
+                let roomsCount = facility.rooms ?? 0;
+                try {
+                  const raw = localStorage.getItem('doctorProfile');
+                  if (raw) {
+                    const doc = JSON.parse(raw);
+                    const doctorId = doc.id;
+                    const token = localStorage.getItem('doctorToken') ?? undefined;
+                    const avail = await apiFetch(`/api/doctors/${doctorId}/facilities/${selectedFacility}/availability?workDate=${selectedDate}&start=${startTime}&end=${endTime}`, token);
+                    if (avail && typeof avail.availableRooms === 'number') {
+                      roomsCount = avail.availableRooms;
+                    }
+                  }
+                } catch (err) {
+                  console.warn('Failed to fetch facility availability, falling back to static room count', err);
+                }
+
+                setPending(prev => prev.some(p => p.id === id) ? prev : [...prev, { id, date: selectedDate, facilityId: selectedFacility, facilityName: facility.name, start: startTime, end: endTime, hours: +(totalHours), specialities: facility.specialities ?? [], roomsCount, specialityCode: facility.specialityCodes?.[0] ?? undefined, facilityAddress: facility.address ?? '', facilityState: facility.state ?? '' }]);
             }}
           >
             Add Availability
@@ -130,7 +316,41 @@ export default function AvailabilityView() {
           <button className={styles.viewAppointmentsBtn} onClick={() => setShowSavedModal(true)}>View availabilities</button>
         </div>
 
-  <ViewAvailabilityModal open={showSavedModal} onClose={() => setShowSavedModal(false)} items={saved} onRemove={(id) => setSaved(prev => prev.filter(x => x.id !== id))} />
+  <ViewAvailabilityModal
+    open={showSavedModal}
+    onClose={() => setShowSavedModal(false)}
+    items={saved}
+    onRemove={async (id) => {
+      try {
+        const raw = localStorage.getItem('doctorProfile');
+        if (!raw) throw new Error('Not authenticated as doctor');
+        const doc = JSON.parse(raw);
+        const doctorId = doc.id;
+        const token = localStorage.getItem('doctorToken') ?? undefined;
+        // call backend delete endpoint (as requested path)
+        await apiFetch(`/api/doctors/${doctorId}/availability/${id}/delete-availability`, token, { method: 'DELETE' });
+        // remove locally
+        setSaved(prev => prev.filter(x => x.id !== id));
+      } catch (err) {
+        console.error('Failed to delete availability', err);
+        alert('Failed to delete availability: ' + (err as Error).message);
+      }
+    }}
+    onToggleWalkIn={async (id: string, allow: boolean) => {
+      try {
+        const raw = localStorage.getItem('doctorProfile');
+        if (!raw) throw new Error('Not authenticated as doctor');
+        const doc = JSON.parse(raw);
+        const doctorId = doc.id;
+        const token = localStorage.getItem('doctorToken') ?? undefined;
+        await apiFetch(`/api/doctors/${doctorId}/availability/${id}`, token, { method: 'PATCH', body: JSON.stringify({ allowWalkIn: allow }) });
+        setSaved(prev => prev.map(s => s.id === id ? { ...s, allowWalkIn: allow, isBookable: allow ? false : s.isBookable } : s));
+      } catch (err) {
+        console.error('Failed to toggle walk-in', err);
+        alert('Failed to update walk-in setting');
+      }
+    }}
+  />
     </div>
 
     {/* Availability summary rendered in a separate container below the Set Availability card */}
@@ -140,7 +360,7 @@ export default function AvailabilityView() {
       onSaveSchedule={handleSaveSchedule}
       onRemovePending={handleRemovePending}
       onViewSaved={() => setShowSavedModal(true)}
-      showSavedInline={!hideSavedInline}
+      showSavedInline={false}
     />
   </>
   );

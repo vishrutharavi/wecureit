@@ -13,6 +13,13 @@ type AvailabilityItem = {
   start: string;
   end: string;
   hours: number;
+  allowWalkIn?: boolean;
+  isBookable?: boolean;
+  specialities?: string[];
+  roomsCount?: number;
+  facilityAddress?: string;
+  facilityState?: string;
+  assigned?: boolean;
 };
 
 type Props = {
@@ -20,12 +27,15 @@ type Props = {
   onClose: () => void;
   items: AvailabilityItem[];
   onRemove?: (id: string) => void;
+  onToggleWalkIn?: (id: string, allow: boolean) => Promise<void>;
 };
 
-export default function ViewAvailabilityModal({ open, onClose, items, onRemove }: Props) {
+export default function ViewAvailabilityModal({ open, onClose, items, onRemove, onToggleWalkIn }: Props) {
   const [selected, setSelected] = React.useState<AvailabilityItem | null>(null);
 
   if (!open) return null;
+
+  const assignedItems = items.filter(it => it.assigned);
 
   const handleView = (it: AvailabilityItem) => {
     setSelected(it);
@@ -35,6 +45,19 @@ export default function ViewAvailabilityModal({ open, onClose, items, onRemove }
     if (onRemove) onRemove(id);
     // close detail view after removal
     setSelected(null);
+  };
+
+  const handleToggle = async (it: AvailabilityItem) => {
+    if (!onToggleWalkIn) return;
+    const newVal = !it.allowWalkIn;
+    try {
+      await onToggleWalkIn(it.id, newVal);
+      // reflect change in detail view if open
+      setSelected(prev => prev && prev.id === it.id ? { ...prev, allowWalkIn: newVal, isBookable: newVal ? false : prev.isBookable } : prev);
+    } catch (err) {
+      console.error('Failed toggle walk-in', err);
+      // optionally show UI feedback here
+    }
   };
 
   return (
@@ -49,19 +72,30 @@ export default function ViewAvailabilityModal({ open, onClose, items, onRemove }
 
         <div className={styles["modal-body"]}>
           {!selected ? (
-            items.length === 0 ? (
-              <div className={styles.emptyCard}>No saved availabilities</div>
+            assignedItems.length === 0 ? (
+              <div className={styles.emptyCard}>No assigned availabilities</div>
             ) : (
               <div style={{ display: 'grid', gap: 10 }}>
-                {items.map((it) => (
+                {assignedItems.map((it) => (
                   <div key={it.id} style={{ padding: 12, borderRadius: 8, background: '#fff', border: '1px solid rgba(254,202,202,0.6)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div>
                       <div style={{ fontWeight: 800 }}>{new Date(it.date).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}</div>
-                      <div style={{ color: '#6b7280' }}>{it.facilityName}</div>
-                      <div style={{ marginTop: 6 }}>{it.start} - {it.end} • {it.hours} hrs</div>
+                        <div style={{ color: '#6b7280', display: 'flex', gap: 8, alignItems: 'center' }}>
+                          <span>{it.facilityName}</span>
+                          {it.allowWalkIn ? <span className={styles.badge} style={{ background: 'rgba(250,204,21,0.12)', color: '#b45309' }}>Walk-in only</span> : null}
+                          {/* If server says not bookable but roomsCount > 0, prefer showing as bookable (server may not have returned roomsCount); only show Not bookable when explicitly not bookable and no rooms available */}
+                          {it.isBookable === false && !it.allowWalkIn && ((it.roomsCount ?? 0) === 0) ? <span className={styles.badge} style={{ background: 'rgba(239,68,68,0.08)', color: 'var(--doctor-dark)' }}>Not bookable</span> : null}
+                        </div>
+                        <div style={{ marginTop: 6 }}>{it.start} - {it.end} • {it.hours} hrs</div>
                     </div>
-                    <div>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                       <button className={styles.viewAppointmentsBtn} onClick={() => handleView(it)}>View</button>
+                      <button className={styles.walkInToggleBtn} onClick={() => handleToggle(it)}>
+                        {it.allowWalkIn ? 'Unmark Walk-in' : 'Mark Walk-in'}
+                      </button>
+                      {onRemove ? (
+                        <button className={styles.secondaryBtn} onClick={() => { if (confirm('Delete this availability? This cannot be undone.')) { handleRemove(it.id); } }} style={{ marginLeft: 8 }}>Delete</button>
+                      ) : null}
                     </div>
                   </div>
                 ))}
@@ -70,16 +104,22 @@ export default function ViewAvailabilityModal({ open, onClose, items, onRemove }
           ) : (
             // detail view
             <div className={styles.appointmentCard} style={{ border: '1px solid rgba(239,68,68,0.12)', background: 'linear-gradient(180deg, #fff7f7, #fff)', padding: 18 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <div>
                   <div style={{ fontWeight: 800, fontSize: 18 }}>{new Date(selected.date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}</div>
                   <div style={{ color: '#6b7280', marginTop: 4 }}>{new Date(selected.date).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</div>
 
-                  <div style={{ marginTop: 12 }}>
-                    <span className={styles.badge} style={{ background: 'rgba(239,68,68,0.08)', color: 'var(--doctor-dark)' }}>{selected.specialty ?? 'General'}</span>
+                    <div style={{ marginTop: 12 }}>
+                      <span className={styles.badge} style={{ background: 'rgba(239,68,68,0.08)', color: 'var(--doctor-dark)' }}>{selected.specialities && selected.specialities.length > 0 ? selected.specialities[0] : (selected.specialty ?? 'General')}</span>
+
+                    {selected.allowWalkIn ? (
+                      <div style={{ marginTop: 8 }}><span className={styles.badge} style={{ background: 'rgba(250,204,21,0.12)', color: '#b45309' }}>Walk-in only</span></div>
+                    ) : (selected.isBookable === false && ((selected.roomsCount ?? 0) === 0)) ? (
+                      <div style={{ marginTop: 8 }}><span className={styles.badge} style={{ background: 'rgba(239,68,68,0.08)', color: 'var(--doctor-dark)' }}>Not bookable</span></div>
+                    ) : null}
 
                     <div style={{ marginTop: 10, fontWeight: 700 }}>{selected.facilityName}</div>
-                    {selected.facilityCity && <div style={{ color: '#6b7280', fontSize: 13 }}>{selected.facilityCity}</div>}
+                      {selected.facilityAddress && <div style={{ color: '#6b7280', fontSize: 13 }}>{selected.facilityAddress}{selected.facilityState ? `, ${selected.facilityState}` : ''}</div>}
 
                     <div style={{ marginTop: 12, display: 'flex', gap: 12, alignItems: 'center' }}>
                       <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -94,6 +134,11 @@ export default function ViewAvailabilityModal({ open, onClose, items, onRemove }
                   <button onClick={() => setSelected(null)} className={styles.secondaryBtn} style={{ marginBottom: 12 }}>Back</button>
                   <div>
                     <button onClick={() => handleRemove(selected.id)} style={{ background: 'transparent', border: 'none', color: 'var(--doctor-primary)', fontWeight: 700, cursor: 'pointer' }}>Remove</button>
+                    <div style={{ marginTop: 10 }}>
+                      <button className={styles.walkInToggleBtn} onClick={() => selected && handleToggle(selected)}>
+                        {selected?.allowWalkIn ? 'Unmark Walk-in' : 'Mark Walk-in'}
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>

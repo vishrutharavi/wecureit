@@ -13,6 +13,7 @@ export default function AdminLogin() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
   const router = useRouter();
 
   async function handleLogin() {
@@ -40,7 +41,10 @@ export default function AdminLogin() {
     } catch (err: unknown) {
       console.error("Admin login failed", err);
       const msg = err instanceof Error ? err.message : String(err);
-      alert("Admin login failed: " + msg);
+      const lower = msg.toLowerCase();
+      const friendly = (lower.includes('wrong') || lower.includes('password') || lower.includes('auth/')) ? 'Incorrect email or password' : msg;
+      setToast(friendly);
+      setTimeout(() => setToast(null), 4000);
     }
   }
 
@@ -82,6 +86,7 @@ export default function AdminLogin() {
         <button className={styles.backBtn} onClick={() => router.push("/")}>
           ← Back to Home
         </button>
+        {toast && <div className={styles.toast}>{toast}</div>}
       </div>
     </div>
   );
