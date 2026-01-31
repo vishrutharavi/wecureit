@@ -1,17 +1,24 @@
 package com.wecureit.service;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 
 import com.wecureit.dto.response.FacilityResponse;
 import com.wecureit.dto.response.RoomResponse;
+import com.wecureit.entity.DoctorLicense;
 import com.wecureit.entity.Facility;
 import com.wecureit.entity.Room;
-import com.wecureit.entity.DoctorLicense;
+import com.wecureit.repository.DoctorLicenseRepository;
 import com.wecureit.repository.FacilityRepository;
 import com.wecureit.repository.RoomRepository;
-import com.wecureit.repository.DoctorLicenseRepository;
 
 @Service
 public class DoctorFacilityService {
