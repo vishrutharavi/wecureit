@@ -1,3 +1,4 @@
+import { auth } from './firebase';
 const API_BASE = "http://localhost:8080";
 
 export async function apiFetch(
@@ -5,6 +6,14 @@ export async function apiFetch(
   token?: string,
   options: RequestInit = {}
 ) {
+  // if caller didn't pass a token, try common localStorage keys (patientToken, doctorToken, idToken)
+  if (!token && typeof window !== 'undefined') {
+    try {
+      token = localStorage.getItem('patientToken') ?? localStorage.getItem('doctorToken') ?? localStorage.getItem('idToken') ?? undefined;
+    } catch {
+      // ignore storage errors
+    }
+  }
   const res = await fetch(`${API_BASE}${path}`, {
     ...options,
     headers: {
@@ -13,6 +22,45 @@ export async function apiFetch(
       ...options.headers,
     },
   });
+
+  // If token expired, try one automatic refresh using Firebase client SDK and retry.
+  if (res.status === 401) {
+    // try to parse body for 'expired' hint
+    const bodyText = await res.text();
+    if (/expired/i.test(bodyText)) {
+      try {
+        if (typeof window !== 'undefined' && auth && auth.currentUser) {
+          const newTok = await auth.currentUser.getIdToken(true);
+          try { localStorage.setItem('patientToken', newTok); } catch {}
+          // retry original request once with refreshed token
+          const retryRes = await fetch(`${API_BASE}${path}`, {
+            ...options,
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${newTok}`,
+              ...options.headers,
+            },
+          });
+          if (retryRes.ok) {
+            const t = await retryRes.text();
+            if (!t) return null;
+            try { return JSON.parse(t); } catch { return t; }
+          }
+          // fall through to normal error handling for the retry response
+          // set res variable to retryRes for downstream handling
+          // (can't reassign const res, so we'll proceed to parse retryRes below)
+          const text = await retryRes.text();
+          throw new Error(`API ${retryRes.status}: ${text}`);
+        }
+      } catch (refreshErr) {
+        // failed to refresh — continue to normal error handling below
+        console.warn('Token refresh failed', refreshErr);
+      }
+    }
+    // if not expired or refresh failed, fall through to error handling
+    // restore response body text for downstream parsing
+    try { /* noop */ } catch {}
+  }
 
   if (!res.ok) {
     const text = await res.text();
