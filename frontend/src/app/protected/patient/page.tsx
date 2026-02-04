@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import type { Doctor, Facility, Specialty } from '@/lib/patient/bookingTypes';
 import { useSearchParams, useRouter } from "next/navigation";
 import styles from "./patient.module.scss";
 import PatientHeader from "./components/PatientHeader";
@@ -107,18 +108,13 @@ export default function Page() {
 // A small client-side booking component kept in this file for convenience.
 // It can be imported elsewhere if you prefer a separate page file.
 export function BookAppointmentPage() {
-  type Doctor = { id: string; name: string; specialtyId: string; facilityId: string };
-  type Facility = { id: string; name: string };
-  type Specialty = { id: string; name: string };
+  type Selection = { doctor?: Doctor | null; facility?: Facility | null; specialty?: Specialty | null };
 
-  const [selection, setSelection] = React.useState<{ doctor?: Doctor | null; facility?: Facility | null; specialty?: Specialty | null }>({});
+  const [selection, setSelection] = React.useState<Selection>({});
 
-  const handleSelectionChange = React.useCallback(
-    (s: { doctor?: Doctor | null; facility?: Facility | null; specialty?: Specialty | null }) => {
-      setSelection(s);
-    },
-    []
-  );
+  const handleSelectionChange = React.useCallback((s: Selection) => {
+    setSelection(s);
+  }, []);
 
   return (
     <div className={styles.wrapper}>

@@ -6,6 +6,8 @@ import styles from "../../patient.module.scss";
 type Props = {
   value?: string | null; // YYYY-MM-DD or null/undefined when nothing selected
   onChange: (isoDate: string) => void;
+  // if provided, only these dates will be marked available; other future dates will be disabled
+  availableDates?: string[] | null;
 };
 
 function startOfMonth(date: Date) {
@@ -16,8 +18,26 @@ function endOfMonth(date: Date) {
   return new Date(date.getFullYear(), date.getMonth() + 1, 0);
 }
 
-export default function DatePickerGrid({ value, onChange }: Props) {
+export default function DatePickerGrid({ value, onChange, availableDates }: Props) {
   const [current, setCurrent] = React.useState<Date>(() => (value ? new Date(value) : new Date()));
+
+  // debug: log availableDates vs the month cells to help diagnose off-by-one
+  React.useEffect(() => {
+    try {
+      const monthIsos = [] as (string | null)[];
+      const lastDay = endOfMonth(current);
+      const daysInMonth = lastDay.getDate();
+      for (let d = 1; d <= daysInMonth; d++) {
+        const dt = new Date(current.getFullYear(), current.getMonth(), d);
+        const iso = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+        monthIsos.push(iso);
+      }
+      console.debug('[calendar] monthIsos', monthIsos);
+      console.debug('[calendar] availableDates', availableDates);
+    } catch {
+      // ignore
+    }
+  }, [availableDates, current]);
 
   React.useEffect(() => {
     setCurrent(value ? new Date(value) : new Date());
@@ -55,8 +75,12 @@ export default function DatePickerGrid({ value, onChange }: Props) {
 
         {cells.map((c, idx) => {
           if (!c.date) return <div key={idx} className={styles.miniCalendarCellEmpty} />;
-          const iso = c.date.toISOString().slice(0,10);
+          // construct ISO date string (YYYY-MM-DD) using local date parts to avoid timezone shifts
+          const iso = `${c.date.getFullYear()}-${String(c.date.getMonth() + 1).padStart(2, '0')}-${String(c.date.getDate()).padStart(2, '0')}`;
           const isSelected = iso === isoSelected;
+
+          // treat date as available if availableDates is null (not fetched) or includes this date
+          const isAvailable = typeof availableDates === 'undefined' || availableDates === null ? true : (availableDates.indexOf(iso) >= 0);
 
           // compute if this date is strictly before today (local)
           const today = new Date();
@@ -66,17 +90,17 @@ export default function DatePickerGrid({ value, onChange }: Props) {
 
           const className = isSelected
             ? styles.miniCalendarDaySelected
-            : isPast
+            : isPast || !isAvailable
             ? styles.miniCalendarDayDisabled
             : styles.miniCalendarDay;
 
           return (
             <button
               key={idx}
-              onClick={() => !isPast && onChange(iso)}
+              onClick={() => !isPast && isAvailable && onChange(iso)}
               className={className}
-              disabled={isPast}
-              aria-disabled={isPast}
+              disabled={isPast || !isAvailable}
+              aria-disabled={isPast || !isAvailable}
             >
               {c.date.getDate()}
             </button>

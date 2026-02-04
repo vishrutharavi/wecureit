@@ -2,6 +2,9 @@
 
 import React, { useState, useEffect } from "react";
 import styles from "../../patient.module.scss";
+import { FiCreditCard } from "react-icons/fi";
+import { apiFetch } from "@/lib/api";
+import { auth } from '@/lib/firebase';
 
 // Inline SectionCard and ReadField so this file is self-contained (Card.tsx may be removed)
 export function ReadField({ children }: { children: React.ReactNode }) {
@@ -30,41 +33,101 @@ function SectionCard({ icon, title, subtitle, children }: SectionCardProps) {
     </div>
   );
 }
-import { FiCreditCard } from "react-icons/fi";
 
-function maskCard(card: string) {
-  if (!card) return "No card on file";
-  const digits = card.replace(/\D/g, "");
-  if (digits.length <= 4) return digits;
-  const last4 = digits.slice(-4);
-  return `**** **** **** ${last4}`;
+function maskLast4(last4?: string) {
+  if (!last4) return "No card on file";
+  const digits = String(last4).replace(/\D/g, "");
+  if (digits.length === 4) return `**** **** **** ${digits}`;
+  return `**** **** **** ${digits.slice(-4)}`;
 }
 
+type SavedCard = { id: string; last4: string; expiry?: string };
+
 export default function Payment() {
-  // store multiple cards as patientProfile.payment.cards = [{id, cardNumber, expiry, cvv}]
   const [adding, setAdding] = useState(false);
-  // start empty on first render (server + initial client render must match)
-  const [cards, setCards] = useState<Array<{ id: string; cardNumber: string; expiry: string; cvv: string }>>([]);
+  const [cards, setCards] = useState<SavedCard[]>([]);
+  const [patientId, setPatientId] = useState<string | null>(null);
 
-  // load persisted cards after mount to avoid SSR/CSR markup mismatch
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem("patientProfile");
-      if (raw) {
-        const p = JSON.parse(raw);
-        // schedule state update to avoid synchronous setState in effect
-        const next = p?.payment?.cards || [];
-        setTimeout(() => setCards(next), 0);
-      }
-    } catch {}
-  }, []);
-
+  // card form
   const [newCardNumber, setNewCardNumber] = useState("");
   const [newExpiry, setNewExpiry] = useState("");
   const [newCvv, setNewCvv] = useState("");
   const [errors, setErrors] = useState<{ card?: string; expiry?: string; cvv?: string }>({});
 
   const currentYear = new Date().getFullYear();
+
+  async function getFreshToken(): Promise<string | undefined> {
+    try {
+      if (typeof window !== 'undefined' && auth && auth.currentUser) {
+        const t = await auth.currentUser.getIdToken(true);
+        try { localStorage.setItem('patientToken', t); } catch {}
+        return t;
+      }
+    } catch (e) {
+      // ignore and fall back to stored token
+    }
+    try { return localStorage.getItem('patientToken') ?? undefined; } catch { return undefined; }
+  }
+
+  useEffect(() => {
+    // initialize: ensure we have patientId (from localStorage.patientProfile or /api/patient/me) then fetch cards
+    async function init() {
+      try {
+        const raw = typeof window !== "undefined" ? localStorage.getItem("patientProfile") : null;
+        let profile = raw ? JSON.parse(raw) : {};
+        let id: string | undefined = profile?.id;
+        if (!id) {
+          // call backend to resolve patient DB id (apiFetch will attach token)
+          try {
+            const token = await getFreshToken();
+            const me = await apiFetch("/api/patient/me", token);
+            if (me && me.id) {
+              id = String(me.id);
+              profile = { ...profile, id, name: profile.name ?? me.name ?? profile.name };
+              try { localStorage.setItem('patientProfile', JSON.stringify(profile)); } catch {}
+            }
+          } catch (e) {
+            // ignore - we may not be able to call backend, fall back to local only state
+          }
+        }
+        if (id) {
+          setPatientId(id);
+          await fetchCards(id);
+        } else {
+          // load any locally-stored cards as a fallback
+          try {
+            const p = profile || {};
+            const localCards = p?.payment?.cards || [];
+            setCards(Array.isArray(localCards) ? localCards : []);
+          } catch {}
+        }
+      } catch {}
+    }
+    init();
+  }, []);
+
+  async function fetchCards(id: string) {
+    try {
+      // obtain a fresh token if possible to avoid sending an expired token
+      const token = await getFreshToken();
+      const res = await apiFetch(`/cards/getcards?patientId=${id}`, token);
+      if (Array.isArray(res)) {
+        const next: SavedCard[] = res.map((r: any) => ({ id: String(r.id), last4: r.last4 }));
+        setCards(next);
+        // persist a lightweight view for other client components
+        try {
+          const raw = localStorage.getItem('patientProfile');
+          const p = raw ? JSON.parse(raw) : {};
+          p.payment = p.payment || {};
+          p.payment.cards = next;
+          localStorage.setItem('patientProfile', JSON.stringify(p));
+          try { window.dispatchEvent(new CustomEvent('patient:cardsUpdated')); } catch {}
+        } catch {}
+      }
+    } catch (err) {
+      // ignore - leave cards as-is; apiFetch shows friendly errors
+    }
+  }
 
   function startAdd() {
     setAdding(true);
@@ -73,12 +136,7 @@ export default function Payment() {
     setNewCvv("");
   }
 
-  function formatCardNumberDisplay(digits: string) {
-    return digits.replace(/(\d{4})/g, "$1 ").trim();
-  }
-
   function handleCardNumberChange(raw: string) {
-    // keep only digits, max 16
     const digits = raw.replace(/\D/g, "").slice(0, 16);
     setNewCardNumber(digits);
   }
@@ -88,21 +146,24 @@ export default function Payment() {
     setNewCvv(digits);
   }
 
+  function formatCardNumberDisplay(digits: string) {
+    return digits.replace(/(\d{4})/g, "$1 ").trim();
+  }
+
   function validateNewCard() {
     const nextErrors: { card?: string; expiry?: string; cvv?: string } = {};
     if (newCardNumber.length !== 16) nextErrors.card = "Card number must be 16 digits";
     // Expect MM/YYYY format
     const m = (newExpiry || "").trim();
-    const match = m.match(/^\s*(\d{1,2})\s*\/\s*(\d{4})\s*$/);
+    const match = m.match(/^\s*(\d{1,2})\s*\/\s*(\d{2,4})\s*$/);
     if (!match) {
       nextErrors.expiry = "Expiry must be in MM/YYYY format";
     } else {
       const monthNum = parseInt(match[1], 10);
-      const yearNum = parseInt(match[2], 10);
-        if (monthNum < 1 || monthNum > 12) nextErrors.expiry = "Month must be 1-12";
-        // allow current year up to 2099
-        if (yearNum < currentYear || yearNum > 2099) nextErrors.expiry = `Year must be between ${currentYear} and 2099`;
-      // if year equals currentYear, ensure month not in past
+      let yearNum = parseInt(match[2], 10);
+      if (match[2].length === 2) yearNum = 2000 + yearNum;
+      if (monthNum < 1 || monthNum > 12) nextErrors.expiry = "Month must be 1-12";
+      if (yearNum < currentYear || yearNum > 2099) nextErrors.expiry = `Year must be between ${currentYear} and 2099`;
       if (!nextErrors.expiry && yearNum === currentYear) {
         const thisMonth = new Date().getMonth() + 1;
         if (monthNum < thisMonth) nextErrors.expiry = "Expiry cannot be in the past";
@@ -113,33 +174,87 @@ export default function Payment() {
     return Object.keys(nextErrors).length === 0;
   }
 
-  function saveNewCard() {
+  async function saveNewCard() {
     if (!validateNewCard()) return;
-    const id = String(Date.now());
-    // normalize expiry to MM/YYYY
-    let expiry = newExpiry.trim();
-    const norm = expiry.match(/^(\d{1,2})\/?(\d{2,4})$/);
-    if (norm) {
-      const mm = String(norm[1]).padStart(2, "0");
-      let yyyy = norm[2];
-      if (yyyy.length === 2) {
-        // assume 20xx for two-digit years
-        yyyy = '20' + yyyy;
+    if (!patientId) {
+      // try to resolve patient id one more time
+      try {
+        const token = await getFreshToken();
+        const me = await apiFetch('/api/patient/me', token);
+        if (me && me.id) {
+          setPatientId(String(me.id));
+        } else {
+          throw new Error('Unable to resolve patient id');
+        }
+      } catch (e) {
+        // apiFetch will show friendly message if auth fails
+        return;
       }
-      expiry = `${mm}/${yyyy}`;
     }
-    const next = [...cards, { id, cardNumber: newCardNumber, expiry, cvv: newCvv }];
-    setCards(next);
+
+    // normalize expiry
+    const norm = (newExpiry || '').match(/^(\d{1,2})\/?(\d{2,4})$/);
+    let mm = 0;
+    let yyyy = 0;
+    if (norm) {
+      mm = parseInt(norm[1], 10);
+      yyyy = parseInt(norm[2], 10);
+      if (String(norm[2]).length === 2) yyyy = 2000 + yyyy;
+    }
+
     try {
-      const raw = localStorage.getItem("patientProfile");
-      const p = raw ? JSON.parse(raw) : {};
-      p.payment = p.payment || {};
-      p.payment.cards = next;
-      localStorage.setItem("patientProfile", JSON.stringify(p));
-      // notify other components in this window that cards changed
-      try { window.dispatchEvent(new CustomEvent('patient:cardsUpdated')); } catch {};
-    } catch {}
+      const body = {
+        pan: newCardNumber,
+        cvc: newCvv,
+        expMonth: mm,
+        expYear: yyyy,
+        patientMasterId: patientId,
+      } as any;
+
+  const token = await getFreshToken();
+  const created = await apiFetch('/cards/add', token, { method: 'POST', body: JSON.stringify(body) });
+      // created should be { id, last4 }
+      if (created && created.id) {
+        const added: SavedCard = { id: String(created.id), last4: String(created.last4), expiry: `${String(mm).padStart(2,'0')}/${String(yyyy)}` };
+        const next = [...cards, added];
+        setCards(next);
+        try {
+          const raw = localStorage.getItem('patientProfile');
+          const p = raw ? JSON.parse(raw) : {};
+          p.payment = p.payment || {};
+          p.payment.cards = next;
+          localStorage.setItem('patientProfile', JSON.stringify(p));
+          try { window.dispatchEvent(new CustomEvent('patient:cardsUpdated')); } catch {}
+        } catch {}
+      }
+    } catch (err) {
+      // apiFetch already shows errors via toast; do nothing here
+    }
+
     setAdding(false);
+    setNewCardNumber("");
+    setNewExpiry("");
+    setNewCvv("");
+  }
+
+  async function deleteCard(id: string) {
+    if (!patientId) return;
+    try {
+      const token = await getFreshToken();
+      await apiFetch(`/cards/${id}?patientId=${patientId}`, token, { method: 'DELETE' });
+      const next = cards.filter((c) => c.id !== id);
+      setCards(next);
+      try {
+        const raw = localStorage.getItem('patientProfile');
+        const p = raw ? JSON.parse(raw) : {};
+        p.payment = p.payment || {};
+        p.payment.cards = next;
+        localStorage.setItem('patientProfile', JSON.stringify(p));
+        try { window.dispatchEvent(new CustomEvent('patient:cardsUpdated')); } catch {}
+      } catch {}
+    } catch (err) {
+      // apiFetch will surface friendly errors
+    }
   }
 
   function cancelAdd() {
@@ -147,19 +262,6 @@ export default function Payment() {
     setNewCardNumber("");
     setNewExpiry("");
     setNewCvv("");
-  }
-
-  function deleteCard(id: string) {
-    const next = cards.filter((c) => c.id !== id);
-    setCards(next);
-    try {
-      const raw = localStorage.getItem("patientProfile");
-      const p = raw ? JSON.parse(raw) : {};
-      p.payment = p.payment || {};
-      p.payment.cards = next;
-      localStorage.setItem("patientProfile", JSON.stringify(p));
-      try { window.dispatchEvent(new CustomEvent('patient:cardsUpdated')); } catch {};
-    } catch {}
   }
 
   return (
@@ -191,7 +293,7 @@ export default function Payment() {
               onChange={(e) => handleCardNumberChange(e.target.value)}
               placeholder="1234 5678 9012 3456"
               inputMode="numeric"
-              pattern="\\d*"
+              pattern="\d*"
               maxLength={19} /* spaced format length */
             />
             {errors.card ? <div className={styles.errorText}>{errors.card}</div> : null}
@@ -205,11 +307,9 @@ export default function Payment() {
                     placeholder="MM/YYYY"
                     value={newExpiry}
                     inputMode="numeric"
-                    pattern="\\d{2}/\\d{2,4}"
+                    pattern="\d{2}/\d{2,4}"
                     onChange={(e) => {
-                      // allow digits and slash, auto-insert slash when appropriate
                       let v = e.target.value.replace(/[^0-9\/]/g, "");
-                      // if user types 4 digits like MMYY, insert slash after 2
                       const digitsOnly = v.replace(/\D/g, '');
                       if (/^\d{3,4}$/.test(digitsOnly) && !v.includes('/')) {
                         v = digitsOnly.slice(0,2) + '/' + digitsOnly.slice(2);
@@ -241,7 +341,7 @@ export default function Payment() {
                   <div className={styles.cardInnerRow}>
                     <div style={{ flex: 1 }}>
                       <div className={"fieldLabel"}>Card Number</div>
-                      <ReadField>{maskCard(c.cardNumber)}</ReadField>
+                      <ReadField>{maskLast4(c.last4)}</ReadField>
                       <div className={styles.paymentGrid} style={{ marginTop: 8 }}>
                         <div>
                           <div className={"fieldLabel"}>Expiry Date</div>
@@ -250,7 +350,7 @@ export default function Payment() {
 
                         <div>
                           <div className={"fieldLabel"}>CVV</div>
-                          <ReadField>{c.cvv ? c.cvv.replace(/./g, "*") : "***"}</ReadField>
+                          <ReadField>***</ReadField>
                         </div>
                       </div>
                     </div>

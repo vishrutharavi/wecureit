@@ -83,6 +83,14 @@ public class PatientBookingService {
         // doctors (apply filters and optionally doctorId)
         List<Doctor> doctors = doctorRepository.findByIsActiveTrue();
         List<DoctorDropdownDto> docDtos = new ArrayList<>();
+        // precompute selected facility state (if provided) to make specialty checks state-aware
+        final String selectedFacilityState;
+        if (facilityId != null) {
+            var maybeFac = facDtos.stream().filter(fd -> fd.getId().equals(facilityId)).findFirst();
+            selectedFacilityState = maybeFac.map(fx -> fx.getState()).orElse(null);
+        } else {
+            selectedFacilityState = null;
+        }
         for (Doctor d : doctors) {
             // if doctorId is provided and doesn't match, skip
             if (doctorId != null && !doctorId.equals(d.getId())) continue;
@@ -129,7 +137,15 @@ public class PatientBookingService {
                 if (!worksAt) continue;
             }
             if (specialityCode != null && !specialityCode.isBlank()) {
-                boolean hasSpec = sdocs.stream().anyMatch(s -> specialityCode.equalsIgnoreCase(s.getCode()));
+                boolean hasSpec = false;
+                if (selectedFacilityState != null) {
+                    // require that the doctor has an active license for this speciality in the facility's state
+                    List<DoctorLicense> licensesForDoctor = doctorLicenseRepository.findByDoctorIdAndIsActiveTrue(d.getId());
+                    hasSpec = licensesForDoctor.stream().anyMatch(l -> l.getSpecialityCode() != null && l.getSpecialityCode().equalsIgnoreCase(specialityCode) && l.getStateCode() != null && l.getStateCode().equals(selectedFacilityState));
+                } else {
+                    // no facility selected -> any active license counts
+                    hasSpec = sdocs.stream().anyMatch(s -> specialityCode.equalsIgnoreCase(s.getCode()));
+                }
                 if (!hasSpec) continue;
             }
 
@@ -137,24 +153,86 @@ public class PatientBookingService {
         }
         out.setDoctors(docDtos);
 
-        // If a specific doctorId was requested, and that doctor exists, we may want to further restrict facilities and specialties
-        if (doctorId != null) {
-            // find the doctor DTO
-            var matchDoc = docDtos.stream().findFirst();
-            if (matchDoc.isPresent()) {
-                DoctorDropdownDto dd = matchDoc.get();
-                // facilities: only facilities where this doctor works
-                var facIdSet = dd.getFacilities().stream().map(fr -> fr.id).collect(Collectors.toSet());
-                List<FacilityDropdownDto> filteredFacs = facDtos.stream().filter(f -> facIdSet.contains(f.getId())).collect(Collectors.toList());
-                out.setFacilities(filteredFacs);
+        // Final cross-filtering: compute authoritative lists depending on provided params
+        List<FacilityDropdownDto> finalFacs = new ArrayList<>(facDtos);
+        List<DoctorDropdownDto> finalDocs = new ArrayList<>(docDtos);
+        List<SpecialityDto> finalSpecs = new ArrayList<>(specDtos);
 
-                // specialties: only specialties that doctor has (from dd.specialties) intersected with facility support
-                List<SpecialityDto> docSpecs = dd.getSpecialties();
-                // ensure uniqueness
-                var uniq = docSpecs.stream().collect(Collectors.groupingBy(SpecialityDto::getCode)).values().stream().map(l -> l.get(0)).collect(Collectors.toList());
-                out.setSpecialties(uniq);
+        // If doctorId provided, restrict facilities to those the doctor works at and specialties to that doctor's specialties
+        if (doctorId != null) {
+            var matchDocOpt = docDtos.stream().filter(d -> d.getId().equals(doctorId)).findFirst();
+            if (matchDocOpt.isPresent()) {
+                DoctorDropdownDto dd = matchDocOpt.get();
+                var facIdSet = dd.getFacilities().stream().map(fr -> fr.id).collect(Collectors.toSet());
+                finalFacs = facDtos.stream().filter(f -> facIdSet.contains(f.getId())).collect(Collectors.toList());
+
+                // doctor's specialties
+                // Recompute doctor's licensed specialties with state information so we can intersect with facility state
+                List<DoctorLicense> licenses = doctorLicenseRepository.findByDoctorIdAndIsActiveTrue(doctorId);
+                var docSpecCodes = licenses.stream().map(l -> l.getSpecialityCode()).collect(Collectors.toSet());
+
+                // if facilityId also provided, further intersect with facility-supported specialties
+                if (facilityId != null) {
+                    finalFacs = finalFacs.stream().filter(f -> f.getId().equals(facilityId)).collect(Collectors.toList());
+                    // gather specialties supported by this facility (rooms)
+                    var facSpecCodes = finalFacs.stream().flatMap(f -> f.getSpecialties().stream()).map(SpecialityDto::getCode).collect(Collectors.toSet());
+                    // Additionally, restrict doctor's specialties to those licensed in the facility's state
+                    if (!finalFacs.isEmpty()) {
+                        String facState = finalFacs.get(0).getState();
+                        var licensedInState = licenses.stream()
+                            .filter(l -> l.getStateCode() != null && l.getStateCode().equals(facState))
+                            .map(l -> l.getSpecialityCode())
+                            .collect(Collectors.toSet());
+                        docSpecCodes.retainAll(licensedInState);
+                    }
+                    docSpecCodes.retainAll(facSpecCodes);
+                }
+
+                finalSpecs = specDtos.stream().filter(s -> s.getCode() != null && docSpecCodes.contains(s.getCode())).collect(Collectors.toList());
+            } else {
+                // doctorId provided but not found in filtered doctors -> empty results
+                finalDocs = new ArrayList<>();
+                finalFacs = new ArrayList<>();
+                finalSpecs = new ArrayList<>();
+            }
+            // If a speciality filter was provided, ensure finalFacs only includes facilities that support that speciality
+            if (specialityCode != null && !specialityCode.isBlank() && !finalFacs.isEmpty()) {
+                finalFacs = finalFacs.stream().filter(f -> {
+                    // facility must support the speciality (rooms) and the doctor must be licensed for that speciality in the facility state
+                    var rooms = roomRepository.findByFacilityIdAndSpecialityCodeAndActiveTrue(f.getId(), specialityCode);
+                    if (rooms == null || rooms.isEmpty()) return false;
+                    // doctor must have a license for this speciality in this facility's state
+                    var licenses = doctorLicenseRepository.findByDoctorIdAndIsActiveTrue(doctorId);
+                    boolean licensedHere = licenses.stream().anyMatch(l -> l.getSpecialityCode() != null && l.getSpecialityCode().equalsIgnoreCase(specialityCode) && l.getStateCode() != null && l.getStateCode().equals(f.getState()));
+                    return licensedHere;
+                }).collect(Collectors.toList());
+                // if after filtering no facilities remain, clear doctors and specialties as well to indicate no matches
+                // If no facilities remain after filtering, do not wipe doctors/specialties here.
+                // The frontend should display zero options while preserving the current selections
+                // so users can understand there are no matches without losing context.
+            }
+        } else {
+            // No specific doctor provided
+            if (facilityId != null) {
+                // restrict facilities list to the selected facility (if present)
+                finalFacs = facDtos.stream().filter(f -> f.getId().equals(facilityId)).collect(Collectors.toList());
+                // specialties supported by that facility
+                var facSpecCodes = finalFacs.stream().flatMap(f -> f.getSpecialties().stream()).map(SpecialityDto::getCode).collect(Collectors.toSet());
+                finalSpecs = specDtos.stream().filter(s -> s.getCode() != null && facSpecCodes.contains(s.getCode())).collect(Collectors.toList());
+
+                // if specialityCode also provided, ensure specialties list is that code only (if supported)
+                if (specialityCode != null && !specialityCode.isBlank()) {
+                    finalSpecs = finalSpecs.stream().filter(s -> specialityCode.equalsIgnoreCase(s.getCode())).collect(Collectors.toList());
+                }
+            } else if (specialityCode != null && !specialityCode.isBlank()) {
+                // no facility or doctor, but specialty filter provided -> only include that specialty in list
+                finalSpecs = specDtos.stream().filter(s -> specialityCode.equalsIgnoreCase(s.getCode())).collect(Collectors.toList());
             }
         }
+
+        out.setFacilities(finalFacs);
+        out.setDoctors(finalDocs);
+        out.setSpecialties(finalSpecs);
 
         return out;
     }

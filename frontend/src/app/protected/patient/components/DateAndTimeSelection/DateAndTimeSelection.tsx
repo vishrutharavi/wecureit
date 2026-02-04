@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { apiFetch, showInlineToast } from '@/lib/api';
 import { useRouter } from "next/navigation";
 import styles from "../../patient.module.scss";
 import DatePickerGrid from "./DatePickerGrid";
@@ -11,9 +12,23 @@ type Selection = {
   specialty?: { id: string; name: string } | null;
 };
 
+// Availability response shape returned by /api/doctors/:id/availability
+type AvailabilityResp = {
+  workDate: string;
+  facilityId?: string;
+  facilityName?: string;
+  bookable?: boolean;
+  isBookable?: boolean;
+  // time window for the availability row (HH:MM 24h)
+  startTime?: string;
+  endTime?: string;
+};
+
 export default function DateAndTimeSelection() {
   const router = useRouter();
   const [selection, setSelection] = React.useState<Selection | null>(null);
+  const [availableDates, setAvailableDates] = React.useState<string[] | null>(null);
+  const [availabilities, setAvailabilities] = React.useState<AvailabilityResp[] | null>(null);
   // date is null until user explicitly picks one from the mini calendar
   const [date, setDate] = React.useState<string | null>(null);
   const [duration, setDuration] = React.useState<number | null>(null);
@@ -46,6 +61,65 @@ export default function DateAndTimeSelection() {
     }
   }, []);
 
+  // fetch doctor availabilities (next 30 days) and compute available dates for the selected facility
+  React.useEffect(() => {
+    let canceled = false;
+    (async () => {
+      if (!selection || !selection.doctor?.id) {
+        setAvailableDates(null);
+        return;
+      }
+      try {
+        const doctorId = selection.doctor.id;
+        const from = new Date();
+        const to = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+        const fromIso = from.toISOString().slice(0, 10);
+        const toIso = to.toISOString().slice(0, 10);
+        const url = `/api/doctors/${doctorId}/availability?from=${fromIso}&to=${toIso}`;
+        const resp = await apiFetch(url) as AvailabilityResp[];
+        if (canceled) return;
+
+    // availability fetch completed
+
+        if (!Array.isArray(resp)) {
+          setAvailableDates(null);
+          return;
+        }
+
+        // filter by facility if present, and only include bookable entries
+        const filtered = resp.filter((r: AvailabilityResp & { facilityName?: string; facilityId?: string }) => {
+          if (!r) return false;
+          if (!r.bookable && !r.isBookable) return false;
+          if (selection.facility?.id) {
+            // first try matching facilityId if present
+            const facIdResp = r.facilityId;
+            if (facIdResp) {
+              return String(facIdResp || '').trim() === String(selection.facility.id || '').trim();
+            }
+            // fallback: match by facilityName if facilityId not provided by the API
+            const facNameResp = r.facilityName;
+            if (facNameResp && selection.facility?.name) {
+              return String(facNameResp).trim().toLowerCase() === String(selection.facility.name).trim().toLowerCase();
+            }
+            return false;
+          }
+          return true;
+        });
+
+        const dates = Array.from(new Set(filtered.map((r) => r.workDate))).sort();
+  // filtered availability computed
+        setAvailableDates(dates);
+        setAvailabilities(filtered);
+      } catch (err) {
+        console.error('Failed to load availabilities', err);
+        showInlineToast('Failed to load doctor availability');
+        setAvailableDates(null);
+        setAvailabilities(null);
+      }
+    })();
+    return () => { canceled = true; };
+  }, [selection]);
+
   // when date changes, clear duration and selected time so the user chooses anew
   React.useEffect(() => {
     setDuration(null);
@@ -54,17 +128,47 @@ export default function DateAndTimeSelection() {
 
   const generateTimeSlots = React.useMemo(() => {
     if (!date) return [] as string[];
-    const slots: string[] = [];
-    const startHour = 9; // 9 AM
-    const endHour = 17; // 5 PM
-    const granularity = 15; // always show 15-minute increments
-    const start = new Date(date + "T" + String(startHour).padStart(2, "0") + ":00:00");
-    for (let t = new Date(start); t.getHours() < endHour || (t.getHours() === endHour && t.getMinutes() === 0); t.setMinutes(t.getMinutes() + granularity)) {
-      const label = new Date(t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-      slots.push(label);
+    // if we have availabilities for the selected date, generate slots from those intervals
+    const rows = (availabilities || []).filter((r) => r.workDate === date && (r.bookable || r.isBookable));
+    const slotsSet = new Set<number>();
+    const granularity = 15; // minutes
+
+    // helper: parse HH:MM to minutes since midnight
+    const parseHM = (s: string) => {
+      if (!s) return null;
+      const m = s.match(/^(\d{1,2}):(\d{2})$/);
+      if (!m) return null;
+  const hh = parseInt(m[1], 10);
+      const mm = parseInt(m[2], 10);
+      return hh * 60 + mm;
+    };
+
+    // helper: format minutes to 'h:mm AM/PM'
+    const fmt = (minutes: number) => {
+      const hh = Math.floor(minutes / 60);
+      const mm = minutes % 60;
+      const period = hh >= 12 ? 'PM' : 'AM';
+      let hour = hh % 12;
+      if (hour === 0) hour = 12;
+      return `${hour}:${String(mm).padStart(2, '0')} ${period}`;
+    };
+
+    for (const r of rows) {
+      const s = parseHM(r.startTime || '');
+      const e = parseHM(r.endTime || '');
+      if (s == null || e == null) continue;
+      // need enough room for duration; duration may be null until user picks it; if duration null, include all starts
+      const dur = duration || 15;
+      const lastStart = e - dur;
+      for (let t = s; t <= lastStart; t += granularity) {
+        slotsSet.add(t);
+      }
     }
-    return slots.slice(0, 100);
-  }, [date]);
+
+    const sorted = Array.from(slotsSet).sort((a, b) => a - b);
+    const labels = sorted.map((m) => fmt(m));
+    return labels;
+  }, [date, availabilities, duration]);
 
   if (!selection) {
     return (
@@ -103,8 +207,10 @@ export default function DateAndTimeSelection() {
             <div className={styles.sectionSubtitle}>Available dates are highlighted</div>
 
             <div style={{ marginTop: 18 }}>
-              <DatePickerGrid value={date} onChange={(iso) => setDate(iso)} />
+              <DatePickerGrid value={date} onChange={(iso) => setDate(iso)} availableDates={availableDates} />
             </div>
+
+            {/* debug UI removed */}
 
             {/* Duration only visible after a date is chosen */}
             {date ? (

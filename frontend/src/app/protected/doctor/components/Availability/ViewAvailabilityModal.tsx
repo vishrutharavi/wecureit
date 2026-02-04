@@ -35,7 +35,45 @@ export default function ViewAvailabilityModal({ open, onClose, items, onRemove, 
 
   if (!open) return null;
 
-  const assignedItems = items.filter(it => it.assigned);
+  // determine today's ISO date in local timezone (YYYY-MM-DD)
+  const getTodayIso = () => {
+    const d = new Date();
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
+  const parseHM = (s: string | undefined) => {
+    if (!s) return null;
+    const m = s.match(/^(\d{1,2}):(\d{2})$/);
+    if (!m) return null;
+    const hh = parseInt(m[1], 10);
+    const mm = parseInt(m[2], 10);
+    return hh * 60 + mm;
+  };
+
+  const nowMinutes = (() => {
+    const d = new Date();
+    return d.getHours() * 60 + d.getMinutes();
+  })();
+
+  // Filter assigned items. Also exclude today's availabilities that have already finished
+  // according to local time (i.e. end time <= now). This prevents showing past availabilities
+  // for today in the modal.
+  const assignedItems = items
+    .filter(it => it.assigned)
+    .filter((it) => {
+      try {
+        const today = getTodayIso();
+        if (String(it.date) !== today) return true;
+        const endM = parseHM(it.end);
+        if (endM == null) return true; // can't determine — keep it
+        return endM > nowMinutes; // keep only if end time is in the future
+      } catch {
+        return true;
+      }
+    });
 
   const handleView = (it: AvailabilityItem) => {
     setSelected(it);

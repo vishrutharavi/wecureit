@@ -14,6 +14,19 @@ export async function apiFetch(
       // ignore storage errors
     }
   }
+  // If still no token but firebase client is available and a user is signed in, obtain an id token
+  if (!token && typeof window !== 'undefined' && auth && auth.currentUser) {
+    try {
+      const got = await auth.currentUser.getIdToken();
+      if (got) {
+        token = got;
+        try { localStorage.setItem('patientToken', got); } catch {}
+      }
+    } catch (e) {
+      // ignore - we'll proceed without token and let server return 401
+      console.warn('apiFetch: failed to get id token from firebase currentUser', e);
+    }
+  }
   const res = await fetch(`${API_BASE}${path}`, {
     ...options,
     headers: {
@@ -23,13 +36,11 @@ export async function apiFetch(
     },
   });
 
-  // If token expired, try one automatic refresh using Firebase client SDK and retry.
+  // If 401 received, attempt one refresh using Firebase client SDK and retry (covers expired tokens or missing header scenarios)
   if (res.status === 401) {
-    // try to parse body for 'expired' hint
-    const bodyText = await res.text();
-    if (/expired/i.test(bodyText)) {
-      try {
-        if (typeof window !== 'undefined' && auth && auth.currentUser) {
+    try {
+      if (typeof window !== 'undefined' && auth && auth.currentUser) {
+        try {
           const newTok = await auth.currentUser.getIdToken(true);
           try { localStorage.setItem('patientToken', newTok); } catch {}
           // retry original request once with refreshed token
@@ -46,20 +57,20 @@ export async function apiFetch(
             if (!t) return null;
             try { return JSON.parse(t); } catch { return t; }
           }
-          // fall through to normal error handling for the retry response
-          // set res variable to retryRes for downstream handling
-          // (can't reassign const res, so we'll proceed to parse retryRes below)
           const text = await retryRes.text();
           throw new Error(`API ${retryRes.status}: ${text}`);
+        } catch (refreshErr) {
+          console.warn('Token refresh failed', refreshErr);
+          // continue to normal error handling below
         }
-      } catch (refreshErr) {
-        // failed to refresh — continue to normal error handling below
-        console.warn('Token refresh failed', refreshErr);
       }
+    } catch {
+      // ignore and fall through to error handling
     }
-    // if not expired or refresh failed, fall through to error handling
-    // restore response body text for downstream parsing
+    // restore body text into variable for downstream friendlier messaging
     try { /* noop */ } catch {}
+    // set bodyText variable in scope for later parsing
+    // (we already have bodyText above)
   }
 
   if (!res.ok) {

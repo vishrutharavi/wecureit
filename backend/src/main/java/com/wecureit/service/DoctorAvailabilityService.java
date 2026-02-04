@@ -1,5 +1,6 @@
 package com.wecureit.service;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
@@ -49,6 +50,16 @@ public class DoctorAvailabilityService {
         List<AvailabilityResponse> results = new ArrayList<>();
 
         for (AvailabilityRequest it : items) {
+            // parse incoming workDate as local date (accept either YYYY-MM-DD or ISO datetime)
+            LocalDate workDate = null;
+            if (it.getWorkDate() != null && !it.getWorkDate().isBlank()) {
+                String raw = it.getWorkDate();
+                // if contains 'T' (ISO datetime), take date part before 'T'
+                if (raw.contains("T")) raw = raw.split("T")[0];
+                workDate = LocalDate.parse(raw);
+            } else {
+                throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.BAD_REQUEST, "workDate is required");
+            }
             // server-side validations
             LocalTime s = LocalTime.parse(it.getStartTime());
             LocalTime e = LocalTime.parse(it.getEndTime());
@@ -61,7 +72,7 @@ public class DoctorAvailabilityService {
             UUID facId = UUID.fromString(it.getFacilityId());
 
             // prevent duplicate availability for the same doctor/facility/date/start/end
-            if (availabilityRepo.existsByDoctorIdAndFacilityIdAndWorkDateAndStartTimeAndEndTime(doctorId, facId, it.getWorkDate(), LocalTime.parse(it.getStartTime()), LocalTime.parse(it.getEndTime()))) {
+            if (availabilityRepo.existsByDoctorIdAndFacilityIdAndWorkDateAndStartTimeAndEndTime(doctorId, facId, workDate, LocalTime.parse(it.getStartTime()), LocalTime.parse(it.getEndTime()))) {
                 throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.CONFLICT, "Duplicate availability for same facility and time");
             }
 
@@ -81,7 +92,7 @@ public class DoctorAvailabilityService {
             DoctorAvailability da = new DoctorAvailability();
             da.setDoctorId(doctorId);
             da.setFacilityId(UUID.fromString(it.getFacilityId()));
-            da.setWorkDate(it.getWorkDate());
+            da.setWorkDate(workDate);
             da.setStartTime(LocalTime.parse(it.getStartTime()));
             da.setEndTime(LocalTime.parse(it.getEndTime()));
             da.setSpecialityCode(it.getSpecialityCode());
@@ -133,6 +144,8 @@ public class DoctorAvailabilityService {
             resp.setSpecialityCode(da.getSpecialityCode());
             resp.setRoomAssignmentStatus(da.getRoomAssignmentStatus());
             resp.setRoomAssignedId(da.getRoomAssignedId() == null ? null : da.getRoomAssignedId().toString());
+            // attach facility id so clients can reliably filter by facility
+            resp.setFacilityId(da.getFacilityId() == null ? null : da.getFacilityId().toString());
             resp.setBookable(Boolean.TRUE.equals(da.getIsBookable()));
             // attach facility display info
             try {

@@ -35,6 +35,8 @@ export default function PatientLogin() {
             name: me?.name || firebaseUser?.displayName || firebaseUser?.email || undefined,
           };
           localStorage.setItem('patientProfile', JSON.stringify(profile));
+          // persist id token for subsequent API calls
+          try { localStorage.setItem('patientToken', idToken); } catch {}
         }
       } catch {}
       try {

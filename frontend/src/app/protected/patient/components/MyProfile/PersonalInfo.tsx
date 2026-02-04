@@ -42,16 +42,20 @@ export default function PersonalInfo({
 	phone: initialPhone = "(555) 123-4567",
 }: Partial<Record<string, string>> = {}) {
 	const [editMode, setEditMode] = useState(false);
-	const [email, setEmail] = useState(() => {
+	// Initialize to server-safe value (avoids SSR/CSR hydration mismatch).
+	const [email, setEmail] = useState<string>(initialEmail);
+
+	// After mount, read real stored profile from localStorage and update state.
+	React.useEffect(() => {
 		try {
-			const raw = typeof window !== "undefined" ? localStorage.getItem("patientProfile") : null;
+			if (typeof window === 'undefined') return;
+			const raw = localStorage.getItem('patientProfile');
 			if (raw) {
 				const p = JSON.parse(raw);
-				return p?.email || initialEmail;
+				if (p?.email) setEmail(p.email);
 			}
 		} catch {}
-		return initialEmail;
-	});
+	}, []);
 
 	// PersonalInfo manages its own edit state locally. Do not dispatch or listen to global
 	// patient:* events so editing this section doesn't affect other sections.
