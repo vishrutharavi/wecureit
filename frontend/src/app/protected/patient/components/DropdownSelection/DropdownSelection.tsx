@@ -4,7 +4,7 @@ import React, { useEffect, useState } from "react";
 import styles from "../../patient.module.scss";
 import { FiActivity } from "react-icons/fi";
 import { apiFetch, showInlineToast } from '@/lib/api';
-import type { Doctor, Facility, Specialty, BookingResponse } from '@/lib/patient/bookingTypes';
+import type { Doctor, Facility, Specialty, BookingResponse } from '@/app/protected/patient/types';
 
 type Props = {
   onChange: (selection: { doctor?: Doctor | null; facility?: Facility | null; specialty?: Specialty | null }) => void;

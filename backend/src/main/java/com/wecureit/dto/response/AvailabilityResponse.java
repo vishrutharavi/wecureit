@@ -20,6 +20,8 @@ public class AvailabilityResponse {
     private Integer roomsTotal;
     private Integer occupiedRooms;
     private Integer availableRooms;
+    // list of occupied appointment ranges (ISO local time strings) within this availability
+    private java.util.List<String> occupiedAppointments;
 
     // getters/setters
     public UUID getId() { return id; }
@@ -69,4 +71,7 @@ public class AvailabilityResponse {
 
     public Integer getAvailableRooms() { return availableRooms; }
     public void setAvailableRooms(Integer availableRooms) { this.availableRooms = availableRooms; }
+
+    public java.util.List<String> getOccupiedAppointments() { return occupiedAppointments; }
+    public void setOccupiedAppointments(java.util.List<String> occupiedAppointments) { this.occupiedAppointments = occupiedAppointments; }
 }

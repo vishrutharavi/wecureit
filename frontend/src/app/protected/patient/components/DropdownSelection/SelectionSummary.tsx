@@ -4,7 +4,7 @@ import React from "react";
 import styles from "../../patient.module.scss";
 import { FiMapPin } from "react-icons/fi";
 import { useRouter } from "next/navigation";
-import type { Doctor, Facility, Specialty } from '@/lib/patient/bookingTypes';
+import type { Doctor, Facility, Specialty } from '@/app/protected/patient/types';
 
 type Props = {
   doctor?: Doctor | null;

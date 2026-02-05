@@ -22,6 +22,7 @@ type AvailabilityResp = {
   // time window for the availability row (HH:MM 24h)
   startTime?: string;
   endTime?: string;
+  occupiedAppointments?: string[];
 };
 
 export default function DateAndTimeSelection() {
@@ -33,6 +34,9 @@ export default function DateAndTimeSelection() {
   const [date, setDate] = React.useState<string | null>(null);
   const [duration, setDuration] = React.useState<number | null>(null);
   const [selectedTime, setSelectedTime] = React.useState<string | null>(null);
+  const [selectedDoctorAvailabilityId, setSelectedDoctorAvailabilityId] = React.useState<string | null>(null);
+  const [chiefComplaints, setChiefComplaints] = React.useState<string>("");
+  const [chiefError, setChiefError] = React.useState<string | null>(null);
 
   const computeRange = (timeLabel: string | null, durationMin: number | null) => {
     if (!timeLabel || !date || !durationMin) return null;
@@ -55,7 +59,12 @@ export default function DateAndTimeSelection() {
   React.useEffect(() => {
     try {
       const raw = sessionStorage.getItem("bookingSelection");
-      if (raw) setSelection(JSON.parse(raw));
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        setSelection(parsed);
+        if (parsed.chiefComplaints) setChiefComplaints(String(parsed.chiefComplaints));
+        if (parsed.doctorAvailabilityId) setSelectedDoctorAvailabilityId(String(parsed.doctorAvailabilityId));
+      }
     } catch {
       // ignore
     }
@@ -124,13 +133,13 @@ export default function DateAndTimeSelection() {
   React.useEffect(() => {
     setDuration(null);
     setSelectedTime(null);
+    setSelectedDoctorAvailabilityId(null);
   }, [date]);
 
   const generateTimeSlots = React.useMemo(() => {
-    if (!date) return [] as string[];
+    if (!date) return { labels: [] as string[], ids: [] as string[], disabled: [] as boolean[] };
     // if we have availabilities for the selected date, generate slots from those intervals
     const rows = (availabilities || []).filter((r) => r.workDate === date && (r.bookable || r.isBookable));
-    const slotsSet = new Set<number>();
     const granularity = 15; // minutes
 
     // helper: parse HH:MM to minutes since midnight
@@ -138,7 +147,7 @@ export default function DateAndTimeSelection() {
       if (!s) return null;
       const m = s.match(/^(\d{1,2}):(\d{2})$/);
       if (!m) return null;
-  const hh = parseInt(m[1], 10);
+      const hh = parseInt(m[1], 10);
       const mm = parseInt(m[2], 10);
       return hh * 60 + mm;
     };
@@ -153,21 +162,62 @@ export default function DateAndTimeSelection() {
       return `${hour}:${String(mm).padStart(2, '0')} ${period}`;
     };
 
+    // build list of occupied minute ranges (startMin,endMin) from availabilities
+    const occupiedRanges: Array<[number, number]> = [];
+    for (const r of rows) {
+      if (Array.isArray((r as any).occupiedAppointments)) {
+        for (const oa of (r as any).occupiedAppointments as string[]) {
+          // expected format 'HH:MM[:SS]|HH:MM[:SS]'
+          const parts = String(oa || '').split('|');
+          if (parts.length !== 2) continue;
+          const parseHM = (s: string) => {
+            const m = s.match(/^(\d{1,2}):(\d{2})/);
+            if (!m) return null;
+            const hh = parseInt(m[1], 10);
+            const mm = parseInt(m[2], 10);
+            return hh * 60 + mm;
+          };
+          const os = parseHM(parts[0]);
+          const oe = parseHM(parts[1]);
+          if (os != null && oe != null) occupiedRanges.push([os, oe]);
+        }
+      }
+    }
+
+    // Map minute -> availabilityId (first matching availability wins)
+    const slotMap = new Map<number, string>();
+    const slotDisabledMap = new Map<number, boolean>();
+
     for (const r of rows) {
       const s = parseHM(r.startTime || '');
       const e = parseHM(r.endTime || '');
       if (s == null || e == null) continue;
-      // need enough room for duration; duration may be null until user picks it; if duration null, include all starts
       const dur = duration || 15;
       const lastStart = e - dur;
       for (let t = s; t <= lastStart; t += granularity) {
-        slotsSet.add(t);
+        if (!slotMap.has(t)) {
+          // store the availability id for this start minute
+          const aid = (r as any).id ?? (r as any).availabilityId ?? null;
+          if (aid) slotMap.set(t, String(aid));
+          else slotMap.set(t, '');
+          // determine if this start minute overlaps any occupied appointment range
+          const dur = duration || 15;
+          const startMin = t;
+          const endMin = t + dur;
+          let disabled = false;
+          for (const [os, oe] of occupiedRanges) {
+            if (os < endMin && oe > startMin) { disabled = true; break; }
+          }
+          slotDisabledMap.set(t, disabled);
+        }
       }
     }
 
-    const sorted = Array.from(slotsSet).sort((a, b) => a - b);
+    const sorted = Array.from(slotMap.keys()).sort((a, b) => a - b);
     const labels = sorted.map((m) => fmt(m));
-    return labels;
+    const ids = sorted.map((m) => slotMap.get(m) || '');
+    const disabled = sorted.map((m) => slotDisabledMap.get(m) || false);
+    return { labels, ids, disabled };
   }, [date, availabilities, duration]);
 
   if (!selection) {
@@ -237,24 +287,31 @@ export default function DateAndTimeSelection() {
                   <div style={{ marginTop: 18 }}>
                     <div className={styles.sectionSubtitle}>Available Time Slots</div>
                     <div className={styles.timeSlotsGrid}>
-                      {generateTimeSlots.map((t, idx) => {
+                      {generateTimeSlots.labels.map((t, idx) => {
                         // compute whether this slot falls within the selected time block
                         let inBlock = false;
                         if (selectedTime && duration) {
-                          const startIndex = generateTimeSlots.indexOf(selectedTime);
+                          const startIndex = generateTimeSlots.labels.indexOf(selectedTime);
                           const blockCount = Math.ceil(duration / 15);
                           if (startIndex >= 0 && idx >= startIndex && idx < startIndex + blockCount) inBlock = true;
                         }
                         // determine if this slot is a valid start (enough slots remain for the duration)
                         const blockCount = duration ? Math.ceil(duration / 15) : 1;
-                        const canStart = idx + blockCount <= generateTimeSlots.length;
+                        const canStart = idx + blockCount <= generateTimeSlots.labels.length;
                         const isActive = t === selectedTime || inBlock;
+                        const availabilityId = generateTimeSlots.ids[idx] || null;
+                        const slotDisabled = (generateTimeSlots as any).disabled ? Boolean((generateTimeSlots as any).disabled[idx]) : false;
                         return (
                           <button
                             key={t}
-                            onClick={() => canStart && setSelectedTime(t)}
-                            disabled={!canStart}
-                            className={isActive ? `${styles.timeSlotBtn} ${styles.timeSlotBtnActive}` : styles.timeSlotBtn}
+                            onClick={() => {
+                              if (!canStart) return;
+                              if (slotDisabled) return;
+                              setSelectedTime(t);
+                              setSelectedDoctorAvailabilityId(availabilityId);
+                            }}
+                            disabled={!canStart || slotDisabled}
+                            className={isActive ? `${styles.timeSlotBtn} ${styles.timeSlotBtnActive}` : slotDisabled ? `${styles.timeSlotBtn} ${styles.timeSlotBtnDisabled ?? ''}` : styles.timeSlotBtn}
                           >
                             {t}
                           </button>
@@ -300,26 +357,51 @@ export default function DateAndTimeSelection() {
             </div>
 
             <div style={{ marginTop: 8 }}>
-              <button
-                className={styles.continueBtn}
-                disabled={!selectedTime}
-                onClick={() => {
-                  // persist the full booking selection and navigate to confirmation
-                  try {
-                    const payload = {
-                      ...selection,
-                      date,
-                      time: selectedTime,
-                      duration,
-                    };
-                    sessionStorage.setItem('bookingSelection', JSON.stringify(payload));
-                  } catch {}
-                  // navigate to confirmation tab
-                  router.push('/protected/patient?tab=confirmation');
-                }}
-              >
-                Continue to Confirmation
-              </button>
+              <div>
+                <div className={styles.fieldLabel}>Chief Complaints <span style={{ color: '#c0392b' }}>*</span></div>
+                <textarea
+                  className={styles.inputField}
+                  placeholder="Briefly describe the patient's chief complaints"
+                  value={chiefComplaints}
+                  onChange={(e) => {
+                    setChiefComplaints(e.target.value);
+                    if (chiefError) setChiefError(null);
+                  }}
+                  rows={3}
+                />
+                {chiefError ? <div className={styles.errorText}>{chiefError}</div> : null}
+              </div>
+
+              <div style={{ marginTop: 8 }}>
+                <button
+                  className={styles.continueBtn}
+                  disabled={!selectedTime}
+                  onClick={() => {
+                    // validate chief complaints
+                    if (!chiefComplaints || !chiefComplaints.trim()) {
+                      setChiefError('Please enter the chief complaints to proceed');
+                      return;
+                    }
+
+                    // persist the full booking selection and navigate to confirmation
+                    try {
+                      const payload = {
+                        ...selection,
+                        date,
+                        time: selectedTime,
+                        duration,
+                        doctorAvailabilityId: selectedDoctorAvailabilityId,
+                        chiefComplaints: chiefComplaints.trim(),
+                      };
+                      sessionStorage.setItem('bookingSelection', JSON.stringify(payload));
+                    } catch {}
+                    // navigate to confirmation tab
+                    router.push('/protected/patient?tab=confirmation');
+                  }}
+                >
+                  Continue to Confirmation
+                </button>
+              </div>
             </div>
           </div>
         </div>

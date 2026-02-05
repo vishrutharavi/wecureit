@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import type { Doctor, Facility, Specialty } from '@/lib/patient/bookingTypes';
+import type { Doctor, Facility, Specialty } from '@/app/protected/patient/types';
 import { useSearchParams, useRouter } from "next/navigation";
 import styles from "./patient.module.scss";
 import PatientHeader from "./components/PatientHeader";

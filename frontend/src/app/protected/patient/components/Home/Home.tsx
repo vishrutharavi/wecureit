@@ -1,41 +1,22 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import styles from "../../patient.module.scss";
 import { useRouter } from "next/navigation";
 import { AiOutlineCalendar } from "react-icons/ai";
 import { FiAlertTriangle } from "react-icons/fi";
+import { apiFetch } from '@/lib/api';
 
 type Appointment = {
   id: string;
   dateLabel: string;
   dateISO: string;
   time: string;
-  doctor: string;
-  facility: string;
-  speciality: string;
+  doctor?: string;
+  facility?: string;
+  speciality?: string | null;
+  roomNumber?: string | null;
 };
-
-const SAMPLE_APPOINTMENTS: Appointment[] = [
-  {
-    id: "a1",
-    dateLabel: "Mon, Oct 27, 2025",
-    dateISO: "2025-10-27T10:00:00",
-    time: "10:00 AM - 10:30 AM",
-    doctor: "Dr. Sarah Johnson",
-    facility: "Downtown Medical Center",
-    speciality: "Cardiology",
-  },
-  {
-    id: "a2",
-    dateLabel: "Tue, Nov 4, 2025",
-    dateISO: "2025-11-04T14:00:00",
-    time: "2:00 PM - 2:45 PM",
-    doctor: "Dr. Michael Chen",
-    facility: "Alexandria Main Hospital",
-    speciality: "Orthopedics",
-  },
-];
 
 function AppointmentCard({ a }: { a: Appointment }) {
   return (
@@ -44,8 +25,9 @@ function AppointmentCard({ a }: { a: Appointment }) {
         <div>
           <div className={styles.dateLabel}>{a.dateLabel}</div>
           <div className={styles.timeLabel}>{a.time}</div>
-          <div className={styles.doctorName}>{a.doctor}</div>
-          <div className={styles.facilityName}>{a.facility}</div>
+          {a.doctor ? <div className={styles.doctorName}>{a.doctor}</div> : null}
+          {a.facility ? <div className={styles.facilityName}>{a.facility}</div> : null}
+          {a.roomNumber ? <div className={styles.facilityName}>Room: {a.roomNumber}</div> : null}
         </div>
 
         <div style={{ textAlign: "right" }}>
@@ -78,13 +60,61 @@ function AppointmentCard({ a }: { a: Appointment }) {
 
 export default function Home() {
   const router = useRouter();
-  const sorted = React.useMemo(() => {
-    return [...SAMPLE_APPOINTMENTS].sort((a, b) => {
-      const ta = new Date(a.dateISO).getTime();
-      const tb = new Date(b.dateISO).getTime();
-      return tb - ta; // recent to oldest
-    });
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const raw = typeof window !== 'undefined' ? localStorage.getItem('patientProfile') : null;
+        let profile = raw ? JSON.parse(raw) : null;
+        let patientId: string | undefined = profile?.id;
+        if (!patientId) {
+          try {
+            const me = await apiFetch('/api/patient/me');
+            if (me && me.id) {
+              patientId = String(me.id);
+              profile = { ...(profile || {}), id: patientId, name: profile?.name ?? me?.name };
+              try { localStorage.setItem('patientProfile', JSON.stringify(profile)); } catch {}
+            }
+          } catch (e) {
+            // cannot resolve patient id, bail out
+          }
+        }
+
+        if (!patientId) return;
+
+        const res = await apiFetch(`/appointments/byPatient?patientId=${patientId}`);
+        if (!Array.isArray(res)) return;
+
+        const now = new Date();
+        const mapped: Appointment[] = res
+          .map((r: any) => {
+            const start = r?.startTime ? new Date(r.startTime) : null;
+            const end = r?.endTime ? new Date(r.endTime) : null;
+            if (!start || !end) return null;
+            return {
+              id: String(r.id),
+              dateLabel: start.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }),
+              dateISO: start.toISOString(),
+              time: `${start.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} - ${end.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`,
+              speciality: r.specialityId ?? null,
+              roomNumber: r.roomNumber ?? null,
+            } as Appointment;
+          })
+          .filter((x: Appointment | null) => x !== null)
+          .map((x: Appointment) => x)
+          .filter((x: Appointment) => new Date(x.dateISO) >= now)
+          .sort((a, b) => new Date(a.dateISO).getTime() - new Date(b.dateISO).getTime());
+
+        setAppointments(mapped);
+      } catch (e) {
+        // ignore fetch errors for now (apiFetch shows a toast)
+      }
+    }
+    load();
   }, []);
+
+  const sorted = React.useMemo(() => appointments, [appointments]);
 
   return (
     <div className={styles.homeRoot}>
@@ -115,9 +145,11 @@ export default function Home() {
         </div>
 
         <div>
-          {sorted.map((a) => (
-            <AppointmentCard key={a.id} a={a} />
-          ))}
+          {sorted.length === 0 ? (
+            <div className={styles.emptyState}>You have no upcoming appointments.</div>
+          ) : (
+            sorted.map((a) => <AppointmentCard key={a.id} a={a} />)
+          )}
         </div>
       </div>
     </div>

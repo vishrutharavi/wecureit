@@ -2,6 +2,8 @@
 
 import React from "react";
 import styles from "../../patient.module.scss";
+import { apiFetch } from '@/lib/api';
+import { useRouter } from 'next/navigation';
 // router not needed here (modal handles navigation)
 import AppointmentConfirmationModal from "../AppointmentConfirmation/AppointmentConfirmationModal";
 
@@ -15,10 +17,12 @@ type Booking = {
 };
 
 export default function CostSummary() {
+  const router = useRouter();
   const [booking, setBooking] = React.useState<Booking | null>(null);
   const [hasCard, setHasCard] = React.useState(false);
   const [showModal, setShowModal] = React.useState(false);
   const [confirmation, setConfirmation] = React.useState("");
+  const [bookingInProgress, setBookingInProgress] = React.useState(false);
 
   React.useEffect(() => {
     try {
@@ -101,16 +105,108 @@ export default function CostSummary() {
       <div className={styles.mt12}>
         <button
           className={styles.continueBtn}
-          disabled={!hasCard}
-          onClick={() => {
-                if (!hasCard) return;
-                // TODO: replace with real booking API call. For now show confirmation modal.
-                const id = 'WC' + String(Date.now()).slice(-9);
-                setConfirmation(id);
-                setShowModal(true);
+          disabled={!hasCard || bookingInProgress}
+          onClick={async () => {
+            if (!hasCard || bookingInProgress) return;
+            setBookingInProgress(true);
+            try {
+              // ensure we have the latest booking selection
+              let payload = booking;
+              try {
+                const raw = sessionStorage.getItem('bookingSelection');
+                if (raw) payload = JSON.parse(raw);
+              } catch {}
+
+              if (!payload) throw new Error('No booking selection found');
+
+              // resolve patient id from localStorage if available, otherwise call /api/patient/me
+              let patientId: string | undefined;
+              try {
+                const raw = localStorage.getItem('patientProfile');
+                if (raw) {
+                  const p = JSON.parse(raw);
+                  if (p && p.id) patientId = String(p.id);
+                }
+              } catch {}
+
+              if (!patientId) {
+                const me = await apiFetch('/api/patient/me');
+                if (me && me.id) patientId = String(me.id);
+              }
+              if (!patientId) throw new Error('Unable to determine patient id');
+
+              // build appointment request body
+              const dateStr = payload.date; // expected YYYY-MM-DD
+              const timeLabel = payload.time; // expected format like '2:30 PM'
+              // helper: parse time label into hours/minutes
+              const parseTimeLabel = (lbl?: string) => {
+                if (!lbl) return null;
+                const m = lbl.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+                if (!m) return null;
+                let hh = parseInt(m[1], 10);
+                const mm = parseInt(m[2], 10);
+                const ampm = (m[3] || '').toUpperCase();
+                const isPM = ampm === 'PM';
+                if (hh === 12) hh = isPM ? 12 : 0;
+                if (isPM && hh !== 12) hh += 12;
+                return { hh, mm };
+              };
+
+              const t = parseTimeLabel(timeLabel);
+              if (!t) throw new Error('Invalid time selected');
+
+              // construct local datetime strings without timezone (backend expects local datetime)
+              const pad = (n: number) => String(n).padStart(2, '0');
+              const startLocal = `${dateStr}T${pad(t.hh)}:${pad(t.mm)}:00`;
+              // compute end time by adding duration minutes
+              const startDateObj = new Date(`${dateStr}T${pad(t.hh)}:${pad(t.mm)}:00`);
+              const endDateObj = new Date(startDateObj.getTime() + (duration || 30) * 60000);
+              const endLocal = `${endDateObj.getFullYear()}-${pad(endDateObj.getMonth() + 1)}-${pad(endDateObj.getDate())}T${pad(endDateObj.getHours())}:${pad(endDateObj.getMinutes())}:00`;
+
+                const body: any = {
+                date: dateStr,
+                duration: duration,
+                patientId: patientId,
+                doctorAvailabilityId: (payload as any).doctorAvailabilityId ?? null,
+                startTime: startLocal,
+                endTime: endLocal,
+                facilityId: payload.facility?.id ?? null,
+                specialityId: payload.specialty?.id ?? null,
+                roomScheduleId: (payload as any).roomScheduleId ?? null,
+                isActive: true,
+                chiefComplaints: (payload as any).chiefComplaints ?? null,
+              };
+
+              const res = await apiFetch('/appointments/create', undefined, {
+                method: 'POST',
+                body: JSON.stringify(body),
+              });
+
+              // res expected to be AppointmentResponse with id
+              const apptId = res && res.id ? String(res.id) : null;
+              const conf = apptId ? `WC${apptId}` : `WC${String(Date.now()).slice(-9)}`;
+              setConfirmation(conf);
+              // pass roomNumber into modal by merging booking + res.roomNumber
+              const roomNumber = res?.roomNumber ?? null;
+              const modalBooking = { ...(booking || {}), roomNumber };
+              // update booking shown in modal (do not overwrite session storage)
+              setBooking(modalBooking as any);
+              setShowModal(true);
+            } catch (err: any) {
+              const msg = String(err?.message ?? err ?? '');
+              // If duplicate (server returned 409), guide user to upcoming appointments
+              if (/409|already exists|already booked|Appointment already exists/i.test(msg)) {
+                try { window.alert('This appointment is already booked. Redirecting to your upcoming appointments.'); } catch {}
+                router.push('/protected/patient?tab=upcoming');
+                return;
+              }
+              try { window.alert(msg); } catch {}
+            } finally {
+              setBookingInProgress(false);
+            }
           }}
         >
-          Book Appointment
+          {bookingInProgress ? 'Booking...' : 'Book Appointment'}
         </button>
       </div>
       </div>

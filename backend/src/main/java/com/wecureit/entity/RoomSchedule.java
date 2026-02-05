@@ -23,8 +23,8 @@ public class RoomSchedule {
     @Column(name = "doctor_id", columnDefinition = "uuid")
     private UUID doctorId;
 
-    @Column(name = "appointment_id", columnDefinition = "uuid")
-    private UUID appointmentId;
+    @Column(name = "appointment_id")
+    private Long appointmentId;
 
     @Column(name = "start_at", nullable = false)
     private LocalDateTime startAt;
@@ -46,8 +46,8 @@ public class RoomSchedule {
     public UUID getDoctorId() { return doctorId; }
     public void setDoctorId(UUID doctorId) { this.doctorId = doctorId; }
 
-    public UUID getAppointmentId() { return appointmentId; }
-    public void setAppointmentId(UUID appointmentId) { this.appointmentId = appointmentId; }
+    public Long getAppointmentId() { return appointmentId; }
+    public void setAppointmentId(Long appointmentId) { this.appointmentId = appointmentId; }
 
     public LocalDateTime getStartAt() { return startAt; }
     public void setStartAt(LocalDateTime startAt) { this.startAt = startAt; }

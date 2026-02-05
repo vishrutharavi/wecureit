@@ -212,7 +212,39 @@ public class DoctorAvailabilityService {
             }
             // ensure allowWalkIn also provided
             resp.setAllowWalkIn(da.getAllowWalkIn());
+            // populate occupied appointment ranges for this availability window
+            try {
+                java.util.List<String> occ = getOccupiedAppointmentsForDoctor(da.getDoctorId(), da.getWorkDate(), da.getStartTime(), da.getEndTime());
+                resp.setOccupiedAppointments(occ);
+            } catch (Exception ex) {
+                // ignore
+            }
             out.add(resp);
+        }
+        return out;
+    }
+
+    // helper to collect appointment ranges for a given availability window and doctor
+    @Autowired
+    private com.wecureit.repository.AppointmentRepository appointmentRepo;
+
+    private java.util.List<String> getOccupiedAppointmentsForDoctor(UUID doctorId, LocalDate workDate, LocalTime startTime, LocalTime endTime) {
+        java.util.List<String> out = new java.util.ArrayList<>();
+        try {
+            LocalDateTime startAt = LocalDateTime.of(workDate, startTime);
+            LocalDateTime endAt = LocalDateTime.of(workDate, endTime);
+            java.util.List<com.wecureit.entity.Appointment> appts = appointmentRepo.findAppointmentsForDoctor(doctorId, startAt, endAt);
+            if (appts != null) {
+                for (com.wecureit.entity.Appointment a : appts) {
+                    if (a.getStartTime() != null && a.getEndTime() != null) {
+                        String s = a.getStartTime().toLocalTime().toString();
+                        String e = a.getEndTime().toLocalTime().toString();
+                        out.add(s + "|" + e);
+                    }
+                }
+            }
+        } catch (Exception ex) {
+            // best-effort: ignore
         }
         return out;
     }

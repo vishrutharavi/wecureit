@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import styles from "../../patient.module.scss";
 import { FiCreditCard } from "react-icons/fi";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, showInlineToast } from "@/lib/api";
 import { auth } from '@/lib/firebase';
 
 // Inline SectionCard and ReadField so this file is self-contained (Card.tsx may be removed)
@@ -108,6 +108,7 @@ export default function Payment() {
 
   async function fetchCards(id: string) {
     try {
+      console.debug('[Payment] fetchCards: fetching cards for patientId=', id);
       // obtain a fresh token if possible to avoid sending an expired token
       const token = await getFreshToken();
       const res = await apiFetch(`/cards/getcards?patientId=${id}`, token);
@@ -125,7 +126,9 @@ export default function Payment() {
         } catch {}
       }
     } catch (err) {
-      // ignore - leave cards as-is; apiFetch shows friendly errors
+      console.error('[Payment] fetchCards: failed to fetch cards for patientId=', id, err);
+      try { showInlineToast('Failed to load saved cards'); } catch {}
+      // leave cards as-is; apiFetch may have shown a friendlier error
     }
   }
 

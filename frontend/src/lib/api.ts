@@ -7,24 +7,30 @@ export async function apiFetch(
   options: RequestInit = {}
 ) {
   // if caller didn't pass a token, try common localStorage keys (patientToken, doctorToken, idToken)
-  if (!token && typeof window !== 'undefined') {
+  // If caller didn't pass a token, prefer obtaining a fresh ID token from Firebase if a user is signed in.
+  if (!token && typeof window !== 'undefined' && auth && auth.currentUser) {
+    try {
+      // force refresh to avoid returning an expired cached token
+      const fresh = await auth.currentUser.getIdToken(true);
+      if (fresh) {
+        token = fresh;
+        try { localStorage.setItem('patientToken', fresh); } catch {}
+        console.debug('apiFetch: using fresh id token from firebase.currentUser');
+      }
+    } catch (e) {
+      // If refresh fails for some reason, fall back to any token saved in localStorage.
+      console.warn('apiFetch: failed to refresh id token, falling back to stored tokens', e);
+      try {
+        token = localStorage.getItem('patientToken') ?? localStorage.getItem('doctorToken') ?? localStorage.getItem('idToken') ?? undefined;
+      } catch {
+        // ignore storage errors
+      }
+    }
+  } else if (!token && typeof window !== 'undefined') {
     try {
       token = localStorage.getItem('patientToken') ?? localStorage.getItem('doctorToken') ?? localStorage.getItem('idToken') ?? undefined;
     } catch {
       // ignore storage errors
-    }
-  }
-  // If still no token but firebase client is available and a user is signed in, obtain an id token
-  if (!token && typeof window !== 'undefined' && auth && auth.currentUser) {
-    try {
-      const got = await auth.currentUser.getIdToken();
-      if (got) {
-        token = got;
-        try { localStorage.setItem('patientToken', got); } catch {}
-      }
-    } catch (e) {
-      // ignore - we'll proceed without token and let server return 401
-      console.warn('apiFetch: failed to get id token from firebase currentUser', e);
     }
   }
   const res = await fetch(`${API_BASE}${path}`, {
