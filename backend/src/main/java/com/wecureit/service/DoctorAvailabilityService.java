@@ -7,10 +7,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,7 +17,6 @@ import com.wecureit.dto.request.AvailabilityRequest;
 import com.wecureit.dto.response.AvailabilityResponse;
 import com.wecureit.entity.DoctorAvailability;
 import com.wecureit.entity.Facility;
-import com.wecureit.entity.Room;
 import com.wecureit.entity.RoomSchedule;
 import com.wecureit.repository.DoctorAvailabilityRepository;
 import com.wecureit.repository.DoctorLicenseRepository;
