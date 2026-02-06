@@ -2,6 +2,7 @@ package com.wecureit.entity;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -39,11 +40,12 @@ public class Appointment {
     @JoinColumn(name = "doctor_availability_id", referencedColumnName = "id")
     private DoctorAvailability doctorAvailability;
 
-    @Column(name = "start_time")
+    @Column(name = "start_time", columnDefinition = "timestamp without time zone")
     private LocalDateTime startTime;
 
-    @Column(name = "end_time")
+    @Column(name = "end_time", columnDefinition = "timestamp without time zone")
     private LocalDateTime endTime;
+
 
     @ManyToOne
     @JoinColumn(name = "facility_id", referencedColumnName = "id")
@@ -62,5 +64,8 @@ public class Appointment {
 
     @Column(name = "chief_complaints", columnDefinition = "TEXT")
     private String chiefComplaints;
+
+    @Column(name = "uuid", columnDefinition = "uuid", unique = true)
+    private UUID uuid;
 
 }

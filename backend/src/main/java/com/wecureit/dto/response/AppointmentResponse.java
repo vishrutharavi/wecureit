@@ -20,6 +20,9 @@ public class AppointmentResponse {
     private LocalDateTime endTime;
     private UUID facilityId;
     private String specialityId;
+    private String facilityName;
+    private String specialityName;
+    private String doctorName;
     private UUID roomScheduleId;
     private String roomNumber;
     private Boolean isActive;

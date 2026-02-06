@@ -12,6 +12,9 @@ type Selection = {
   specialty?: { id: string; name: string } | null;
 };
 
+// saved card shape used by the payment UI
+// SavedCard type removed — payment UI omitted from appointment summary
+
 // Availability response shape returned by /api/doctors/:id/availability
 type AvailabilityResp = {
   workDate: string;
@@ -22,6 +25,9 @@ type AvailabilityResp = {
   // time window for the availability row (HH:MM 24h)
   startTime?: string;
   endTime?: string;
+  // optional id returned by backend
+  id?: string;
+  availabilityId?: string;
   occupiedAppointments?: string[];
 };
 
@@ -56,6 +62,17 @@ export default function DateAndTimeSelection() {
     return { startLabel, endLabel };
   };
 
+  // parse ISO date YYYY-MM-DD as local Date (avoid UTC parsing)
+  const parseLocalDate = (iso: string | null) => {
+    if (!iso) return new Date();
+    const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!m) return new Date(iso);
+    const y = parseInt(m[1], 10);
+    const mo = parseInt(m[2], 10) - 1;
+    const d = parseInt(m[3], 10);
+    return new Date(y, mo, d);
+  };
+
   React.useEffect(() => {
     try {
       const raw = sessionStorage.getItem("bookingSelection");
@@ -69,6 +86,8 @@ export default function DateAndTimeSelection() {
       // ignore
     }
   }, []);
+
+  // payment methods removed from UI — selection handled elsewhere if needed
 
   // fetch doctor availabilities (next 30 days) and compute available dates for the selected facility
   React.useEffect(() => {
@@ -165,8 +184,8 @@ export default function DateAndTimeSelection() {
     // build list of occupied minute ranges (startMin,endMin) from availabilities
     const occupiedRanges: Array<[number, number]> = [];
     for (const r of rows) {
-      if (Array.isArray((r as any).occupiedAppointments)) {
-        for (const oa of (r as any).occupiedAppointments as string[]) {
+      if (Array.isArray(r.occupiedAppointments)) {
+        for (const oa of r.occupiedAppointments as string[]) {
           // expected format 'HH:MM[:SS]|HH:MM[:SS]'
           const parts = String(oa || '').split('|');
           if (parts.length !== 2) continue;
@@ -197,7 +216,7 @@ export default function DateAndTimeSelection() {
       for (let t = s; t <= lastStart; t += granularity) {
         if (!slotMap.has(t)) {
           // store the availability id for this start minute
-          const aid = (r as any).id ?? (r as any).availabilityId ?? null;
+          const aid = r.id ?? r.availabilityId ?? null;
           if (aid) slotMap.set(t, String(aid));
           else slotMap.set(t, '');
           // determine if this start minute overlaps any occupied appointment range
@@ -213,12 +232,28 @@ export default function DateAndTimeSelection() {
       }
     }
 
-    const sorted = Array.from(slotMap.keys()).sort((a, b) => a - b);
+    // if selected date is today, filter out past slots (only show from now onwards)
+    const today = (() => {
+      const d = new Date();
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    })();
+    const nowMinutesLocal = (() => {
+      const dn = new Date();
+      return dn.getHours() * 60 + dn.getMinutes();
+    })();
+
+    let sorted = Array.from(slotMap.keys()).sort((a, b) => a - b);
+    if (date === today) {
+      sorted = sorted.filter(m => m >= nowMinutesLocal);
+    }
     const labels = sorted.map((m) => fmt(m));
     const ids = sorted.map((m) => slotMap.get(m) || '');
     const disabled = sorted.map((m) => slotDisabledMap.get(m) || false);
     return { labels, ids, disabled };
   }, [date, availabilities, duration]);
+
+  // quick lookup of availabilities for the selected date (used to show message before duration)
+  const rowsForDate = date ? (availabilities || []).filter((r) => r.workDate === date && (r.bookable || r.isBookable)) : [];
 
   if (!selection) {
     return (
@@ -266,62 +301,72 @@ export default function DateAndTimeSelection() {
             {date ? (
               <div style={{ marginTop: 18 }}>
                 <div className={styles.sectionSubtitle}>Select Appointment Duration</div>
-                <div className={styles.durationGrid}>
-                  {[15, 30, 60].map((d) => (
-                    <button
-                      key={d}
-                      onClick={() => {
-                        setDuration(d);
-                        // clear any previously selected time when duration changes
-                        setSelectedTime(null);
-                      }}
-                      className={d === duration ? `${styles.durationBtn} ${styles.durationBtnActive}` : styles.durationBtn}
-                    >
-                      {d} mins
-                    </button>
-                  ))}
-                </div>
-
-                {/* Time slots only visible after a duration is chosen */}
-                {duration ? (
-                  <div style={{ marginTop: 18 }}>
-                    <div className={styles.sectionSubtitle}>Available Time Slots</div>
-                    <div className={styles.timeSlotsGrid}>
-                      {generateTimeSlots.labels.map((t, idx) => {
-                        // compute whether this slot falls within the selected time block
-                        let inBlock = false;
-                        if (selectedTime && duration) {
-                          const startIndex = generateTimeSlots.labels.indexOf(selectedTime);
-                          const blockCount = Math.ceil(duration / 15);
-                          if (startIndex >= 0 && idx >= startIndex && idx < startIndex + blockCount) inBlock = true;
-                        }
-                        // determine if this slot is a valid start (enough slots remain for the duration)
-                        const blockCount = duration ? Math.ceil(duration / 15) : 1;
-                        const canStart = idx + blockCount <= generateTimeSlots.labels.length;
-                        const isActive = t === selectedTime || inBlock;
-                        const availabilityId = generateTimeSlots.ids[idx] || null;
-                        const slotDisabled = (generateTimeSlots as any).disabled ? Boolean((generateTimeSlots as any).disabled[idx]) : false;
-                        return (
-                          <button
-                            key={t}
-                            onClick={() => {
-                              if (!canStart) return;
-                              if (slotDisabled) return;
-                              setSelectedTime(t);
-                              setSelectedDoctorAvailabilityId(availabilityId);
-                            }}
-                            disabled={!canStart || slotDisabled}
-                            className={isActive ? `${styles.timeSlotBtn} ${styles.timeSlotBtnActive}` : slotDisabled ? `${styles.timeSlotBtn} ${styles.timeSlotBtnDisabled ?? ''}` : styles.timeSlotBtn}
-                          >
-                            {t}
-                          </button>
-                        );
-                      })}
+                {rowsForDate.length === 0 ? (
+                  <div className={styles.emptyCard}>No available slots for this date</div>
+                ) : (
+                  <>
+                    <div className={styles.durationGrid}>
+                      {[15, 30, 60].map((d) => (
+                        <button
+                          key={d}
+                          onClick={() => {
+                            setDuration(d);
+                            // clear any previously selected time when duration changes
+                            setSelectedTime(null);
+                          }}
+                          className={d === duration ? `${styles.durationBtn} ${styles.durationBtnActive}` : styles.durationBtn}
+                        >
+                          {d} mins
+                        </button>
+                      ))}
                     </div>
 
-                    {/* Selected summary removed: use sidebar summary only */}
-                  </div>
-                ) : null}
+                    {/* Time slots only visible after a duration is chosen */}
+                    {duration ? (
+                      <div style={{ marginTop: 18 }}>
+                        <div className={styles.sectionSubtitle}>Available Time Slots</div>
+                        <div className={styles.timeSlotsGrid}>
+                          {generateTimeSlots.labels.length === 0 ? (
+                            <div className={styles.emptyCard}>No available slots for this date</div>
+                          ) : (
+                            generateTimeSlots.labels.map((t, idx) => {
+                              // compute whether this slot falls within the selected time block
+                              let inBlock = false;
+                              if (selectedTime && duration) {
+                                const startIndex = generateTimeSlots.labels.indexOf(selectedTime);
+                                const blockCount = Math.ceil(duration / 15);
+                                if (startIndex >= 0 && idx >= startIndex && idx < startIndex + blockCount) inBlock = true;
+                              }
+                              // determine if this slot is a valid start (enough slots remain for the duration)
+                              const blockCount = duration ? Math.ceil(duration / 15) : 1;
+                              const canStart = idx + blockCount <= generateTimeSlots.labels.length;
+                              const isActive = t === selectedTime || inBlock;
+                              const availabilityId = generateTimeSlots.ids[idx] || null;
+                              const slotDisabled = Array.isArray(generateTimeSlots.disabled) ? Boolean(generateTimeSlots.disabled[idx]) : false;
+                              return (
+                                <button
+                                  key={t}
+                                  onClick={() => {
+                                    if (!canStart) return;
+                                    if (slotDisabled) return;
+                                    setSelectedTime(t);
+                                    setSelectedDoctorAvailabilityId(availabilityId);
+                                  }}
+                                  disabled={!canStart || slotDisabled}
+                                  className={isActive ? `${styles.timeSlotBtn} ${styles.timeSlotBtnActive}` : slotDisabled ? `${styles.timeSlotBtn} ${styles.timeSlotBtnDisabled ?? ''}` : styles.timeSlotBtn}
+                                >
+                                  {t}
+                                </button>
+                              );
+                            })
+                          )}
+                        </div>
+
+                        {/* Selected summary removed: use sidebar summary only */}
+                      </div>
+                    ) : null}
+                  </>
+                )}
               </div>
             ) : null}
           </div>
@@ -343,8 +388,13 @@ export default function DateAndTimeSelection() {
             </div>
 
             <div className={styles.summaryCard}>
+              <div className={styles.fieldLabel}>Speciality</div>
+              <div className={styles.readField}>{selection.specialty?.name ?? 'General'}</div>
+            </div>
+
+            <div className={styles.summaryCard}>
               <div className={styles.fieldLabel}>Date</div>
-              <div className={styles.readField}>{date ? new Date(date).toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : "No date selected"}</div>
+              <div className={styles.readField}>{date ? parseLocalDate(date).toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : "No date selected"}</div>
             </div>
 
             <div className={styles.summaryCard}>
@@ -355,6 +405,8 @@ export default function DateAndTimeSelection() {
               })()}</div>
               <div style={{ marginTop: 8, color: '#6b7280' }}>Duration: {duration ? `${duration} minutes` : '—'}</div>
             </div>
+
+            {/* Payment method removed from appointment summary per design */}
 
             <div style={{ marginTop: 8 }}>
               <div>

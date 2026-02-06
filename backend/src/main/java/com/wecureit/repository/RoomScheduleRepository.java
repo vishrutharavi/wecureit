@@ -18,4 +18,7 @@ public interface RoomScheduleRepository extends JpaRepository<RoomSchedule, UUID
     @Query("SELECT rs FROM RoomSchedule rs WHERE rs.doctorId = :doctorId AND ((rs.startAt < :endAt) AND (rs.endAt > :startAt)) AND rs.appointmentId IS NOT NULL")
     List<RoomSchedule> findAppointmentsForDoctor(@Param("doctorId") UUID doctorId, @Param("startAt") LocalDateTime startAt, @Param("endAt") LocalDateTime endAt);
 
+    @Query("SELECT rs FROM RoomSchedule rs WHERE rs.appointmentId = :appointmentId")
+    List<RoomSchedule> findByAppointmentId(@Param("appointmentId") UUID appointmentId);
+
 }

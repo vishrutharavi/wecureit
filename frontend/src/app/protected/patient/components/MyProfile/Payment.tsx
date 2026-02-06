@@ -86,9 +86,9 @@ export default function Payment() {
               profile = { ...profile, id, name: profile.name ?? me.name ?? profile.name };
               try { localStorage.setItem('patientProfile', JSON.stringify(profile)); } catch {}
             }
-          } catch (e) {
-            // ignore - we may not be able to call backend, fall back to local only state
-          }
+          } catch {
+              // ignore - we may not be able to call backend, fall back to local only state
+            }
         }
         if (id) {
           setPatientId(id);
@@ -113,7 +113,10 @@ export default function Payment() {
       const token = await getFreshToken();
       const res = await apiFetch(`/cards/getcards?patientId=${id}`, token);
       if (Array.isArray(res)) {
-        const next: SavedCard[] = res.map((r: any) => ({ id: String(r.id), last4: r.last4 }));
+          const next: SavedCard[] = res.map((r: unknown) => {
+            const rec = r as { id?: unknown; last4?: unknown };
+            return { id: String(rec.id ?? ''), last4: String(rec.last4 ?? '') } as SavedCard;
+          });
         setCards(next);
         // persist a lightweight view for other client components
         try {
@@ -125,8 +128,8 @@ export default function Payment() {
           try { window.dispatchEvent(new CustomEvent('patient:cardsUpdated')); } catch {}
         } catch {}
       }
-    } catch (err) {
-      console.error('[Payment] fetchCards: failed to fetch cards for patientId=', id, err);
+    } catch {
+      console.error('[Payment] fetchCards: failed to fetch cards for patientId=', id);
       try { showInlineToast('Failed to load saved cards'); } catch {}
       // leave cards as-is; apiFetch may have shown a friendlier error
     }
@@ -207,12 +210,12 @@ export default function Payment() {
 
     try {
       const body = {
-        pan: newCardNumber,
-        cvc: newCvv,
-        expMonth: mm,
-        expYear: yyyy,
-        patientMasterId: patientId,
-      } as any;
+          pan: newCardNumber,
+          cvc: newCvv,
+          expMonth: mm,
+          expYear: yyyy,
+          patientMasterId: patientId,
+        };
 
   const token = await getFreshToken();
   const created = await apiFetch('/cards/add', token, { method: 'POST', body: JSON.stringify(body) });
@@ -230,7 +233,7 @@ export default function Payment() {
           try { window.dispatchEvent(new CustomEvent('patient:cardsUpdated')); } catch {}
         } catch {}
       }
-    } catch (err) {
+    } catch {
       // apiFetch already shows errors via toast; do nothing here
     }
 

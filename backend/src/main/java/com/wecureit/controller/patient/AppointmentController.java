@@ -18,7 +18,12 @@ import com.wecureit.dto.request.AppointmentRequest;
 import com.wecureit.dto.response.AppointmentResponse;
 import com.wecureit.entity.Appointment;
 import com.wecureit.service.AppointmentService;
+import com.wecureit.repository.DoctorRepository;
+import com.wecureit.entity.Doctor;
 import com.wecureit.repository.RoomRepository;
+import com.wecureit.repository.PatientRepository;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import com.wecureit.entity.Room;
 
 @RestController
@@ -27,10 +32,14 @@ public class AppointmentController {
 
     private final AppointmentService appointmentService;
     private final RoomRepository roomRepository;
+    private final DoctorRepository doctorRepository;
+    private final PatientRepository patientRepository;
 
-    public AppointmentController(AppointmentService appointmentService, RoomRepository roomRepository) {
+    public AppointmentController(AppointmentService appointmentService, RoomRepository roomRepository, DoctorRepository doctorRepository, PatientRepository patientRepository) {
         this.appointmentService = appointmentService;
         this.roomRepository = roomRepository;
+        this.doctorRepository = doctorRepository;
+        this.patientRepository = patientRepository;
     }
 
     @PostMapping("/create")
@@ -58,6 +67,65 @@ public class AppointmentController {
         return ResponseEntity.ok(out);
     }
 
+    @PostMapping("/{id}/cancel")
+    public ResponseEntity<?> cancel(@PathVariable Long id, @RequestParam(name = "cancelledBy", required = false) String cancelledBy) {
+        try {
+            // Determine caller from security context and enforce patient ownership
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            String callerUid = null;
+            if (auth != null && auth.getPrincipal() instanceof String) {
+                callerUid = (String) auth.getPrincipal();
+            }
+            String who = cancelledBy;
+            System.out.println("AppointmentController.cancel - callerUid=" + callerUid + " cancelledByParam=" + cancelledBy);
+            if (callerUid != null) {
+                // debug: print principal class and value to help diagnose 403 issues
+                try {
+                    System.out.println("AppointmentController.cancel - auth principal class=" + (auth != null && auth.getPrincipal() != null ? auth.getPrincipal().getClass().getName() : "null") + " principalValue=" + callerUid);
+                } catch (Exception e) {
+                    // ignore
+                }
+                // If caller is a patient record in DB, enforce ownership and set cancelledBy="patient"
+                var patOpt = patientRepository.findByFirebaseUid(callerUid);
+                if (patOpt.isPresent()) {
+                    var pat = patOpt.get();
+                    System.out.println("AppointmentController.cancel - resolved patient id=" + pat.getId());
+                    // ensure appointment belongs to this patient
+                    Appointment appt = appointmentService.findById(id);
+                    System.out.println("AppointmentController.cancel - appointment.patient firebaseUid=" + (appt.getPatient() == null ? null : appt.getPatient().getFirebaseUid()));
+                    System.out.println("AppointmentController.cancel - appointment.patientId=" + (appt.getPatient() == null ? null : appt.getPatient().getId()));
+                    // First try comparing DB ids (primary key). As a fallback, also compare firebaseUid stored on the appointment.patient
+                    boolean owner = false;
+                    if (appt.getPatient() != null) {
+                        try {
+                            if (appt.getPatient().getId() != null && pat.getId() != null && appt.getPatient().getId().equals(pat.getId())) owner = true;
+                        } catch (Exception e) {
+                            // ignore and try firebaseUid fallback
+                        }
+                        if (!owner) {
+                            try {
+                                String apptPatientUid = appt.getPatient().getFirebaseUid();
+                                if (apptPatientUid != null && apptPatientUid.equals(callerUid)) owner = true;
+                            } catch (Exception e) {
+                                // ignore
+                            }
+                        }
+                    }
+                    if (!owner) {
+                        System.out.println("AppointmentController.cancel - ownership mismatch, denying cancel (callerUid=" + callerUid + ")");
+                        return ResponseEntity.status(403).body(java.util.Map.of("error", "You are not allowed to cancel this appointment"));
+                    }
+                    who = "patient";
+                }
+            }
+
+            Appointment canceled = appointmentService.cancelAppointment(id, who);
+            return ResponseEntity.ok(toResponse(canceled));
+        } catch (IllegalArgumentException iae) {
+            return ResponseEntity.status(404).body(java.util.Map.of("error", iae.getMessage()));
+        }
+    }
+
     private AppointmentResponse toResponse(Appointment a) {
         var resp = new AppointmentResponse();
         resp.setId(a.getId());
@@ -70,7 +138,25 @@ public class AppointmentController {
         if (a.getPatient() != null) resp.setPatientId(a.getPatient().getId());
         if (a.getDoctorAvailability() != null) resp.setDoctorAvailabilityId(a.getDoctorAvailability().getId());
         if (a.getFacility() != null) resp.setFacilityId(a.getFacility().getId());
-        if (a.getSpeciality() != null) resp.setSpecialityId(a.getSpeciality().getSpecialityCode());
+        if (a.getSpeciality() != null) {
+            resp.setSpecialityId(a.getSpeciality().getSpecialityCode());
+            resp.setSpecialityName(a.getSpeciality().getSpecialityName());
+        }
+        if (a.getFacility() != null) {
+            resp.setFacilityName(a.getFacility().getName());
+        }
+        // doctorName: try to resolve from doctorAvailability.doctorId -> Doctor
+        if (a.getDoctorAvailability() != null && a.getDoctorAvailability().getDoctorId() != null) {
+            try {
+                var docOpt = doctorRepository.findById(a.getDoctorAvailability().getDoctorId());
+                if (docOpt.isPresent()) {
+                    Doctor d = docOpt.get();
+                    resp.setDoctorName(d.getName());
+                }
+            } catch (Exception e) {
+                // don't fail response on doctor lookup issues
+            }
+        }
         if (a.getRoomSchedule() != null) {
             resp.setRoomScheduleId(a.getRoomSchedule().getId());
             try {

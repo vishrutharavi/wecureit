@@ -18,6 +18,26 @@ type Appointment = {
   roomNumber?: string | null;
 };
 
+type AppointmentResp = {
+  id?: number | string;
+  startTime?: string;
+  endTime?: string;
+  specialityId?: string | null;
+  specialityName?: string | null;
+  facilityName?: string | null;
+  roomNumber?: string | null;
+  doctorName?: string | null;
+  isActive?: boolean | null;
+};
+
+function formatDoctorName(name?: string | null) {
+  if (!name) return '';
+  const trimmed = name.trim();
+  // if name already starts with Dr or Dr., don't add again
+  if (/^dr\.?\s+/i.test(trimmed)) return trimmed;
+  return `Dr. ${trimmed}`;
+}
+
 function AppointmentCard({ a }: { a: Appointment }) {
   return (
     <div className={styles.appointmentCard}>
@@ -25,7 +45,7 @@ function AppointmentCard({ a }: { a: Appointment }) {
         <div>
           <div className={styles.dateLabel}>{a.dateLabel}</div>
           <div className={styles.timeLabel}>{a.time}</div>
-          {a.doctor ? <div className={styles.doctorName}>{a.doctor}</div> : null}
+          {a.doctor ? <div className={styles.doctorName}>{formatDoctorName(a.doctor)}</div> : null}
           {a.facility ? <div className={styles.facilityName}>{a.facility}</div> : null}
           {a.roomNumber ? <div className={styles.facilityName}>Room: {a.roomNumber}</div> : null}
         </div>
@@ -46,9 +66,28 @@ function AppointmentCard({ a }: { a: Appointment }) {
       <div style={{ marginTop: 12 }}>
         <button
           className={styles.cancelBtn}
-          onClick={() => {
-            // placeholder: action to cancel
-            alert("Cancel appointment: " + a.id);
+          onClick={async () => {
+            // confirm then call backend to cancel
+            if (!confirm('Are you sure you want to cancel this appointment?')) return;
+            try {
+              // ensure we have a token to send — apiFetch will try to refresh, but pass stored token when available
+              let token: string | null = null;
+              try {
+                token = localStorage.getItem('patientToken') ?? localStorage.getItem('idToken') ?? null;
+              } catch {}
+              if (!token) {
+                // no token, ask user to login
+                try { window.alert('You must be logged in to cancel appointments. Redirecting to login.'); } catch {}
+                window.location.href = '/public/patient/login';
+                return;
+              }
+
+              await apiFetch(`/appointments/${a.id}/cancel?cancelledBy=patient`, token, { method: 'POST' });
+              // remove from UI optimistically by dispatching window event so parent can update state
+              window.dispatchEvent(new CustomEvent('wecureit:appointmentCancelled', { detail: { id: a.id } }));
+            } catch {
+              // apiFetch will show a toast; nothing else needed here
+            }
           }}
         >
           ⊗ Cancel Appointment
@@ -76,7 +115,7 @@ export default function Home() {
               profile = { ...(profile || {}), id: patientId, name: profile?.name ?? me?.name };
               try { localStorage.setItem('patientProfile', JSON.stringify(profile)); } catch {}
             }
-          } catch (e) {
+          } catch {
             // cannot resolve patient id, bail out
           }
         }
@@ -88,16 +127,19 @@ export default function Home() {
 
         const now = new Date();
         const mapped: Appointment[] = res
-          .map((r: any) => {
-            const start = r?.startTime ? new Date(r.startTime) : null;
-            const end = r?.endTime ? new Date(r.endTime) : null;
+          .filter((r: AppointmentResp) => (r.isActive === undefined || r.isActive === null) ? true : Boolean(r.isActive))
+          .map((r: AppointmentResp) => {
+            const start = r?.startTime ? new Date(r.startTime as string) : null;
+            const end = r?.endTime ? new Date(r.endTime as string) : null;
             if (!start || !end) return null;
             return {
               id: String(r.id),
               dateLabel: start.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }),
               dateISO: start.toISOString(),
               time: `${start.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} - ${end.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`,
-              speciality: r.specialityId ?? null,
+              speciality: r.specialityName ?? r.specialityId ?? null,
+              facility: r.facilityName ?? null,
+              doctor: r.doctorName ?? null,
               roomNumber: r.roomNumber ?? null,
             } as Appointment;
           })
@@ -107,7 +149,7 @@ export default function Home() {
           .sort((a, b) => new Date(a.dateISO).getTime() - new Date(b.dateISO).getTime());
 
         setAppointments(mapped);
-      } catch (e) {
+      } catch {
         // ignore fetch errors for now (apiFetch shows a toast)
       }
     }
@@ -115,6 +157,19 @@ export default function Home() {
   }, []);
 
   const sorted = React.useMemo(() => appointments, [appointments]);
+
+  // Listen for cancellation events dispatched by AppointmentCard
+  React.useEffect(() => {
+    function onCancelled(e: Event) {
+      try {
+        const id = (e as CustomEvent).detail?.id;
+        if (!id) return;
+        setAppointments((prev) => prev.filter((p) => p.id !== String(id)));
+      } catch {}
+    }
+    window.addEventListener('wecureit:appointmentCancelled', onCancelled as EventListener);
+    return () => window.removeEventListener('wecureit:appointmentCancelled', onCancelled as EventListener);
+  }, []);
 
   return (
     <div className={styles.homeRoot}>

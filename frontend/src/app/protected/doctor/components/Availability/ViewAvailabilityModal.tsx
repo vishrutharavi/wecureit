@@ -44,6 +44,17 @@ export default function ViewAvailabilityModal({ open, onClose, items, onRemove, 
     return `${yyyy}-${mm}-${dd}`;
   };
 
+  // parse an ISO date (YYYY-MM-DD) as a local Date at midnight (avoid Date parsing which treats it as UTC)
+  const parseLocalDate = (iso?: string) => {
+    if (!iso) return new Date();
+    const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!m) return new Date(iso);
+    const y = parseInt(m[1], 10);
+    const mo = parseInt(m[2], 10) - 1;
+    const d = parseInt(m[3], 10);
+    return new Date(y, mo, d);
+  };
+
   const parseHM = (s: string | undefined) => {
     if (!s) return null;
     const m = s.match(/^(\d{1,2}):(\d{2})$/);
@@ -58,11 +69,9 @@ export default function ViewAvailabilityModal({ open, onClose, items, onRemove, 
     return d.getHours() * 60 + d.getMinutes();
   })();
 
-  // Filter assigned items. Also exclude today's availabilities that have already finished
-  // according to local time (i.e. end time <= now). This prevents showing past availabilities
-  // for today in the modal.
-  const assignedItems = items
-    .filter(it => it.assigned)
+  // Show saved availabilities (assigned first). Also exclude today's availabilities
+  // that have already finished according to local time (end time <= now).
+  const visibleItems = items
     .filter((it) => {
       try {
         const today = getTodayIso();
@@ -73,6 +82,15 @@ export default function ViewAvailabilityModal({ open, onClose, items, onRemove, 
       } catch {
         return true;
       }
+    })
+    .sort((a, b) => {
+      // assigned items first
+      const aa = a.assigned ? 0 : 1;
+      const bb = b.assigned ? 0 : 1;
+      if (aa !== bb) return aa - bb;
+      // otherwise by date then start time
+      if (a.date !== b.date) return a.date < b.date ? -1 : 1;
+      return a.start < b.start ? -1 : (a.start > b.start ? 1 : 0);
     });
 
   const handleView = (it: AvailabilityItem) => {
@@ -110,14 +128,14 @@ export default function ViewAvailabilityModal({ open, onClose, items, onRemove, 
 
         <div className={styles["modal-body"]}>
           {!selected ? (
-            assignedItems.length === 0 ? (
-              <div className={styles.emptyCard}>No assigned availabilities</div>
+            visibleItems.length === 0 ? (
+              <div className={styles.emptyCard}>No saved availabilities</div>
             ) : (
               <div style={{ display: 'grid', gap: 10 }}>
-                {assignedItems.map((it) => (
+                {visibleItems.map((it) => (
                   <div key={it.id} style={{ padding: 12, borderRadius: 8, background: '#fff', border: '1px solid rgba(254,202,202,0.6)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div>
-                      <div style={{ fontWeight: 800 }}>{new Date(it.date).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}</div>
+                      <div style={{ fontWeight: 800 }}>{parseLocalDate(it.date).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}</div>
                         <div style={{ color: '#6b7280', display: 'flex', gap: 8, alignItems: 'center' }}>
                           <span>{it.facilityName}</span>
                           {it.allowWalkIn ? <span className={styles.badge} style={{ background: 'rgba(250,204,21,0.12)', color: '#b45309' }}>Walk-in only</span> : null}
@@ -144,8 +162,8 @@ export default function ViewAvailabilityModal({ open, onClose, items, onRemove, 
             <div className={styles.appointmentCard} style={{ border: '1px solid rgba(239,68,68,0.12)', background: 'linear-gradient(180deg, #fff7f7, #fff)', padding: 18 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <div>
-                  <div style={{ fontWeight: 800, fontSize: 18 }}>{new Date(selected.date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}</div>
-                  <div style={{ color: '#6b7280', marginTop: 4 }}>{new Date(selected.date).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</div>
+                  <div style={{ fontWeight: 800, fontSize: 18 }}>{parseLocalDate(selected?.date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}</div>
+                  <div style={{ color: '#6b7280', marginTop: 4 }}>{parseLocalDate(selected?.date).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</div>
 
                     <div style={{ marginTop: 12 }}>
                       <span className={styles.badge} style={{ background: 'rgba(239,68,68,0.08)', color: 'var(--doctor-dark)' }}>{selected.specialities && selected.specialities.length > 0 ? selected.specialities[0] : (selected.specialty ?? 'General')}</span>

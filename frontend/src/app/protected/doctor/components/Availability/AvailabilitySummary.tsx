@@ -27,6 +27,16 @@ type Props = {
 };
 
 export default function AvailabilitySummary({ pending, saved, onSaveSchedule, onRemovePending, onViewSaved, showSavedInline = true }: Props) {
+  const parseLocalDate = (iso: string) => {
+    // iso expected in YYYY-MM-DD
+    try {
+      const [y, m, d] = iso.split('-').map(s => parseInt(s, 10));
+      return new Date(y, (m || 1) - 1, d || 1);
+    } catch {
+      return new Date(iso);
+    }
+  };
+
   return (
     <div style={{ marginTop: 16 }}>
       {pending.length > 0 && (
@@ -46,8 +56,8 @@ export default function AvailabilitySummary({ pending, saved, onSaveSchedule, on
               <div key={p.id} className={styles.appointmentItem} style={{ marginBottom: 12 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                   <div>
-                    <div style={{ fontWeight: 800, color: '#111' }}>{new Date(p.date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}</div>
-                    <div style={{ color: '#6b7280', fontSize: 13 }}>{new Date(p.date).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</div>
+                    <div style={{ fontWeight: 800, color: '#111' }}>{parseLocalDate(p.date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}</div>
+                    <div style={{ color: '#6b7280', fontSize: 13 }}>{parseLocalDate(p.date).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</div>
 
                     <div style={{ marginTop: 10 }}>
                       {/* Capsule 1: Specialities */}
@@ -94,8 +104,8 @@ export default function AvailabilitySummary({ pending, saved, onSaveSchedule, on
           <div style={{ marginTop: 12, display: 'grid', gap: 10 }}>
             {saved.map((sItem) => (
               <div key={sItem.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 12, borderRadius: 8, background: '#fff' }}>
-                <div>
-                  <div style={{ fontWeight: 800 }}>{new Date(sItem.date).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}</div>
+                  <div>
+                    <div style={{ fontWeight: 800 }}>{parseLocalDate(sItem.date).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}</div>
                   <div style={{ marginTop: 8, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                     {(sItem.specialities && sItem.specialities.length > 0) ? (
                       sItem.specialities.map((s) => <span key={s} className={styles.specialtyPill}>{s}</span>)

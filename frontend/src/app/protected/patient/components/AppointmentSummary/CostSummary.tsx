@@ -14,6 +14,10 @@ type Booking = {
   date?: string | null;
   time?: string | null;
   duration?: number | null;
+  doctorAvailabilityId?: string | null;
+  roomScheduleId?: string | null;
+  chiefComplaints?: string | null;
+  roomNumber?: string | null;
 };
 
 export default function CostSummary() {
@@ -111,10 +115,10 @@ export default function CostSummary() {
             setBookingInProgress(true);
             try {
               // ensure we have the latest booking selection
-              let payload = booking;
+              let payload: Booking | null = booking;
               try {
                 const raw = sessionStorage.getItem('bookingSelection');
-                if (raw) payload = JSON.parse(raw);
+                if (raw) payload = JSON.parse(raw) as Booking;
               } catch {}
 
               if (!payload) throw new Error('No booking selection found');
@@ -163,18 +167,18 @@ export default function CostSummary() {
               const endDateObj = new Date(startDateObj.getTime() + (duration || 30) * 60000);
               const endLocal = `${endDateObj.getFullYear()}-${pad(endDateObj.getMonth() + 1)}-${pad(endDateObj.getDate())}T${pad(endDateObj.getHours())}:${pad(endDateObj.getMinutes())}:00`;
 
-                const body: any = {
+                const body = {
                 date: dateStr,
                 duration: duration,
                 patientId: patientId,
-                doctorAvailabilityId: (payload as any).doctorAvailabilityId ?? null,
+                doctorAvailabilityId: payload?.doctorAvailabilityId ?? null,
                 startTime: startLocal,
                 endTime: endLocal,
-                facilityId: payload.facility?.id ?? null,
-                specialityId: payload.specialty?.id ?? null,
-                roomScheduleId: (payload as any).roomScheduleId ?? null,
+                facilityId: payload?.facility?.id ?? null,
+                specialityId: payload?.specialty?.id ?? null,
+                roomScheduleId: payload?.roomScheduleId ?? null,
                 isActive: true,
-                chiefComplaints: (payload as any).chiefComplaints ?? null,
+                chiefComplaints: payload?.chiefComplaints ?? null,
               };
 
               const res = await apiFetch('/appointments/create', undefined, {
@@ -188,12 +192,19 @@ export default function CostSummary() {
               setConfirmation(conf);
               // pass roomNumber into modal by merging booking + res.roomNumber
               const roomNumber = res?.roomNumber ?? null;
-              const modalBooking = { ...(booking || {}), roomNumber };
+              const modalBooking: Booking = { ...(booking ?? {}), roomNumber };
               // update booking shown in modal (do not overwrite session storage)
-              setBooking(modalBooking as any);
+              setBooking(modalBooking);
               setShowModal(true);
-            } catch (err: any) {
-              const msg = String(err?.message ?? err ?? '');
+            } catch (err: unknown) {
+              let msg = '';
+              if (typeof err === 'string') msg = err;
+              else if (err && typeof err === 'object' && 'message' in err) {
+                const m = (err as { message?: unknown }).message;
+                msg = typeof m === 'string' ? m : String(m);
+              } else {
+                msg = String(err ?? '');
+              }
               // If duplicate (server returned 409), guide user to upcoming appointments
               if (/409|already exists|already booked|Appointment already exists/i.test(msg)) {
                 try { window.alert('This appointment is already booked. Redirecting to your upcoming appointments.'); } catch {}

@@ -8,6 +8,8 @@ import java.util.List;
 import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,11 +29,16 @@ import com.wecureit.repository.RoomScheduleRepository;
 @Service
 public class DoctorAvailabilityService {
 
+    private static final Logger log = LoggerFactory.getLogger(DoctorAvailabilityService.class);
+
     @Autowired
     private DoctorAvailabilityRepository availabilityRepo;
 
     @Autowired
     private RoomRepository roomRepo;
+
+    @Autowired
+    private RoomScheduleService roomScheduleService;
 
     @Autowired
     private RoomScheduleRepository roomScheduleRepo;
@@ -101,39 +108,16 @@ public class DoctorAvailabilityService {
             da.setIsBookable(true);
             availabilityRepo.save(da);
 
-            // attempt to find a room and reserve via room_schedule
-            List<Room> candidates = roomRepo.findByFacilityIdAndSpecialityCodeAndActiveTrue(da.getFacilityId(), da.getSpecialityCode());
-            UUID assignedRoomId = null;
-            LocalDateTime startAt = LocalDateTime.of(da.getWorkDate(), da.getStartTime());
-            LocalDateTime endAt = LocalDateTime.of(da.getWorkDate(), da.getEndTime());
-
-            for (Room r : candidates) {
-                try {
-                    RoomSchedule rs = new RoomSchedule();
-                    rs.setRoomId(r.getId());
-                    rs.setDoctorId(doctorId);
-                    rs.setStartAt(startAt);
-                    rs.setEndAt(endAt);
-                    rs.setPurpose("AVAILABILITY_ASSIGN");
-                    roomScheduleRepo.save(rs);
-                    assignedRoomId = r.getId();
-                    break;
-                } catch (DataIntegrityViolationException ex) {
-                    // room busy, try next
-                    continue;
-                }
-            }
-
-            if (assignedRoomId != null) {
-                da.setRoomAssignedId(assignedRoomId);
-                da.setRoomAssignmentStatus("ASSIGNED");
-                da.setIsBookable(true);
-                availabilityRepo.save(da);
-            } else {
-                da.setRoomAssignmentStatus("NONE");
-                da.setIsBookable(false);
-                availabilityRepo.save(da);
-            }
+            // Do NOT attempt to reserve rooms when saving availability.
+            // Availabilities are allowed to overlap; room reservations are created
+            // only when an appointment is booked. By default we keep the
+            // availability bookable so patients can book — the actual room
+            // assignment will happen during appointment creation. If there are
+            // genuinely no rooms available at booking time, the system will
+            // fall back to marking the slot as Walk-in during that flow.
+            da.setRoomAssignmentStatus("NONE");
+            da.setIsBookable(true);
+            availabilityRepo.save(da);
 
             AvailabilityResponse resp = new AvailabilityResponse();
             resp.setId(da.getId());
@@ -236,6 +220,8 @@ public class DoctorAvailabilityService {
             java.util.List<com.wecureit.entity.Appointment> appts = appointmentRepo.findAppointmentsForDoctor(doctorId, startAt, endAt);
             if (appts != null) {
                 for (com.wecureit.entity.Appointment a : appts) {
+                    // ignore inactive/cancelled appointments so cancelled slots become available immediately
+                    if (a.getIsActive() != null && Boolean.FALSE.equals(a.getIsActive())) continue;
                     if (a.getStartTime() != null && a.getEndTime() != null) {
                         String s = a.getStartTime().toLocalTime().toString();
                         String e = a.getEndTime().toLocalTime().toString();
@@ -257,20 +243,17 @@ public class DoctorAvailabilityService {
 
         LocalDateTime startAt = LocalDateTime.of(da.getWorkDate(), da.getStartTime());
         LocalDateTime endAt = LocalDateTime.of(da.getWorkDate(), da.getEndTime());
+    log.debug("AssignRoom computed startAt={} endAt={} zone={}", startAt, endAt, java.time.ZoneId.systemDefault());
 
         // try to reserve the room
-        try {
-            RoomSchedule rs = new RoomSchedule();
-            rs.setRoomId(roomId);
-            rs.setDoctorId(doctorId);
-            rs.setStartAt(startAt);
-            rs.setEndAt(endAt);
-            rs.setPurpose("AVAILABILITY_ASSIGN");
-            roomScheduleRepo.save(rs);
-        } catch (DataIntegrityViolationException ex) {
-            // conflict
-            return false;
-        }
+        RoomSchedule rs = new RoomSchedule();
+        rs.setRoomId(roomId);
+        rs.setDoctorId(doctorId);
+        rs.setStartAt(startAt);
+        rs.setEndAt(endAt);
+        rs.setPurpose("AVAILABILITY_ASSIGN");
+        RoomSchedule saved = roomScheduleService.tryReserve(rs);
+        if (saved == null) return false;
 
         da.setRoomAssignedId(roomId);
         da.setRoomAssignmentStatus("ASSIGNED");
@@ -304,6 +287,7 @@ public class DoctorAvailabilityService {
         if (da.getRoomAssignedId() != null) {
             java.time.LocalDateTime startAt = java.time.LocalDateTime.of(da.getWorkDate(), da.getStartTime());
             java.time.LocalDateTime endAt = java.time.LocalDateTime.of(da.getWorkDate(), da.getEndTime());
+            log.debug("DeleteAvailability computed startAt={} endAt={} zone={}", startAt, endAt, java.time.ZoneId.systemDefault());
             try {
                 java.util.List<com.wecureit.entity.RoomSchedule> overlaps = roomScheduleRepo.findOverlapping(da.getRoomAssignedId(), startAt, endAt);
                 if (overlaps != null) {
