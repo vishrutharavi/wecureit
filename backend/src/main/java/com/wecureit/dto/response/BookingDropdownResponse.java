@@ -1,7 +1,6 @@
 package com.wecureit.dto.response;
 
 import java.util.List;
-import com.wecureit.dto.response.FacilityResponse;
 
 public class BookingDropdownResponse {
     private List<DoctorDropdownDto> doctors;
