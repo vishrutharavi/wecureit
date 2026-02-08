@@ -2,6 +2,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { apiFetch } from '@/lib/api';
 import styles from "../../patient.module.scss";
 
 // Inline SectionCard and ReadField so PersonalInfo remains usable if Card.tsx is removed
@@ -35,15 +36,19 @@ import { AiOutlineUser } from "react-icons/ai";
 import { FiSave, FiEdit3 } from "react-icons/fi";
 
 export default function PersonalInfo({
-	name: initialName = "John Doe",
-	sex: initialSex = "Male",
-	dob: initialDob = "June 14, 1985",
-	email: initialEmail = "john.doe@email.com",
-	phone: initialPhone = "(555) 123-4567",
+	name: initialName = "",
+	sex: initialSex = "",
+	dob: initialDob = "",
+	email: initialEmail = "",
+	phone: initialPhone = "",
 }: Partial<Record<string, string>> = {}) {
 	const [editMode, setEditMode] = useState(false);
 	// Initialize to server-safe value (avoids SSR/CSR hydration mismatch).
 	const [email, setEmail] = useState<string>(initialEmail);
+	const [name, setName] = useState<string>(initialName);
+	const [sex, setSex] = useState<string>(initialSex);
+	const [dob, setDob] = useState<string>(initialDob);
+	const [phone, setPhone] = useState<string>(initialPhone);
 
 	// After mount, read real stored profile from localStorage and update state.
 	React.useEffect(() => {
@@ -52,8 +57,38 @@ export default function PersonalInfo({
 			const raw = localStorage.getItem('patientProfile');
 			if (raw) {
 				const p = JSON.parse(raw);
-				if (p?.email) setEmail(p.email);
+				// If user has edited email in portal, prefer secondaryEmail for display/editing.
+				if (p?.secondaryEmail) setEmail(p.secondaryEmail);
+				else if (p?.email) setEmail(p.email);
+
+				// populate other profile fields if present
+				if (p?.name) setName(p.name);
+				if (p?.sex) setSex(p.sex);
+				if (p?.dob) setDob(p.dob);
+				if (p?.phone) setPhone(p.phone);
 			}
+
+			// If any of the important fields are missing, attempt to refresh from the server
+			(async () => {
+				try {
+					const raw2 = localStorage.getItem('patientProfile');
+					const p2 = raw2 ? JSON.parse(raw2) : {};
+					if (!p2 || !p2.phone || !p2.dob || !p2.sex) {
+						const me = await apiFetch('/api/patient/me');
+						if (me) {
+								try {
+									const merged = { ...(p2 || {}), ...(me || {}) };
+									localStorage.setItem('patientProfile', JSON.stringify(merged));
+									if (me?.phone) setPhone(me.phone);
+									if (me?.dob) setDob(me.dob);
+									if (me?.sex) setSex(me.sex);
+									if (me?.name) setName(me.name);
+									if (me?.secondaryEmail) setEmail(me.secondaryEmail);
+								} catch {}
+						}
+					}
+				} catch {}
+			})();
 		} catch {}
 	}, []);
 
@@ -65,15 +100,49 @@ export default function PersonalInfo({
 		setEditMode(true);
 	}
 
-	function doSave() {
-		try {
-			const raw = localStorage.getItem("patientProfile");
-			const p = raw ? JSON.parse(raw) : {};
-			p.email = email;
-			localStorage.setItem("patientProfile", JSON.stringify(p));
-		} catch {}
-		setEditMode(false);
-	}
+		async function doSave() {
+			try {
+				// call backend to persist profile changes; edited email goes to secondaryEmail
+				try {
+					const payload: { email?: string; name?: string; phone?: string } = { email, name, phone };
+					const res = await fetch('/api/patient/profile', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+					if (res.ok) {
+						const updated = await res.json();
+						try {
+							const raw = localStorage.getItem('patientProfile');
+							const p = raw ? JSON.parse(raw) : {};
+							// merge returned fields
+							p.email = updated.email ?? p.email;
+							p.secondaryEmail = updated.secondaryEmail ?? p.secondaryEmail;
+							p.name = updated.name ?? p.name ?? name;
+							p.phone = updated.phone ?? p.phone ?? phone;
+							p.city = updated.city ?? p.city;
+							p.state = updated.state ?? p.state;
+							p.zip = updated.zip ?? p.zip;
+							p.address = updated.address ?? p.address;
+							localStorage.setItem('patientProfile', JSON.stringify(p));
+						} catch {}
+					} else {
+						// fallback: store locally if backend update fails
+						const raw = localStorage.getItem('patientProfile');
+						const p = raw ? JSON.parse(raw) : {};
+						p.secondaryEmail = email;
+						p.name = name;
+						p.phone = phone;
+						localStorage.setItem('patientProfile', JSON.stringify(p));
+					}
+				} catch {
+					// network error: persist locally
+					const raw = localStorage.getItem('patientProfile');
+					const p = raw ? JSON.parse(raw) : {};
+					p.secondaryEmail = email;
+					p.name = name;
+					p.phone = phone;
+					localStorage.setItem('patientProfile', JSON.stringify(p));
+				}
+			} catch {}
+			setEditMode(false);
+		}
 
 	function doCancel() {
 		try {
@@ -81,6 +150,10 @@ export default function PersonalInfo({
 			if (raw) {
 				const p = JSON.parse(raw);
 				if (p?.email) setEmail(p.email);
+				if (p?.name) setName(p.name);
+				if (p?.sex) setSex(p.sex);
+				if (p?.dob) setDob(p.dob);
+				if (p?.phone) setPhone(p.phone);
 			}
 		} catch {}
 		setEditMode(false);
@@ -108,18 +181,18 @@ export default function PersonalInfo({
 
 					<div>
 						<div className={"fieldLabel"}>Full Name</div>
-						<ReadField>{initialName}</ReadField>
+						<ReadField>{name}</ReadField>
 					</div>
 
 					<div className={styles.twoColGrid}>
 						<div>
 							<div className={"fieldLabel"}>Sex</div>
-							<ReadField>{initialSex}</ReadField>
+							<ReadField>{sex}</ReadField>
 						</div>
 
 						<div>
 							<div className={"fieldLabel"}>Date of Birth</div>
-							<ReadField>{initialDob}</ReadField>
+							<ReadField>{dob}</ReadField>
 						</div>
 					</div>
 
@@ -139,7 +212,7 @@ export default function PersonalInfo({
 
 						<div>
 							<div className={"fieldLabel"}>Phone Number</div>
-							<ReadField>{initialPhone}</ReadField>
+							<ReadField>{phone}</ReadField>
 						</div>
 					</div>
 				</div>

@@ -36,6 +36,8 @@ export default function DateAndTimeSelection() {
   const [selection, setSelection] = React.useState<Selection | null>(null);
   const [availableDates, setAvailableDates] = React.useState<string[] | null>(null);
   const [availabilities, setAvailabilities] = React.useState<AvailabilityResp[] | null>(null);
+  type ServerSlot = { startAt: string; endAt: string; status: string; availabilityId?: string | null };
+  const [bookingSlots, setBookingSlots] = React.useState<Array<ServerSlot> | null>(null);
   // date is null until user explicitly picks one from the mini calendar
   const [date, setDate] = React.useState<string | null>(null);
   const [duration, setDuration] = React.useState<number | null>(null);
@@ -107,8 +109,6 @@ export default function DateAndTimeSelection() {
         const resp = await apiFetch(url) as AvailabilityResp[];
         if (canceled) return;
 
-    // availability fetch completed
-
         if (!Array.isArray(resp)) {
           setAvailableDates(null);
           return;
@@ -135,7 +135,6 @@ export default function DateAndTimeSelection() {
         });
 
         const dates = Array.from(new Set(filtered.map((r) => r.workDate))).sort();
-  // filtered availability computed
         setAvailableDates(dates);
         setAvailabilities(filtered);
       } catch (err) {
@@ -148,20 +147,60 @@ export default function DateAndTimeSelection() {
     return () => { canceled = true; };
   }, [selection]);
 
-  // when date changes, clear duration and selected time so the user chooses anew
+  // fetch slot-level availability for selected date (15-min slots with status)
   React.useEffect(() => {
-    setDuration(null);
-    setSelectedTime(null);
-    setSelectedDoctorAvailabilityId(null);
-  }, [date]);
+    let cancelled = false;
+    (async () => {
+      if (!selection || !selection.doctor?.id || !date) {
+        setBookingSlots(null);
+        return;
+      }
+      try {
+        const doctorId = selection.doctor.id;
+        const facilityId = selection.facility?.id;
+        const params = new URLSearchParams();
+        params.set('doctorId', doctorId);
+        if (facilityId) params.set('facilityId', facilityId);
+        params.set('date', date);
+        if (duration) params.set('duration', String(duration));
+        const url = `/api/patients/booking/availability?${params.toString()}`;
+        const resp = await apiFetch(url) as { slots?: ServerSlot[] } | null;
+        if (cancelled) return;
+        if (resp && Array.isArray(resp.slots)) {
+          setBookingSlots(resp.slots.map((s) => ({ startAt: s.startAt, endAt: s.endAt, status: s.status, availabilityId: s.availabilityId || null })));
+        } else {
+          setBookingSlots(null);
+        }
+      } catch (err) {
+        console.error('Failed to load booking slots', err);
+        showInlineToast('Failed to load time slots');
+        setBookingSlots(null);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [selection, date, duration]);
 
+  // quick lookup of availabilities for the selected date (used to show message before duration)
   const generateTimeSlots = React.useMemo(() => {
     if (!date) return { labels: [] as string[], ids: [] as string[], disabled: [] as boolean[] };
-    // if we have availabilities for the selected date, generate slots from those intervals
-    const rows = (availabilities || []).filter((r) => r.workDate === date && (r.bookable || r.isBookable));
-    const granularity = 15; // minutes
+    // if server provided slot-level data, use it
+      if (bookingSlots && bookingSlots.length > 0) {
+      // build a sorted list by start minute
+      const entries = bookingSlots.map(s => {
+        const dt = new Date(s.startAt);
+        const minute = dt.getHours() * 60 + dt.getMinutes();
+        const label = dt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  return { minute, label, status: s.status, availabilityId: s.availabilityId || null };
+      }).sort((a, b) => a.minute - b.minute);
+      const labels = entries.map(e => e.label);
+      const ids = entries.map(e => e.availabilityId || '');
+      const disabled = entries.map(e => e.status !== 'AVAILABLE');
+      return { labels, ids, disabled };
+    }
 
-    // helper: parse HH:MM to minutes since midnight
+    // fallback: build from availability windows
+    const rows = (availabilities || []).filter((r) => r.workDate === date && (r.bookable || r.isBookable));
+    const granularity = 15;
     const parseHM = (s: string) => {
       if (!s) return null;
       const m = s.match(/^(\d{1,2}):(\d{2})$/);
@@ -170,69 +209,25 @@ export default function DateAndTimeSelection() {
       const mm = parseInt(m[2], 10);
       return hh * 60 + mm;
     };
-
-    // helper: format minutes to 'h:mm AM/PM'
-    const fmt = (minutes: number) => {
-      const hh = Math.floor(minutes / 60);
-      const mm = minutes % 60;
-      const period = hh >= 12 ? 'PM' : 'AM';
-      let hour = hh % 12;
-      if (hour === 0) hour = 12;
-      return `${hour}:${String(mm).padStart(2, '0')} ${period}`;
-    };
-
-    // build list of occupied minute ranges (startMin,endMin) from availabilities
-    const occupiedRanges: Array<[number, number]> = [];
-    for (const r of rows) {
-      if (Array.isArray(r.occupiedAppointments)) {
-        for (const oa of r.occupiedAppointments as string[]) {
-          // expected format 'HH:MM[:SS]|HH:MM[:SS]'
-          const parts = String(oa || '').split('|');
-          if (parts.length !== 2) continue;
-          const parseHM = (s: string) => {
-            const m = s.match(/^(\d{1,2}):(\d{2})/);
-            if (!m) return null;
-            const hh = parseInt(m[1], 10);
-            const mm = parseInt(m[2], 10);
-            return hh * 60 + mm;
-          };
-          const os = parseHM(parts[0]);
-          const oe = parseHM(parts[1]);
-          if (os != null && oe != null) occupiedRanges.push([os, oe]);
-        }
-      }
-    }
-
-    // Map minute -> availabilityId (first matching availability wins)
-    const slotMap = new Map<number, string>();
-    const slotDisabledMap = new Map<number, boolean>();
-
+    const slotMap = new Map<number, { label: string; disabled: boolean }>();
     for (const r of rows) {
       const s = parseHM(r.startTime || '');
       const e = parseHM(r.endTime || '');
       if (s == null || e == null) continue;
-      const dur = duration || 15;
-      const lastStart = e - dur;
+      const lastStart = e - granularity;
       for (let t = s; t <= lastStart; t += granularity) {
         if (!slotMap.has(t)) {
-          // store the availability id for this start minute
-          const aid = r.id ?? r.availabilityId ?? null;
-          if (aid) slotMap.set(t, String(aid));
-          else slotMap.set(t, '');
-          // determine if this start minute overlaps any occupied appointment range
-          const dur = duration || 15;
-          const startMin = t;
-          const endMin = t + dur;
-          let disabled = false;
-          for (const [os, oe] of occupiedRanges) {
-            if (os < endMin && oe > startMin) { disabled = true; break; }
-          }
-          slotDisabledMap.set(t, disabled);
+          const label = (() => {
+            const hh = Math.floor(t / 60);
+            const mm = t % 60;
+            const period = hh >= 12 ? 'PM' : 'AM';
+            let hour = hh % 12; if (hour === 0) hour = 12;
+            return `${hour}:${String(mm).padStart(2, '0')} ${period}`;
+          })();
+          slotMap.set(t, { label, disabled: false });
         }
       }
     }
-
-    // if selected date is today, filter out past slots (only show from now onwards)
     const today = (() => {
       const d = new Date();
       return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -241,18 +236,14 @@ export default function DateAndTimeSelection() {
       const dn = new Date();
       return dn.getHours() * 60 + dn.getMinutes();
     })();
-
     let sorted = Array.from(slotMap.keys()).sort((a, b) => a - b);
-    if (date === today) {
-      sorted = sorted.filter(m => m >= nowMinutesLocal);
-    }
-    const labels = sorted.map((m) => fmt(m));
-    const ids = sorted.map((m) => slotMap.get(m) || '');
-    const disabled = sorted.map((m) => slotDisabledMap.get(m) || false);
+    if (date === today) sorted = sorted.filter(m => m >= nowMinutesLocal);
+    const labels = sorted.map(m => slotMap.get(m)!.label);
+    const ids = sorted.map(() => '');
+    const disabled = sorted.map(m => slotMap.get(m)!.disabled);
     return { labels, ids, disabled };
-  }, [date, availabilities, duration]);
+  }, [date, bookingSlots, availabilities]);
 
-  // quick lookup of availabilities for the selected date (used to show message before duration)
   const rowsForDate = date ? (availabilities || []).filter((r) => r.workDate === date && (r.bookable || r.isBookable)) : [];
 
   if (!selection) {
@@ -351,6 +342,19 @@ export default function DateAndTimeSelection() {
                                     if (slotDisabled) return;
                                     setSelectedTime(t);
                                     setSelectedDoctorAvailabilityId(availabilityId);
+                                    // persist selection so the confirmation step has doctorAvailabilityId
+                                    try {
+                                      const raw = sessionStorage.getItem('bookingSelection');
+                                      const bs = raw ? JSON.parse(raw) : {};
+                                      bs.date = date;
+                                      bs.time = t;
+                                      bs.doctorAvailabilityId = availabilityId || null;
+                                      bs.duration = duration;
+                                      // keep chiefComplaints if already present
+                                      sessionStorage.setItem('bookingSelection', JSON.stringify(bs));
+                                    } catch {
+                                      // ignore storage errors
+                                    }
                                   }}
                                   disabled={!canStart || slotDisabled}
                                   className={isActive ? `${styles.timeSlotBtn} ${styles.timeSlotBtnActive}` : slotDisabled ? `${styles.timeSlotBtn} ${styles.timeSlotBtnDisabled ?? ''}` : styles.timeSlotBtn}

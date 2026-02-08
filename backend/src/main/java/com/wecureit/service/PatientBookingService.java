@@ -4,13 +4,14 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import java.time.LocalDateTime;
 
 import org.springframework.stereotype.Service;
 
 import com.wecureit.dto.response.BookingDropdownResponse;
 import com.wecureit.dto.response.DoctorDropdownDto;
 import com.wecureit.dto.response.FacilityDropdownDto;
-import com.wecureit.dto.response.SpecialityDto;
+import com.wecureit.dto.response.SpecialityResponse;
 import com.wecureit.entity.Doctor;
 import com.wecureit.entity.DoctorLicense;
 import com.wecureit.entity.Facility;
@@ -29,17 +30,158 @@ public class PatientBookingService {
     private final SpecialityRepository specialityRepository;
     private final RoomRepository roomRepository;
     private final DoctorLicenseRepository doctorLicenseRepository;
+    private final com.wecureit.repository.AppointmentRepository appointmentRepository;
+    private final com.wecureit.service.DoctorAvailabilityService doctorAvailabilityService;
 
     public PatientBookingService(DoctorRepository doctorRepository,
                                  FacilityRepository facilityRepository,
                                  SpecialityRepository specialityRepository,
                                  RoomRepository roomRepository,
-                                 DoctorLicenseRepository doctorLicenseRepository) {
+                                 DoctorLicenseRepository doctorLicenseRepository,
+                                 com.wecureit.repository.AppointmentRepository appointmentRepository,
+                                 com.wecureit.service.DoctorAvailabilityService doctorAvailabilityService) {
         this.doctorRepository = doctorRepository;
         this.facilityRepository = facilityRepository;
         this.specialityRepository = specialityRepository;
         this.roomRepository = roomRepository;
         this.doctorLicenseRepository = doctorLicenseRepository;
+        this.appointmentRepository = appointmentRepository;
+        this.doctorAvailabilityService = doctorAvailabilityService;
+    }
+
+    /**
+     * Returns 15-minute slots for a doctor on a given workDate (YYYY-MM-DD).
+     * Status values: AVAILABLE | BOOKED | BREAK_ENFORCED | UNAVAILABLE
+     */
+    public com.wecureit.dto.response.BookingAvailabilityResponse getAvailabilitySlots(java.util.UUID doctorId, java.util.UUID facilityId, java.time.LocalDate workDate, Integer desiredDurationMinutes) {
+        var out = new com.wecureit.dto.response.BookingAvailabilityResponse();
+        out.setDoctorId(doctorId);
+        out.setFacilityId(facilityId);
+        out.setWorkDate(workDate.toString());
+
+        // fetch availability windows for this doctor on the date
+        java.util.List<com.wecureit.dto.response.AvailabilityResponse> windows = doctorAvailabilityService.listAvailabilities(doctorId, workDate, workDate);
+
+        // fetch appointments for the doctor for the full day
+        java.time.LocalDateTime startAt = workDate.atStartOfDay();
+        java.time.LocalDateTime endAt = workDate.plusDays(1).atStartOfDay();
+        java.util.List<com.wecureit.entity.Appointment> appts = appointmentRepository.findAppointmentsForDoctor(doctorId, startAt, endAt);
+        if (appts == null) appts = new java.util.ArrayList<>();
+
+        java.util.List<com.wecureit.dto.response.BookingAvailabilitySlot> slots = new java.util.ArrayList<>();
+        final int SLOT_MIN = 15;
+
+        for (var w : windows) {
+            // if facilityId is provided and doesn't match, skip this window
+            if (facilityId != null && w.getFacilityId() != null && !facilityId.toString().equals(w.getFacilityId())) continue;
+            if (!w.isBookable()) continue;
+            // parse start/end time (HH:MM)
+            try {
+                var stParts = w.getStartTime().split(":");
+                var enParts = w.getEndTime().split(":");
+                int stMin = Integer.parseInt(stParts[0]) * 60 + Integer.parseInt(stParts[1]);
+                int enMin = Integer.parseInt(enParts[0]) * 60 + Integer.parseInt(enParts[1]);
+                for (int t = stMin; t + SLOT_MIN <= enMin; t += SLOT_MIN) {
+                    java.time.LocalDateTime sdt = workDate.atStartOfDay().plusMinutes(t);
+                    java.time.LocalDateTime edt = sdt.plusMinutes(SLOT_MIN);
+                    String status = "AVAILABLE";
+                    // check appointment overlap
+                    boolean overlapped = false;
+                    for (var a : appts) {
+                        if (a.getIsActive() != null && !a.getIsActive()) continue;
+                        if (a.getStartTime() == null || a.getEndTime() == null) continue;
+                        if (a.getStartTime().isBefore(edt) && a.getEndTime().isAfter(sdt)) { overlapped = true; break; }
+                    }
+                    if (overlapped) status = "BOOKED";
+                    else {
+                        // check break enforced intervals from appointments' breakStartTime / breakEndTime / duration
+                        boolean breakFound = false;
+                        for (var a : appts) {
+                            if (a.getBreakStartTime() != null) {
+                                LocalDateTime bs = a.getBreakStartTime();
+                                LocalDateTime be = null;
+                                if (a.getBreakEndTime() != null) be = a.getBreakEndTime();
+                                else if (a.getBreakDurationMinutes() != null) be = bs.plusMinutes(a.getBreakDurationMinutes());
+                                if (be != null && bs.isBefore(edt) && be.isAfter(sdt)) { status = "BREAK_ENFORCED"; breakFound = true; break; }
+                            }
+                        }
+
+                        // If no enforced break overlaps this 15-min slot, optionally simulate booking with the desired duration
+                        // and mark the slot UNAVAILABLE if adding such a booking would make the doctor work > 60 continuous minutes
+                        if (!breakFound && desiredDurationMinutes != null && desiredDurationMinutes > 0) {
+                            // build a simulated list of appointments including a hypothetical appointment starting at sdt
+                            java.util.List<com.wecureit.entity.Appointment> sim = new java.util.ArrayList<>();
+                            // only include active appointments that have start/end
+                            for (var a : appts) {
+                                if (a.getIsActive() == null || a.getIsActive()) {
+                                    if (a.getStartTime() != null && a.getEndTime() != null) sim.add(a);
+                                }
+                            }
+                            // create a lightweight hypothetical appointment object
+                            com.wecureit.entity.Appointment hypo = new com.wecureit.entity.Appointment();
+                            hypo.setStartTime(sdt);
+                            hypo.setEndTime(sdt.plusMinutes(desiredDurationMinutes));
+                            hypo.setDuration((long) desiredDurationMinutes);
+                            sim.add(hypo);
+
+                            // sort by startTime
+                            sim.sort((a1, a2) -> a1.getStartTime().compareTo(a2.getStartTime()));
+
+                            // scan contiguous groups (gap < GAP_MIN minutes considered continuous) and sum durations
+                            // IMPORTANT: only consider a violation if the contiguous group that includes the hypothetical
+                            // booking reaches or exceeds the maximum continuous minutes. Previously any group anywhere in the day
+                            // could trigger the violation which incorrectly made all simulated slots unavailable once a 60-minute
+                            // appointment existed.
+                            final long GAP_MIN = 15L;
+                            final long MAX_CONTINUOUS_MINUTES = 60L;
+                            long cum = 0L;
+                            java.time.LocalDateTime prev = null;
+                            boolean violation = false;
+                            boolean groupHasHypo = false;
+                            for (var sa : sim) {
+                                long dur = sa.getDuration() == null ? java.time.Duration.between(sa.getStartTime(), sa.getEndTime()).toMinutes() : sa.getDuration().longValue();
+                                boolean isHypo = sa == hypo;
+                                if (prev == null) {
+                                    cum = dur;
+                                    groupHasHypo = isHypo;
+                                } else {
+                                    long gap = java.time.Duration.between(prev, sa.getStartTime()).toMinutes();
+                                    // treat a 15-minute gap as a valid break boundary. Only gaps strictly less than GAP_MIN are continuous.
+                                    if (gap < GAP_MIN) {
+                                        cum += dur;
+                                        groupHasHypo = groupHasHypo || isHypo;
+                                    } else {
+                                        cum = dur;
+                                        groupHasHypo = isHypo;
+                                    }
+                                }
+                                // only treat as a violation when the contiguous group that includes the hypothetical booking
+                                // would strictly exceed the limit (the policy is: breaks are required only when continuous
+                                // work would be more than 60 minutes; exactly 60 is allowed without an extra break).
+                                if (groupHasHypo && cum > MAX_CONTINUOUS_MINUTES) { violation = true; break; }
+                                prev = sa.getEndTime();
+                            }
+                            if (violation) status = "UNAVAILABLE";
+                        }
+                    }
+
+                    // if facility capacity reported as no available rooms, mark UNAVAILABLE (best-effort)
+                    if (w.getAvailableRooms() != null && w.getAvailableRooms() <= 0) {
+                        status = "UNAVAILABLE";
+                    }
+
+                    // include the originating availability window id when available so frontend can persist it
+                    String availId = null;
+                    try { if (w.getId() != null) availId = w.getId().toString(); } catch (Exception e) { availId = null; }
+                    slots.add(new com.wecureit.dto.response.BookingAvailabilitySlot(sdt.toString(), edt.toString(), status, availId));
+                }
+            } catch (Exception ex) {
+                // ignore malformed window
+            }
+        }
+
+        out.setSlots(slots);
+        return out;
     }
 
     public BookingDropdownResponse getDropdownData(UUID facilityId, String specialityCode, UUID doctorId) {
@@ -47,22 +189,22 @@ public class PatientBookingService {
 
         // specialities
         List<Speciality> specs = specialityRepository.findAll();
-        List<SpecialityDto> specDtos = specs.stream().map(s -> new SpecialityDto(s.getSpecialityCode(), s.getSpecialityName())).collect(Collectors.toList());
+        List<SpecialityResponse> specDtos = specs.stream().map(s -> new SpecialityResponse(s.getSpecialityCode(), s.getSpecialityName())).collect(Collectors.toList());
         out.setSpecialties(specDtos);
 
         // facilities (active)
-        List<Facility> facilities = facilityRepository.findAllByIsActive(Boolean.TRUE);
-        List<FacilityDropdownDto> facDtos = new ArrayList<>();
+    List<Facility> facilities = facilityRepository.findAllByIsActive(Boolean.TRUE);
+    List<com.wecureit.dto.response.FacilityResponse> facDtos = new ArrayList<>();
         for (Facility f : facilities) {
             // if speciality filter is provided, ensure facility has at least one active room for that speciality
             if (specialityCode != null && !specialityCode.isBlank()) {
                 var rooms = roomRepository.findByFacilityIdAndSpecialityCodeAndActiveTrue(f.getId(), specialityCode);
                 if (rooms == null || rooms.isEmpty()) continue;
             }
-            FacilityDropdownDto fd = new FacilityDropdownDto(f.getId(), f.getName(), f.getCity(), f.getState() == null ? null : f.getState().getStateCode(), f.getAddress());
+            com.wecureit.dto.response.FacilityResponse fd = new com.wecureit.dto.response.FacilityResponse(f.getId(), f.getName(), f.getCity(), f.getState() == null ? null : f.getState().getStateCode(), f.getIsActive(), f.getAddress(), f.getZipCode());
             // attach specialties available at facility (based on rooms)
             List<com.wecureit.entity.Room> rooms = roomRepository.findByFacilityIdAndActiveTrue(f.getId());
-            List<SpecialityDto> fs = rooms.stream()
+            List<SpecialityResponse> fs = rooms.stream()
                 .map(r -> {
                     String code = r.getSpecialityCode();
                     String name = code;
@@ -70,7 +212,7 @@ public class PatientBookingService {
                         var maybe = specialityRepository.findById(code);
                         if (maybe.isPresent()) name = maybe.get().getSpecialityName();
                     }
-                    return new SpecialityDto(code, name);
+                    return new SpecialityResponse(code, name);
                 })
                 .filter(s -> s.getCode() != null)
                 .collect(Collectors.groupingBy(s -> s.getCode()))
@@ -102,19 +244,19 @@ public class PatientBookingService {
 
             // find active licenses for doctor
             List<DoctorLicense> licenses = doctorLicenseRepository.findByDoctorIdAndIsActiveTrue(d.getId());
-            List<SpecialityDto> sdocs = licenses.stream().map(l -> {
+            List<SpecialityResponse> sdocs = licenses.stream().map(l -> {
                 String code = l.getSpecialityCode();
                 String name = code;
                 if (code != null) {
                     var maybe = specialityRepository.findById(code);
                     if (maybe.isPresent()) name = maybe.get().getSpecialityName();
                 }
-                return new SpecialityDto(code, name);
+                return new SpecialityResponse(code, name);
             }).collect(Collectors.toList());
             dd.setSpecialties(sdocs);
 
             // determine facilities for this doctor (facilities where doctor's speciality rooms exist in same state)
-            List<FacilityDropdownDto> matched = facDtos.stream().filter(fd -> {
+            List<com.wecureit.dto.response.FacilityResponse> matched = facDtos.stream().filter(fd -> {
                 // facility state
                 String state = fd.getState();
                 // check doctor licenses in same state
@@ -154,9 +296,9 @@ public class PatientBookingService {
         out.setDoctors(docDtos);
 
         // Final cross-filtering: compute authoritative lists depending on provided params
-        List<FacilityDropdownDto> finalFacs = new ArrayList<>(facDtos);
+    List<com.wecureit.dto.response.FacilityResponse> finalFacs = new ArrayList<>(facDtos);
         List<DoctorDropdownDto> finalDocs = new ArrayList<>(docDtos);
-        List<SpecialityDto> finalSpecs = new ArrayList<>(specDtos);
+        List<SpecialityResponse> finalSpecs = new ArrayList<>(specDtos);
 
         // If doctorId provided, restrict facilities to those the doctor works at and specialties to that doctor's specialties
         if (doctorId != null) {
@@ -175,7 +317,7 @@ public class PatientBookingService {
                 if (facilityId != null) {
                     finalFacs = finalFacs.stream().filter(f -> f.getId().equals(facilityId)).collect(Collectors.toList());
                     // gather specialties supported by this facility (rooms)
-                    var facSpecCodes = finalFacs.stream().flatMap(f -> f.getSpecialties().stream()).map(SpecialityDto::getCode).collect(Collectors.toSet());
+                    var facSpecCodes = finalFacs.stream().flatMap(f -> f.getSpecialties().stream()).map(SpecialityResponse::getCode).collect(Collectors.toSet());
                     // Additionally, restrict doctor's specialties to those licensed in the facility's state
                     if (!finalFacs.isEmpty()) {
                         String facState = finalFacs.get(0).getState();
@@ -217,12 +359,12 @@ public class PatientBookingService {
                 // restrict facilities list to the selected facility (if present)
                 finalFacs = facDtos.stream().filter(f -> f.getId().equals(facilityId)).collect(Collectors.toList());
                 // specialties supported by that facility
-                var facSpecCodes = finalFacs.stream().flatMap(f -> f.getSpecialties().stream()).map(SpecialityDto::getCode).collect(Collectors.toSet());
+                var facSpecCodes = finalFacs.stream().flatMap(f -> f.getSpecialties().stream()).map(SpecialityResponse::getCode).collect(Collectors.toSet());
                 finalSpecs = specDtos.stream().filter(s -> s.getCode() != null && facSpecCodes.contains(s.getCode())).collect(Collectors.toList());
 
                 // if specialityCode also provided, ensure specialties list is that code only (if supported)
                 if (specialityCode != null && !specialityCode.isBlank()) {
-                    finalSpecs = finalSpecs.stream().filter(s -> specialityCode.equalsIgnoreCase(s.getCode())).collect(Collectors.toList());
+                        finalSpecs = finalSpecs.stream().filter(s -> specialityCode.equalsIgnoreCase(s.getCode())).collect(Collectors.toList());
                 }
             } else if (specialityCode != null && !specialityCode.isBlank()) {
                 // no facility or doctor, but specialty filter provided -> only include that specialty in list

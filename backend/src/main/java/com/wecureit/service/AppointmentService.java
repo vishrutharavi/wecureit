@@ -1,6 +1,8 @@
 package com.wecureit.service;
 
 import java.time.LocalDateTime;
+import java.time.Duration;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -80,6 +82,13 @@ public class AppointmentService {
                     // restore linking the history to the appointment UUID.
                     if (appt.getDoctorAvailability() != null) hist.setDoctorAvailabilityId(appt.getDoctorAvailability().getId());
                     if (appt.getPatient() != null) hist.setPatientId(appt.getPatient().getId());
+                    // link history to the appointment UUID now that DB column is UUID
+                    try {
+                        if (appt.getUuid() != null) hist.setAppointmentId(appt.getUuid());
+                    } catch (Exception e) {
+                        // If for any reason setting appointmentId fails (unlikely now), continue without linking
+                        System.out.println("cancelAppointment: unable to set appointmentId on history: " + e.getMessage());
+                    }
                     // normalize cancelledBy to canonical values
                     String who = (cancelledBy == null) ? "unknown" : cancelledBy.trim().toLowerCase();
                     if (who.startsWith("pat")) who = "patient";
@@ -101,7 +110,7 @@ public class AppointmentService {
                     try {
                         // Best-effort fallback: save history without appointment reference (appointment_id NULL)
                         com.wecureit.entity.AppointmentHistory hist2 = new com.wecureit.entity.AppointmentHistory();
-                        // leave appointmentId null in fallback to avoid schema type mismatch
+                        // leave appointmentId null in fallback to avoid schema type mismatch when setting fails
                         // hist2.setAppointmentId(null);
                         if (appt.getDoctorAvailability() != null) hist2.setDoctorAvailabilityId(appt.getDoctorAvailability().getId());
                         if (appt.getPatient() != null) hist2.setPatientId(appt.getPatient().getId());
@@ -153,6 +162,17 @@ public class AppointmentService {
                 ex.printStackTrace();
             }
 
+            // After cancelling this appointment, recompute break assignments for the affected doctor/day
+            try {
+                if (appt.getDoctorAvailability() != null && appt.getStartTime() != null) {
+                    LocalDate day = appt.getStartTime().toLocalDate();
+                    recomputeBreaksForDoctorAndDay(appt.getDoctorAvailability().getDoctorId(), day);
+                }
+            } catch (Exception ex) {
+                System.out.println("cancelAppointment: error recomputing breaks: " + ex.getMessage());
+                ex.printStackTrace();
+            }
+
             return appt;
         } catch (Exception e) {
             // Log and rethrow to make rollback cause visible in logs
@@ -168,8 +188,24 @@ public class AppointmentService {
         if (req.getPatientId() != null && req.getStartTime() != null) {
             // parse startTime if it's LocalDateTime already in DTO - in DTO it's LocalDateTime
             LocalDateTime start = req.getStartTime();
-            if (repo.existsByPatientIdAndStartTime(req.getPatientId(), start)) {
-                throw new IllegalArgumentException("Appointment already exists for this patient at the selected time");
+            // allow recreation if a previous appointment at this time exists but is inactive (cancelled)
+            try {
+                    var existingOpt = repo.findByPatientIdAndStartTime(req.getPatientId(), start);
+                    if (existingOpt.isPresent()) {
+                        var existing = existingOpt.get();
+                        // Treat only Boolean.TRUE as active. NULL will be treated as inactive so cancelled rows
+                        // (or rows created during migrations) don't incorrectly block new appointments.
+                        if (Boolean.TRUE.equals(existing.getIsActive())) {
+                            throw new IllegalArgumentException("Appointment already exists for this patient at the selected time");
+                        }
+                        // otherwise the existing appointment is inactive/cancelled and we allow creating a new one
+                    }
+            } catch (Exception ex) {
+                // If repository method fails for any reason, fall back to conservative exists check
+                // use active-only existence check in fallback to avoid treating inactive rows as blocking
+                if (repo.existsByPatientIdAndStartTimeAndIsActiveTrue(req.getPatientId(), start)) {
+                    throw new IllegalArgumentException("Appointment already exists for this patient at the selected time");
+                }
             }
         }
 
@@ -247,11 +283,155 @@ public class AppointmentService {
             }
         }
 
+        // After creating the appointment, recompute any break assignments for the doctor/day
+        try {
+            if (saved.getDoctorAvailability() != null && saved.getStartTime() != null) {
+                LocalDate day = saved.getStartTime().toLocalDate();
+                recomputeBreaksForDoctorAndDay(saved.getDoctorAvailability().getDoctorId(), day);
+            }
+        } catch (Exception ex) {
+            // log and continue - break recompute is best-effort and should not fail the create
+            System.out.println("createAppointment: error recomputing breaks: " + ex.getMessage());
+            ex.printStackTrace();
+        }
+
         return saved;
+    }
+
+    /**
+     * Recomputes break assignments for all appointments of a doctor on a given day.
+     * This is a best-effort recompute: clears existing break markers and then assigns
+     * a 15-minute break at the end of the appointment that causes a contiguous work
+     * block to exceed 60 minutes.
+     */
+    private void recomputeBreaksForDoctorAndDay(UUID doctorId, LocalDate day) {
+        if (doctorId == null || day == null) return;
+        LocalDateTime startOfDay = day.atStartOfDay();
+        LocalDateTime endOfDay = day.plusDays(1).atStartOfDay();
+
+        List<Appointment> appts = repo.findAppointmentsForDoctor(doctorId, startOfDay, endOfDay);
+        if (appts == null || appts.isEmpty()) return;
+
+        // Only consider active appointments
+        List<Appointment> active = new ArrayList<>();
+        for (Appointment a : appts) {
+            if (a.getIsActive() == null || a.getIsActive()) active.add(a);
+        }
+        if (active.isEmpty()) return;
+
+        // sort by startTime
+        active.sort((a, b) -> a.getStartTime().compareTo(b.getStartTime()));
+
+        // clear existing break markers
+        for (Appointment a : active) {
+            boolean changed = false;
+            if (a.getBreakStartTime() != null) { a.setBreakStartTime(null); changed = true; }
+            if (a.getBreakDurationMinutes() != null) { a.setBreakDurationMinutes(null); changed = true; }
+            if (a.getBreakEndTime() != null) { a.setBreakEndTime(null); changed = true; }
+            if (changed) repo.save(a);
+        }
+
+        // scan contiguous groups (gap <= 15 minutes considered continuous)
+        final long BREAK_MINUTES = 15L;
+        final long MAX_CONTINUOUS_MINUTES = 60L;
+        long cumMinutes = 0L;
+        LocalDateTime prevEnd = null;
+        boolean groupExceeded = false;
+        for (Appointment a : active) {
+            // Prefer explicit duration if present and positive; otherwise compute from start/end timestamps.
+            long dur = 0L;
+            if (a.getDuration() != null && a.getDuration().longValue() > 0L) {
+                dur = a.getDuration().longValue();
+            } else if (a.getStartTime() != null && a.getEndTime() != null) {
+                try {
+                    dur = Duration.between(a.getStartTime(), a.getEndTime()).toMinutes();
+                } catch (Exception ex) {
+                    dur = 0L;
+                }
+            }
+            if (prevEnd == null) {
+                // start new group
+                cumMinutes = dur;
+                groupExceeded = false;
+            } else {
+                long gap = Duration.between(prevEnd, a.getStartTime()).toMinutes();
+                if (gap < BREAK_MINUTES) {
+                    // continuous
+                    cumMinutes += dur;
+                } else {
+                    // gap large enough to consider a break already present; start new group
+                    cumMinutes = dur;
+                    groupExceeded = false;
+                }
+            }
+
+            // if this appointment causes exceedance and we haven't already assigned a break in this group
+            // Assign a break when cumulative minutes are strictly greater than the max continuous limit.
+            // The policy requires a 15-minute break only when continuous work would be MORE than 60 minutes;
+            // reaching exactly 60 minutes is allowed.
+            if (!groupExceeded && cumMinutes > MAX_CONTINUOUS_MINUTES) {
+                // assign break starting at appointment end time
+                LocalDateTime bs = a.getEndTime();
+                LocalDateTime be = bs.plusMinutes(BREAK_MINUTES);
+                a.setBreakStartTime(bs);
+                a.setBreakEndTime(be);
+                a.setBreakDurationMinutes((int) BREAK_MINUTES);
+                // persist immediately and log so we can trace why breaks may not be appearing in DB
+                System.out.println("recomputeBreaksForDoctorAndDay: assigning break for appointment id=" + a.getId() + " breakStart=" + bs + " breakEnd=" + be);
+                repo.saveAndFlush(a);
+                groupExceeded = true;
+            }
+
+            prevEnd = a.getEndTime();
+        }
     }
 
     public Appointment findById(Long id) {
         return repo.findById(id).orElseThrow(() -> new IllegalArgumentException("Appointment not found"));
+    }
+
+    /**
+     * Maintenance helper: attempt to associate existing appointments (for a doctor on a day)
+     * with a matching DoctorAvailability row when missing, then recompute breaks.
+     * If associateMissing is false, only recompute breaks.
+     */
+    @Transactional
+    public void recomputeBreaksAndAssociateIfNeeded(UUID doctorId, LocalDate day, boolean associateMissing) {
+        if (doctorId == null || day == null) return;
+
+        // optionally associate missing doctor_availability_id for appointments
+        if (associateMissing) {
+            try {
+                // find all availabilities for this doctor on the day
+                List<DoctorAvailability> avails = doctorAvailabilityRepository.findByDoctorIdAndWorkDateBetween(doctorId, day, day);
+                // find appointments for doctor/day
+                LocalDateTime startOfDay = day.atStartOfDay();
+                LocalDateTime endOfDay = day.plusDays(1).atStartOfDay();
+                List<Appointment> appts = repo.findAppointmentsForDoctor(doctorId, startOfDay, endOfDay);
+                if (appts != null) {
+                    for (Appointment a : appts) {
+                        if (a.getDoctorAvailability() == null && a.getStartTime() != null && a.getEndTime() != null) {
+                            // try to find an availability window that fully contains the appointment
+                            for (DoctorAvailability da : avails) {
+                                java.time.LocalDateTime availStart = java.time.LocalDateTime.of(da.getWorkDate(), da.getStartTime());
+                                java.time.LocalDateTime availEnd = java.time.LocalDateTime.of(da.getWorkDate(), da.getEndTime());
+                                if (!a.getStartTime().isBefore(availStart) && !a.getEndTime().isAfter(availEnd)) {
+                                    a.setDoctorAvailability(da);
+                                    repo.save(a);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (Exception ex) {
+                System.out.println("recomputeBreaksAndAssociateIfNeeded: error during association: " + ex.getMessage());
+                ex.printStackTrace();
+            }
+        }
+
+        // now call the existing recompute logic to set/clear break fields
+        recomputeBreaksForDoctorAndDay(doctorId, day);
     }
 
     public List<Appointment> findByPatientId(UUID patientId) {

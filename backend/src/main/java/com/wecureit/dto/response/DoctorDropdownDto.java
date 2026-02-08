@@ -7,7 +7,7 @@ public class DoctorDropdownDto {
     private UUID id;
     private String displayName;
     private String title;
-    private List<SpecialityDto> specialties;
+    private List<SpecialityResponse> specialties;
     private List<FacilityRef> facilities;
 
     public static class FacilityRef {
@@ -28,8 +28,8 @@ public class DoctorDropdownDto {
     public String getTitle() { return title; }
     public void setTitle(String title) { this.title = title; }
 
-    public List<SpecialityDto> getSpecialties() { return specialties; }
-    public void setSpecialties(List<SpecialityDto> specialties) { this.specialties = specialties; }
+    public List<SpecialityResponse> getSpecialties() { return specialties; }
+    public void setSpecialties(List<SpecialityResponse> specialties) { this.specialties = specialties; }
 
     public List<FacilityRef> getFacilities() { return facilities; }
     public void setFacilities(List<FacilityRef> facilities) { this.facilities = facilities; }

@@ -12,6 +12,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import com.wecureit.dto.request.AvailabilityRequest;
 import com.wecureit.dto.response.AvailabilityResponse;
@@ -104,7 +105,12 @@ public class DoctorAvailabilityService {
             // initially pending
             da.setRoomAssignmentStatus("PENDING");
             da.setIsBookable(true);
-            availabilityRepo.save(da);
+            try {
+                availabilityRepo.save(da);
+            } catch (DataIntegrityViolationException dive) {
+                // Handle DB unique constraint/race conditions gracefully and map to HTTP 409
+                throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.CONFLICT, "Conflict: uniqueness constraint violated");
+            }
 
             // Do NOT attempt to reserve rooms when saving availability.
             // Availabilities are allowed to overlap; room reservations are created
@@ -115,7 +121,12 @@ public class DoctorAvailabilityService {
             // fall back to marking the slot as Walk-in during that flow.
             da.setRoomAssignmentStatus("NONE");
             da.setIsBookable(true);
-            availabilityRepo.save(da);
+            try {
+                availabilityRepo.save(da);
+            } catch (DataIntegrityViolationException dive) {
+                // Defensive second save as well (roomAssignmentStatus update) — treat conflicts as 409
+                throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.CONFLICT, "Conflict: uniqueness constraint violated");
+            }
 
             AvailabilityResponse resp = new AvailabilityResponse();
             resp.setId(da.getId());

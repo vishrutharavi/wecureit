@@ -40,49 +40,40 @@ export default function Address({
 }: Partial<Record<string, string>> = {}) {
   const [editMode, setEditMode] = useState(false);
 
-  const [street, setStreet] = useState(() => {
-    try {
-      const raw = typeof window !== "undefined" ? localStorage.getItem("patientProfile") : null;
-      if (raw) {
-        const p = JSON.parse(raw);
-        return (p?.address?.street as string) || initialStreet;
-      }
-    } catch {}
-    return initialStreet;
-  });
+  const [street, setStreet] = useState<string>(initialStreet);
 
-  const [city, setCity] = useState(() => {
-    try {
-      const raw = typeof window !== "undefined" ? localStorage.getItem("patientProfile") : null;
-      if (raw) {
-        const p = JSON.parse(raw);
-        return (p?.address?.city as string) || initialCity;
-      }
-    } catch {}
-    return initialCity;
-  });
+  const [city, setCity] = useState<string>(initialCity);
 
-  const [stateVal, setStateVal] = useState(() => {
-    try {
-      const raw = typeof window !== "undefined" ? localStorage.getItem("patientProfile") : null;
-      if (raw) {
-        const p = JSON.parse(raw);
-        return (p?.address?.state as string) || initialState;
-      }
-    } catch {}
-    return initialState;
-  });
+  const [stateVal, setStateVal] = useState<string>(initialState);
 
-  const [zip, setZip] = useState(() => {
+  const [zip, setZip] = useState<string>(initialZip);
+
+  // Read local profile after mount to avoid SSR/CSR hydration mismatch.
+  React.useEffect(() => {
     try {
-      const raw = typeof window !== "undefined" ? localStorage.getItem("patientProfile") : null;
-      if (raw) {
-        const p = JSON.parse(raw);
-        return (p?.address?.zip as string) || initialZip;
+      const raw = localStorage.getItem("patientProfile");
+      if (!raw) return;
+      const p = JSON.parse(raw);
+      if (!p) return;
+      // backend may store address as a string or object
+      if (p.address && typeof p.address === 'string') {
+        setStreet(p.address || "");
+        // if the API also provided structured city/state/zip fields, use them
+        setCity(p.city ?? "");
+        setStateVal(p.state ?? "");
+        setZip(p.zip ?? "");
+      } else if (p.address) {
+        setStreet(p.address.street || "");
+        setCity(p.address.city || "");
+        setStateVal(p.address.state || "");
+        setZip(p.address.zip || "");
       }
+      // top-level fields (me endpoint) may include city/state/zip — prefer them if present
+      if (p.city) setCity(p.city);
+      if (p.state) setStateVal(p.state);
+      if (p.zip) setZip(p.zip);
     } catch {}
-    return initialZip;
-  });
+  }, []);
 
   // Address manages its own local edit state so editing this section does not affect others.
 
@@ -91,12 +82,35 @@ export default function Address({
     setEditMode(true);
   }
 
-  function doSave() {
+  async function doSave() {
     try {
-      const raw = localStorage.getItem("patientProfile");
-      const p = raw ? JSON.parse(raw) : {};
-      p.address = { street, city, state: stateVal, zip };
-      localStorage.setItem("patientProfile", JSON.stringify(p));
+      // backend expects address as a string; also send city/state/zip fields separately
+      const addrParts = [street, city, stateVal, zip].filter(Boolean).join(', ');
+      const payload: { address?: string; city?: string; state?: string; zip?: string } = { address: addrParts, city, state: stateVal, zip };
+      try {
+        const res = await fetch('/api/patient/profile', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        if (res.ok) {
+          const updated = await res.json();
+          const raw = localStorage.getItem('patientProfile');
+          const p = raw ? JSON.parse(raw) : {};
+          // normalize stored profile.address to a string for consistency with backend
+          p.address = typeof updated.address === 'string' ? updated.address : (addrParts || updated.address || '');
+          p.city = updated.city ?? p.city;
+          p.state = updated.state ?? p.state;
+          p.zip = updated.zip ?? p.zip;
+          localStorage.setItem('patientProfile', JSON.stringify(p));
+        } else {
+          const raw = localStorage.getItem('patientProfile');
+          const p = raw ? JSON.parse(raw) : {};
+          p.address = { street, city, state: stateVal, zip };
+          localStorage.setItem('patientProfile', JSON.stringify(p));
+        }
+      } catch {
+        const raw = localStorage.getItem('patientProfile');
+        const p = raw ? JSON.parse(raw) : {};
+        p.address = { street, city, state: stateVal, zip };
+        localStorage.setItem('patientProfile', JSON.stringify(p));
+      }
     } catch {}
     setEditMode(false);
   }
@@ -107,10 +121,18 @@ export default function Address({
       if (raw) {
         const p = JSON.parse(raw);
         if (p?.address) {
-          setStreet(p.address.street || "");
-          setCity(p.address.city || "");
-          setStateVal(p.address.state || "");
-          setZip(p.address.zip || "");
+          if (typeof p.address === 'string') {
+            // backend may store a single-line address string
+            setStreet(p.address || "");
+            setCity("");
+            setStateVal("");
+            setZip("");
+          } else {
+            setStreet(p.address.street || "");
+            setCity(p.address.city || "");
+            setStateVal(p.address.state || "");
+            setZip(p.address.zip || "");
+          }
         }
       }
     } catch {}

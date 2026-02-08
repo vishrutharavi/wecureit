@@ -9,7 +9,7 @@ public class FacilityDropdownDto {
     private String city;
     private String state;
     private String address;
-    private List<SpecialityDto> specialties;
+    private List<SpecialityResponse> specialties;
 
     public FacilityDropdownDto() {}
 
@@ -36,6 +36,6 @@ public class FacilityDropdownDto {
     public String getAddress() { return address; }
     public void setAddress(String address) { this.address = address; }
 
-    public List<SpecialityDto> getSpecialties() { return specialties; }
-    public void setSpecialties(List<SpecialityDto> specialties) { this.specialties = specialties; }
+    public List<SpecialityResponse> getSpecialties() { return specialties; }
+    public void setSpecialties(List<SpecialityResponse> specialties) { this.specialties = specialties; }
 }

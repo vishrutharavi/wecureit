@@ -44,6 +44,14 @@ public class Patient {
     @Column(nullable = false)
     private String zip;
 
+    // Free-form postal address (street + additional lines). Added during schema update.
+    @Column(name = "address")
+    private String address;
+
+    // Secondary email used for edited email values from the portal; primary `email` remains the login email.
+    @Column(name = "secondary_email")
+    private String secondaryEmail;
+
     public UUID getId() {
         return id;
     }
@@ -116,5 +124,21 @@ public class Patient {
     }
     public void setZip(String zip) {
         this.zip = zip;
+    }
+
+    public String getAddress() {
+        return address;
+    }
+
+    public void setAddress(String address) {
+        this.address = address;
+    }
+
+    public String getSecondaryEmail() {
+        return secondaryEmail;
+    }
+
+    public void setSecondaryEmail(String secondaryEmail) {
+        this.secondaryEmail = secondaryEmail;
     }
 }
