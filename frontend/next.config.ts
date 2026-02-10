@@ -1,9 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  turbopack: {
-    // Use absolute path for turbopack.root to avoid workspace root detection warnings
-    root: '/Users/vishrutharavi/Documents/wecureit/frontend',
-  },
+  // Turbopack will auto-detect the project root
 };
 
 module.exports = nextConfig;

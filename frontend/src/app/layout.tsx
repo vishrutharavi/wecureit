@@ -15,7 +15,7 @@ export default function RootLayout({
       <body>
         <div className="app-root">
           <main className="app-content">{children}</main>
-          <footer className="site-footer">© 2025 WeCureIT. All rights reserved.</footer>
+          <footer className="site-footer">© 2026 WeCureIT. All rights reserved.</footer>
         </div>
       </body>
     </html>
