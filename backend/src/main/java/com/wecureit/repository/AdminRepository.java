@@ -10,4 +10,5 @@ import com.wecureit.entity.Admin;
 public interface AdminRepository extends JpaRepository<Admin, UUID> {
     Optional<Admin> findByFirebaseUid(String firebaseUid);
     Optional<Admin> findByEmail(String email);
+    Optional<Admin> findByEmailIgnoreCase(String email);
 }

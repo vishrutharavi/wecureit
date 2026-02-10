@@ -64,6 +64,8 @@ export default function AppointmentConfirmationModal({
 
             <div className={styles['confirmation-row-label']}>Location:</div>
             <div className={styles['confirmation-row-value']}>{booking?.facility?.name || '—'}</div>
+
+            {/* Room details removed — rooms are not assigned/confirmed in this flow */}
           </div>
 
           <div className={styles['modal-footer']}>

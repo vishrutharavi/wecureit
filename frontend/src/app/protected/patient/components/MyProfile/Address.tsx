@@ -38,142 +38,72 @@ export default function Address({
   state: initialState = "",
   zip: initialZip = "",
 }: Partial<Record<string, string>> = {}) {
-  const [editMode, setEditMode] = useState(false);
 
-  const [street, setStreet] = useState(() => {
-    try {
-      const raw = typeof window !== "undefined" ? localStorage.getItem("patientProfile") : null;
-      if (raw) {
-        const p = JSON.parse(raw);
-        return (p?.address?.street as string) || initialStreet;
-      }
-    } catch {}
-    return initialStreet;
-  });
+  const [street, setStreet] = useState<string>(initialStreet);
 
-  const [city, setCity] = useState(() => {
-    try {
-      const raw = typeof window !== "undefined" ? localStorage.getItem("patientProfile") : null;
-      if (raw) {
-        const p = JSON.parse(raw);
-        return (p?.address?.city as string) || initialCity;
-      }
-    } catch {}
-    return initialCity;
-  });
+  const [city, setCity] = useState<string>(initialCity);
 
-  const [stateVal, setStateVal] = useState(() => {
-    try {
-      const raw = typeof window !== "undefined" ? localStorage.getItem("patientProfile") : null;
-      if (raw) {
-        const p = JSON.parse(raw);
-        return (p?.address?.state as string) || initialState;
-      }
-    } catch {}
-    return initialState;
-  });
+  const [stateVal, setStateVal] = useState<string>(initialState);
 
-  const [zip, setZip] = useState(() => {
+  const [zip, setZip] = useState<string>(initialZip);
+
+  // Read local profile after mount to avoid SSR/CSR hydration mismatch.
+  React.useEffect(() => {
     try {
-      const raw = typeof window !== "undefined" ? localStorage.getItem("patientProfile") : null;
-      if (raw) {
-        const p = JSON.parse(raw);
-        return (p?.address?.zip as string) || initialZip;
+      const raw = localStorage.getItem("patientProfile");
+      if (!raw) return;
+      const p = JSON.parse(raw);
+      if (!p) return;
+      // backend may store address as a string or object
+      if (p.address && typeof p.address === 'string') {
+        setStreet(p.address || "");
+        // if the API also provided structured city/state/zip fields, use them
+        setCity(p.city ?? "");
+        setStateVal(p.state ?? "");
+        setZip(p.zip ?? "");
+      } else if (p.address) {
+        setStreet(p.address.street || "");
+        setCity(p.address.city || "");
+        setStateVal(p.address.state || "");
+        setZip(p.address.zip || "");
       }
+      // top-level fields (me endpoint) may include city/state/zip — prefer them if present
+      if (p.city) setCity(p.city);
+      if (p.state) setStateVal(p.state);
+      if (p.zip) setZip(p.zip);
     } catch {}
-    return initialZip;
-  });
+  }, []);
 
   // Address manages its own local edit state so editing this section does not affect others.
 
-  // local actions (section-level edit controls)
-  function startEdit() {
-    setEditMode(true);
-  }
-
-  function doSave() {
-    try {
-      const raw = localStorage.getItem("patientProfile");
-      const p = raw ? JSON.parse(raw) : {};
-      p.address = { street, city, state: stateVal, zip };
-      localStorage.setItem("patientProfile", JSON.stringify(p));
-    } catch {}
-    setEditMode(false);
-  }
-
-  function doCancel() {
-    try {
-      const raw = localStorage.getItem("patientProfile");
-      if (raw) {
-        const p = JSON.parse(raw);
-        if (p?.address) {
-          setStreet(p.address.street || "");
-          setCity(p.address.city || "");
-          setStateVal(p.address.state || "");
-          setZip(p.address.zip || "");
-        }
-      }
-    } catch {}
-    setEditMode(false);
-  }
+  // Address is read-only in the patient portal; editing is disabled here.
 
   return (
     <SectionCard icon={<FiMapPin size={18} />} title="Address" subtitle="Your residential address">
       <div className={styles.sectionGrid}>
-        <div className={styles.sectionActionsRight}>
-          {!editMode ? (
-            <button className={styles.editProfileBtn} onClick={startEdit}>
-              ✎ Edit
-            </button>
-          ) : (
-            <div className={styles.actionRow}>
-              <button onClick={doCancel} className={styles.cancelSecondary}>
-                ✕ Cancel
-              </button>
-              <button className={styles.viewAppointmentsBtn} onClick={doSave}>
-                Save Changes
-              </button>
-            </div>
-          )}
-        </div>
+        {/* Editing address from the portal is disabled by product decision; keep read-only view */}
 
         <div>
           <div className={"fieldLabel"}>Street Address</div>
-          {editMode ? (
-            <input className={styles.inputField} value={street} onChange={(e) => setStreet(e.target.value)} />
-          ) : (
-            <div className={styles.fullWidth}>
-              <ReadField>{street || "No street on file"}</ReadField>
-            </div>
-          )}
+          <div className={styles.fullWidth}>
+            <ReadField>{street || "No street on file"}</ReadField>
+          </div>
         </div>
 
         <div className={styles.threeColGrid}>
           <div>
             <div className={"fieldLabel"}>City</div>
-            {editMode ? (
-              <input className={styles.inputField} value={city} onChange={(e) => setCity(e.target.value)} />
-            ) : (
-              <ReadField>{city || "-"}</ReadField>
-            )}
+            <ReadField>{city || "-"}</ReadField>
           </div>
 
           <div>
             <div className={"fieldLabel"}>State</div>
-            {editMode ? (
-              <input className={styles.inputField} value={stateVal} onChange={(e) => setStateVal(e.target.value)} />
-            ) : (
-              <ReadField>{stateVal || "-"}</ReadField>
-            )}
+            <ReadField>{stateVal || "-"}</ReadField>
           </div>
 
           <div>
             <div className={"fieldLabel"}>ZIP Code</div>
-            {editMode ? (
-              <input className={styles.inputField} value={zip} onChange={(e) => setZip(e.target.value)} />
-            ) : (
-              <ReadField>{zip || "-"}</ReadField>
-            )}
+            <ReadField>{zip || "-"}</ReadField>
           </div>
         </div>
       </div>

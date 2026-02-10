@@ -4,10 +4,7 @@ import React from "react";
 import styles from "../../patient.module.scss";
 import { FiMapPin } from "react-icons/fi";
 import { useRouter } from "next/navigation";
-
-type Doctor = { id: string; name: string; specialtyId: string; facilityId: string };
-type Facility = { id: string; name: string };
-type Specialty = { id: string; name: string };
+import type { Doctor, Facility, Specialty } from '@/app/protected/patient/types';
 
 type Props = {
   doctor?: Doctor | null;

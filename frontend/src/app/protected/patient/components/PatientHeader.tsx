@@ -50,8 +50,16 @@ export default function PatientHeader({ patientName }: Props) {
   }, [patientName]);
   const router = useRouter();
   const pathname = usePathname() || "";
+
+  // Use reactive search params from Next.js so the active tab updates
+  // immediately on client-side navigation (router.push). This avoids
+  // manual popstate handling and keeps server/client markup stable.
   const searchParams = useSearchParams();
-  const currentTab = searchParams?.get("tab") || "home";
+  const currentTab = React.useMemo(() => {
+    try {
+      return searchParams?.get('tab') || 'home';
+    } catch { return 'home'; }
+  }, [searchParams]);
 
   const isActive = (key: string) => {
     // key can be: 'home', 'profile', or a path like '/protected/patient/appointments'

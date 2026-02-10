@@ -2,6 +2,7 @@
 
 import React from "react";
 import styles from "../../doctor.module.scss";
+import { apiFetch } from "../../../../../lib/api";
 import { FiX } from "react-icons/fi";
 
 type Note = {
@@ -10,6 +11,8 @@ type Note = {
   authorLicensed: boolean;
   date: string;
   text: string;
+  patientAge?: string;
+  patientSex?: string;
 };
 
 type Props = {
@@ -18,34 +21,86 @@ type Props = {
   patientName?: string;
   doctorName?: string;
   patientAge?: string;
+  patientSex?: string;
+  appointmentDbId?: string;
+  patientId?: string;
 };
-
-export default function ViewNoteModal({ open, onClose, patientName = "Patient", doctorName = "Dr. You", patientAge }: Props) {
-  // Only show notes authored by the current doctor and licensed
+export default function ViewNoteModal({ open, onClose, patientName = "Patient", doctorName, patientAge, patientSex, appointmentDbId, patientId }: Props) {
+  // live notes fetched from backend for the appointment; falling back to patient-wide if needed
   const [selectedSpecialty, setSelectedSpecialty] = React.useState<string>("");
+  const [notes, setNotes] = React.useState<Note[]>([]);
+  const [displayAge, setDisplayAge] = React.useState<string | undefined>(patientAge);
+  const [displaySex, setDisplaySex] = React.useState<string | undefined>(patientSex);
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+  const doctorNameDep = doctorName ?? '';
 
-  const sampleNotes: Note[] = [
-    { id: 'n1', author: 'Dr. Alice Park', authorLicensed: true, date: '2026-01-10', text: 'Follow-up after surgery: healing well.', },
-    { id: 'n2', author: 'Dr. Bob Lee', authorLicensed: true, date: '2025-12-20', text: 'Initial consult: consider EKG.', },
-    { id: 'n3', author: 'Dr. Alice Park', authorLicensed: true, date: '2025-11-05', text: 'Medication adjusted, monitor BP.', },
-  ];
+  React.useEffect(() => {
+    if (!open) return;
+    async function load() {
+      setLoading(true);
+      setError(null);
+      try {
+        let url = '/api/clinical-notes';
+        // prefer appointmentDbId (numeric) when available
+        if (appointmentDbId) {
+          url += `?appointmentDbId=${encodeURIComponent(appointmentDbId)}`;
+        } else if (patientId) {
+          url += `?patientId=${encodeURIComponent(patientId)}`;
+        }
+        // Use centralized apiFetch so the request goes to the backend server
+        // (apiFetch prepends API_BASE and includes auth tokens when present).
+        const data = await apiFetch(url, typeof window !== 'undefined' ? (localStorage.getItem('doctorToken') ?? undefined) : undefined);
+        // Map backend ClinicalNote to Note for UI
+        const mapped: Note[] = (data || []).map((n: Record<string, unknown>) => {
+          const rawAuthor = (n['createdBy'] as string) ?? (n['doctorId'] ? `Doctor ${String(n['doctorId'])}` : 'Unknown');
+          // Consider this note authored by a doctor if doctorId is present, or if it matches the modal doctorName
+          const isDoctorAuthor = !!n['doctorId'] || (doctorNameDep && String(rawAuthor) === doctorNameDep);
+          const author = isDoctorAuthor && !/^Dr\b|^Doctor\b/i.test(String(rawAuthor)) ? `Dr. ${rawAuthor}` : rawAuthor;
+          const out: Note = {
+            id: String(n['id']),
+            author,
+            authorLicensed: true,
+            date: n['createdAt'] ? new Date(String(n['createdAt'])).toLocaleDateString() : '',
+            text: (n['noteText'] as string) ?? (n['text'] as string) ?? '',
+            patientAge: n['patientAge'] as string | undefined,
+            patientSex: n['patientSex'] as string | undefined,
+          };
+          // if the modal wasn't passed patientAge/sex props, take from first note
+          return out;
+        });
+        setNotes(mapped);
+        // populate header age/sex from first note if not already provided
+        try {
+          if ((!patientAge || !patientSex) && mapped.length > 0) {
+            const first = mapped[0];
+            if (!patientAge && first.patientAge) setDisplayAge(first.patientAge);
+            if (!patientSex && first.patientSex) setDisplaySex(first.patientSex);
+          }
+        } catch {}
+      } catch (err: unknown) {
+  const msg = (err && typeof err === 'object' && 'message' in (err as Record<string, unknown>)) ? String((err as Record<string, unknown>)['message']) : String(err);
+        setError(msg);
+        setNotes([]);
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
+  }, [open, appointmentDbId, patientId, doctorNameDep, patientAge, patientSex]);
 
   if (!open) return null;
 
-  // Filter: only notes by this doctor and licensed (authorLicensed assumed true for doctor notes)
-  const doctorNotes = sampleNotes.filter(n => n.author === doctorName && n.authorLicensed === true);
-  // Derive specialties from doctor's notes (if specialty metadata existed). For now, simulate specialties from note text tags.
-  // Example mapping: if note text contains 'surgery' => 'Surgery', 'EKG' => 'Cardiology', 'Medication' => 'General'
-  const specialties = Array.from(new Set(doctorNotes.map(n => {
+  // derive specialties from notes text (best-effort)
+  const specialties = Array.from(new Set(notes.map(n => {
     if (/surgery/i.test(n.text)) return 'Surgery';
     if (/ekg|cardio/i.test(n.text)) return 'Cardiology';
     if (/medica|medication|bp|blood pressure/i.test(n.text)) return 'General Medicine';
     return 'Other';
   })));
 
-  const notes = doctorNotes.filter(n => {
+  const visibleNotes = notes.filter(n => {
     if (!selectedSpecialty) return true;
-    // map note to same specialty classification used above
     let spec = 'Other';
     if (/surgery/i.test(n.text)) spec = 'Surgery';
     else if (/ekg|cardio/i.test(n.text)) spec = 'Cardiology';
@@ -67,15 +122,13 @@ export default function ViewNoteModal({ open, onClose, patientName = "Patient", 
               <div className={styles.cardTitle}>
                 <div>{patientName}</div>
               </div>
-              {patientAge ? <div className={`${styles.referralMeta} ${styles.mt6}`}>{patientAge}</div> : null}
-              <div className={`${styles.compactRow} ${styles.mt6}`}>
-                <div className={styles.referralMeta}>{doctorName ? `Dr. ${doctorName}` : 'Doctor'}</div>
-                {selectedSpecialty ? (
-                  <div className={styles.specialtyPill}>
-                    {selectedSpecialty}
-                  </div>
-                ) : null}
-              </div>
+              {(displayAge || displaySex) ? (
+                <div className={`${styles.referralMeta} ${styles.mt6}`}>
+                  {displayAge ? <span>{displayAge}</span> : null}
+                  {displayAge && displaySex ? <span>{' • '}</span> : null}
+                  {displaySex ? <span>{displaySex}</span> : null}
+                </div>
+              ) : null}
             </div>
 
             <div className={styles.compactRow}>
@@ -87,8 +140,12 @@ export default function ViewNoteModal({ open, onClose, patientName = "Patient", 
           </div>
 
           <div className={styles.mt12}>
-            {notes.length ? (
-              notes.map(n => (
+            {loading ? (
+              <div className={styles.emptyCard}>Loading notes…</div>
+            ) : error ? (
+              <div className={styles.emptyCard}>Error loading notes: {error}</div>
+            ) : visibleNotes.length ? (
+              visibleNotes.map(n => (
                 <div key={n.id} className={`${styles.compactCard} ${styles.cardSpacing}`}>
                   <div className={`${styles.compactRow} ${styles.justifyBetween}`}>
                     <div>

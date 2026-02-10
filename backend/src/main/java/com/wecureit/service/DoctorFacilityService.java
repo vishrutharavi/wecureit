@@ -9,6 +9,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import com.wecureit.dto.response.FacilityResponse;
@@ -23,25 +25,37 @@ import com.wecureit.repository.RoomRepository;
 @Service
 public class DoctorFacilityService {
 
+    private static final Logger logger = LoggerFactory.getLogger(DoctorFacilityService.class);
+
     private final FacilityRepository facilityRepository;
     private final RoomRepository roomRepository;
     private final DoctorLicenseRepository licenseRepository;
-    private final com.wecureit.repository.RoomScheduleRepository roomScheduleRepository;
     private final com.wecureit.repository.SpecialityRepository specialityRepository;
+    private final com.wecureit.repository.AppointmentRepository appointmentRepository;
 
     public DoctorFacilityService(FacilityRepository facilityRepository, RoomRepository roomRepository,
-            DoctorLicenseRepository licenseRepository, com.wecureit.repository.RoomScheduleRepository roomScheduleRepository,
-            com.wecureit.repository.SpecialityRepository specialityRepository) {
+            DoctorLicenseRepository licenseRepository, com.wecureit.repository.SpecialityRepository specialityRepository,
+            com.wecureit.repository.AppointmentRepository appointmentRepository) {
         this.facilityRepository = facilityRepository;
         this.roomRepository = roomRepository;
         this.licenseRepository = licenseRepository;
-        this.roomScheduleRepository = roomScheduleRepository;
         this.specialityRepository = specialityRepository;
+        this.appointmentRepository = appointmentRepository;
     }
 
     public List<FacilityResponse> getFacilitiesForDoctor(UUID doctorId) {
         // fetch active licenses for the doctor
         List<DoctorLicense> licenses = licenseRepository.findByDoctorIdAndIsActiveTrue(doctorId);
+        logger.info("getFacilitiesForDoctor - doctorId={} licensesFound={}", doctorId, licenses == null ? 0 : licenses.size());
+        if (licenses != null && !licenses.isEmpty()) {
+            for (DoctorLicense lic : licenses) {
+                try {
+                    logger.debug("doctorLicense - id={} state={} speciality={} active={}", lic.getId(), lic.getStateCode(), lic.getSpecialityCode(), lic.isActive());
+                } catch (Exception e) {
+                    logger.debug("doctorLicense - inspect failed: {}", e.getMessage());
+                }
+            }
+        }
         if (licenses == null || licenses.isEmpty()) return Collections.emptyList();
 
         // map state -> set of speciality codes the doctor holds
@@ -52,20 +66,32 @@ public class DoctorFacilityService {
 
         // fetch all active facilities
         List<Facility> facilities = facilityRepository.findAllByIsActive(Boolean.TRUE);
+    logger.debug("getFacilitiesForDoctor - activeFacilitiesCount={}", facilities == null ? 0 : facilities.size());
 
         List<FacilityResponse> out = new ArrayList<>();
 
-        for (Facility f : facilities) {
-            String state = f.getState() != null ? f.getState().getStateCode() : null;
-            if (state == null) continue;
+    if (facilities == null) facilities = Collections.emptyList();
+    for (Facility f : facilities) {
+            String state = null;
+            try { state = f.getState() != null ? f.getState().getStateCode() : null; } catch (Exception e) { state = null; }
+            if (state == null) {
+                logger.debug("skipping facility {} ({}): state missing", f.getId(), f.getName());
+                continue;
+            }
             Set<String> specs = stateToSpecs.get(state);
-            if (specs == null || specs.isEmpty()) continue;
+            if (specs == null || specs.isEmpty()) {
+                logger.debug("skipping facility {} ({}): doctor has no licenses for state {}", f.getId(), f.getName(), state);
+                continue;
+            }
 
             // for each speciality the doctor holds in this state, collect rooms
             List<RoomResponse> roomResponses = new ArrayList<>();
             Set<UUID> seen = new HashSet<>();
             for (String spec : specs) {
                 List<Room> rooms = roomRepository.findByFacilityIdAndSpecialityCodeAndActiveTrue(f.getId(), spec);
+                int foundRooms = rooms == null ? 0 : rooms.size();
+                logger.debug("facility {} spec {} -> roomsFound={}", f.getId(), spec, foundRooms);
+                if (rooms == null || rooms.isEmpty()) continue;
                 for (Room r : rooms) {
                     if (seen.add(r.getId())) {
                         String specialtyName = spec;
@@ -81,13 +107,17 @@ public class DoctorFacilityService {
                 }
             }
 
-            if (!roomResponses.isEmpty()) {
-                FacilityResponse fr = new FacilityResponse(
-                    f.getId(), f.getName(), f.getCity(), f.getState().getStateCode(), f.getIsActive(), f.getAddress(), f.getZipCode(), roomResponses
-                );
-                out.add(fr);
+            if (roomResponses.isEmpty()) {
+                logger.debug("skipping facility {} ({}): no matching active rooms for doctor's licensed specs in state {}", f.getId(), f.getName(), state);
+                continue;
             }
+
+            FacilityResponse fr = new FacilityResponse(
+                f.getId(), f.getName(), f.getCity(), state, f.getIsActive(), f.getAddress(), f.getZipCode(), roomResponses
+            );
+            out.add(fr);
         }
+        logger.info("getFacilitiesForDoctor - doctorId={} resultFacilities={}", doctorId, out.size());
 
         return out;
     }
@@ -108,15 +138,20 @@ public class DoctorFacilityService {
         java.time.LocalDateTime endAt = java.time.LocalDateTime.of(workDate, endTime);
 
         if (rooms != null) {
-            for (com.wecureit.entity.Room r : rooms) {
-                java.util.List<com.wecureit.entity.RoomSchedule> overlaps = roomScheduleRepository.findOverlapping(r.getId(), startAt, endAt);
-                boolean hasAppointment = false;
-                if (overlaps != null) {
-                    for (com.wecureit.entity.RoomSchedule rs : overlaps) {
-                        if (rs.getAppointmentId() != null) { hasAppointment = true; break; }
+            // compute occupied rooms by counting overlapping appointments in this facility
+            try {
+                java.util.List<com.wecureit.entity.Appointment> overlapping = appointmentRepository.findAppointmentsForFacility(facilityId, startAt, endAt);
+                int occ = 0;
+                if (overlapping != null) {
+                    for (com.wecureit.entity.Appointment a : overlapping) {
+                        if (a.getIsActive() == null || a.getIsActive()) occ++;
                     }
                 }
-                if (hasAppointment) occupied++;
+                // cap occupied by total rooms
+                occupied = Math.min(total, occ);
+            } catch (Exception ex) {
+                // fallback: assume zero occupied on error
+                occupied = 0;
             }
         }
 

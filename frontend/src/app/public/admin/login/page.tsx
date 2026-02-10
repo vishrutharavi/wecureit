@@ -26,6 +26,21 @@ export default function AdminLogin() {
         localStorage.setItem("idToken", token);
       }
 
+      // Best-effort: link Firebase identity to admin record, then refresh token to pick up claims
+      try {
+        await apiFetch('/api/auth/link', token, { method: 'POST', body: JSON.stringify({ portal: 'ADMIN' }) });
+        try {
+          const fresh = await (user as FirebaseUser).getIdToken(true);
+          if (typeof window !== "undefined") {
+            localStorage.setItem("idToken", fresh);
+          }
+        } catch (e) {
+          console.warn('Failed to refresh token after linking', e);
+        }
+      } catch (linkErr) {
+        console.warn('Linking Firebase identity to admin failed', linkErr);
+      }
+
       // inspect claims (helps debug missing 'role' claim)
       try {
         const result = await getIdTokenResult(user as FirebaseUser);

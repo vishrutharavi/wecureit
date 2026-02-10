@@ -378,6 +378,20 @@
   margin-bottom: 12px;
 }
 
+/* Clear button used in booking dropdown header */
+.clearButton {
+  background: linear-gradient(135deg, var(--patient-primary), var(--patient-dark));
+  color: #fff;
+  border: none;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-weight: 700;
+  cursor: pointer;
+  font-size: 13px;
+  box-shadow: 0 8px 18px rgba(239,68,68,0.12);
+}
+.clearButton:hover { background: #dc2626; transform: translateY(-1px); box-shadow: 0 12px 28px rgba(239,68,68,0.24); }
+
 /* Generic section layout helpers used by MyProfile components */
 .sectionGrid {
   display: grid;

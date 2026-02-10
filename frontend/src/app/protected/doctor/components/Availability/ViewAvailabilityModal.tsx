@@ -27,15 +27,70 @@ type Props = {
   onClose: () => void;
   items: AvailabilityItem[];
   onRemove?: (id: string) => void;
-  onToggleWalkIn?: (id: string, allow: boolean) => Promise<void>;
 };
 
-export default function ViewAvailabilityModal({ open, onClose, items, onRemove, onToggleWalkIn }: Props) {
+export default function ViewAvailabilityModal({ open, onClose, items, onRemove }: Props) {
   const [selected, setSelected] = React.useState<AvailabilityItem | null>(null);
 
   if (!open) return null;
 
-  const assignedItems = items.filter(it => it.assigned);
+  // determine today's ISO date in local timezone (YYYY-MM-DD)
+  const getTodayIso = () => {
+    const d = new Date();
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
+  // parse an ISO date (YYYY-MM-DD) as a local Date at midnight (avoid Date parsing which treats it as UTC)
+  const parseLocalDate = (iso?: string) => {
+    if (!iso) return new Date();
+    const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!m) return new Date(iso);
+    const y = parseInt(m[1], 10);
+    const mo = parseInt(m[2], 10) - 1;
+    const d = parseInt(m[3], 10);
+    return new Date(y, mo, d);
+  };
+
+  const parseHM = (s: string | undefined) => {
+    if (!s) return null;
+    const m = s.match(/^(\d{1,2}):(\d{2})$/);
+    if (!m) return null;
+    const hh = parseInt(m[1], 10);
+    const mm = parseInt(m[2], 10);
+    return hh * 60 + mm;
+  };
+
+  const nowMinutes = (() => {
+    const d = new Date();
+    return d.getHours() * 60 + d.getMinutes();
+  })();
+
+  // Show saved availabilities (assigned first). Also exclude today's availabilities
+  // that have already finished according to local time (end time <= now).
+  const visibleItems = items
+    .filter((it) => {
+      try {
+        const today = getTodayIso();
+        if (String(it.date) !== today) return true;
+        const endM = parseHM(it.end);
+        if (endM == null) return true; // can't determine — keep it
+        return endM > nowMinutes; // keep only if end time is in the future
+      } catch {
+        return true;
+      }
+    })
+    .sort((a, b) => {
+      // assigned items first
+      const aa = a.assigned ? 0 : 1;
+      const bb = b.assigned ? 0 : 1;
+      if (aa !== bb) return aa - bb;
+      // otherwise by date then start time
+      if (a.date !== b.date) return a.date < b.date ? -1 : 1;
+      return a.start < b.start ? -1 : (a.start > b.start ? 1 : 0);
+    });
 
   const handleView = (it: AvailabilityItem) => {
     setSelected(it);
@@ -47,18 +102,7 @@ export default function ViewAvailabilityModal({ open, onClose, items, onRemove, 
     setSelected(null);
   };
 
-  const handleToggle = async (it: AvailabilityItem) => {
-    if (!onToggleWalkIn) return;
-    const newVal = !it.allowWalkIn;
-    try {
-      await onToggleWalkIn(it.id, newVal);
-      // reflect change in detail view if open
-      setSelected(prev => prev && prev.id === it.id ? { ...prev, allowWalkIn: newVal, isBookable: newVal ? false : prev.isBookable } : prev);
-    } catch (err) {
-      console.error('Failed toggle walk-in', err);
-      // optionally show UI feedback here
-    }
-  };
+  // walk-in toggling removed — UI is simplified and walk-in flags are no longer editable here
 
   return (
     <div className={styles["modal-overlay"]}>
@@ -72,27 +116,23 @@ export default function ViewAvailabilityModal({ open, onClose, items, onRemove, 
 
         <div className={styles["modal-body"]}>
           {!selected ? (
-            assignedItems.length === 0 ? (
-              <div className={styles.emptyCard}>No assigned availabilities</div>
+            visibleItems.length === 0 ? (
+              <div className={styles.emptyCard}>No saved availabilities</div>
             ) : (
               <div style={{ display: 'grid', gap: 10 }}>
-                {assignedItems.map((it) => (
+                {visibleItems.map((it) => (
                   <div key={it.id} style={{ padding: 12, borderRadius: 8, background: '#fff', border: '1px solid rgba(254,202,202,0.6)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div>
-                      <div style={{ fontWeight: 800 }}>{new Date(it.date).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}</div>
+                      <div style={{ fontWeight: 800 }}>{parseLocalDate(it.date).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}</div>
                         <div style={{ color: '#6b7280', display: 'flex', gap: 8, alignItems: 'center' }}>
                           <span>{it.facilityName}</span>
-                          {it.allowWalkIn ? <span className={styles.badge} style={{ background: 'rgba(250,204,21,0.12)', color: '#b45309' }}>Walk-in only</span> : null}
-                          {/* If server says not bookable but roomsCount > 0, prefer showing as bookable (server may not have returned roomsCount); only show Not bookable when explicitly not bookable and no rooms available */}
-                          {it.isBookable === false && !it.allowWalkIn && ((it.roomsCount ?? 0) === 0) ? <span className={styles.badge} style={{ background: 'rgba(239,68,68,0.08)', color: 'var(--doctor-dark)' }}>Not bookable</span> : null}
+                          {/* If server says not bookable and no rooms available show Not bookable */}
+                          {it.isBookable === false && ((it.roomsCount ?? 0) === 0) ? <span className={styles.badge} style={{ background: 'rgba(239,68,68,0.08)', color: 'var(--doctor-dark)' }}>Not bookable</span> : null}
                         </div>
                         <div style={{ marginTop: 6 }}>{it.start} - {it.end} • {it.hours} hrs</div>
                     </div>
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                       <button className={styles.viewAppointmentsBtn} onClick={() => handleView(it)}>View</button>
-                      <button className={styles.walkInToggleBtn} onClick={() => handleToggle(it)}>
-                        {it.allowWalkIn ? 'Unmark Walk-in' : 'Mark Walk-in'}
-                      </button>
                       {onRemove ? (
                         <button className={styles.secondaryBtn} onClick={() => { if (confirm('Delete this availability? This cannot be undone.')) { handleRemove(it.id); } }} style={{ marginLeft: 8 }}>Delete</button>
                       ) : null}
@@ -106,15 +146,13 @@ export default function ViewAvailabilityModal({ open, onClose, items, onRemove, 
             <div className={styles.appointmentCard} style={{ border: '1px solid rgba(239,68,68,0.12)', background: 'linear-gradient(180deg, #fff7f7, #fff)', padding: 18 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <div>
-                  <div style={{ fontWeight: 800, fontSize: 18 }}>{new Date(selected.date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}</div>
-                  <div style={{ color: '#6b7280', marginTop: 4 }}>{new Date(selected.date).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</div>
+                  <div style={{ fontWeight: 800, fontSize: 18 }}>{parseLocalDate(selected?.date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}</div>
+                  <div style={{ color: '#6b7280', marginTop: 4 }}>{parseLocalDate(selected?.date).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</div>
 
                     <div style={{ marginTop: 12 }}>
                       <span className={styles.badge} style={{ background: 'rgba(239,68,68,0.08)', color: 'var(--doctor-dark)' }}>{selected.specialities && selected.specialities.length > 0 ? selected.specialities[0] : (selected.specialty ?? 'General')}</span>
 
-                    {selected.allowWalkIn ? (
-                      <div style={{ marginTop: 8 }}><span className={styles.badge} style={{ background: 'rgba(250,204,21,0.12)', color: '#b45309' }}>Walk-in only</span></div>
-                    ) : (selected.isBookable === false && ((selected.roomsCount ?? 0) === 0)) ? (
+                    {selected.isBookable === false && ((selected.roomsCount ?? 0) === 0) ? (
                       <div style={{ marginTop: 8 }}><span className={styles.badge} style={{ background: 'rgba(239,68,68,0.08)', color: 'var(--doctor-dark)' }}>Not bookable</span></div>
                     ) : null}
 
@@ -134,11 +172,7 @@ export default function ViewAvailabilityModal({ open, onClose, items, onRemove, 
                   <button onClick={() => setSelected(null)} className={styles.secondaryBtn} style={{ marginBottom: 12 }}>Back</button>
                   <div>
                     <button onClick={() => handleRemove(selected.id)} style={{ background: 'transparent', border: 'none', color: 'var(--doctor-primary)', fontWeight: 700, cursor: 'pointer' }}>Remove</button>
-                    <div style={{ marginTop: 10 }}>
-                      <button className={styles.walkInToggleBtn} onClick={() => selected && handleToggle(selected)}>
-                        {selected?.allowWalkIn ? 'Unmark Walk-in' : 'Mark Walk-in'}
-                      </button>
-                    </div>
+                    {/* walk-in toggling removed */}
                   </div>
                 </div>
               </div>

@@ -99,9 +99,13 @@ export default function AvailabilityView() {
         const doc = JSON.parse(raw);
         const doctorId = doc.id;
         const token = localStorage.getItem('doctorToken') ?? undefined;
-        const resp: AvailabilityResp[] = await apiFetch(`/api/doctors/${doctorId}/availability`, token);
-        if (Array.isArray(resp)) {
-          const mapped: SavedItem[] = resp.map(r => {
+        // Initial load: fetch saved availabilities, then for each unique date call the locked-availabilities
+        // endpoint to ensure server-side locks are applied (which will deactivate other availabilities).
+        // After that, re-fetch the availability list so the UI shows the updated active availabilities.
+        const initialResp: AvailabilityResp[] = await apiFetch(`/api/doctors/${doctorId}/availability`, token);
+        let mapped: SavedItem[] = [];
+        if (Array.isArray(initialResp)) {
+          mapped = initialResp.map(r => {
             const facility = r.facilityId ? facilities.find(f => f.id === r.facilityId) : undefined;
             return {
               id: r.id,
@@ -120,6 +124,40 @@ export default function AvailabilityView() {
               assigned: Boolean(r.roomAssignedId) || (r.roomAssignmentStatus === 'ASSIGNED'),
             };
           });
+        }
+
+        // Ensure server enforces locks for the dates present in the initial response.
+        try {
+          const uniqueDates = Array.from(new Set(mapped.map(m => m.date))).filter(Boolean);
+          await Promise.all(uniqueDates.map(d => apiFetch(`/api/doctors/${doctorId}/locked-availabilities?workDate=${d}`, token).catch(e => { console.warn('locked-availabilities check failed for', d, e); })));
+          // re-fetch availabilities after locks may have been applied
+          const refreshed: AvailabilityResp[] = await apiFetch(`/api/doctors/${doctorId}/availability`, token);
+          if (Array.isArray(refreshed)) {
+            const refreshedMapped: SavedItem[] = refreshed.map(r => {
+              const facility = r.facilityId ? facilities.find(f => f.id === r.facilityId) : undefined;
+              return {
+                id: r.id,
+                date: r.workDate,
+                facilityId: r.facilityId ?? null,
+                facilityName: r.facilityName ?? facility?.name ?? 'Unknown',
+                start: r.startTime,
+                end: r.endTime,
+                hours: Math.max(0, (parseMinutes(r.endTime) - parseMinutes(r.startTime)) / 60),
+                specialities: [],
+                roomsCount: typeof r.availableRooms === 'number' ? r.availableRooms : undefined,
+                facilityAddress: r.facilityAddress ?? facility?.address,
+                facilityState: r.facilityState ?? facility?.state,
+                allowWalkIn: r.allowWalkIn ?? false,
+                isBookable: r.bookable ?? (r.isBookable ?? true),
+                assigned: Boolean(r.roomAssignedId) || (r.roomAssignmentStatus === 'ASSIGNED'),
+              };
+            });
+            setSaved(refreshedMapped);
+          } else {
+            setSaved(mapped);
+          }
+        } catch (e) {
+          console.warn('Failed to refresh availabilities after lock checks', e);
           setSaved(mapped);
         }
       } catch (err) {
@@ -183,22 +221,8 @@ export default function AvailabilityView() {
           setPending([]);
           setShowSavedModal(true);
 
-          const nonBookable = resp.filter((r: AvailabilityResp) => !r.bookable);
-          if (nonBookable.length > 0) {
-            const proceed = window.confirm('Some of your saved availabilities have no rooms assigned and are not bookable. Do you want to mark them as Walk-in only so patients cannot book online?');
-            if (proceed) {
-              // call PATCH to set allow_walk_in for each and update UI
-              for (const nb of nonBookable) {
-                try {
-                  await apiFetch(`/api/doctors/${doctorId}/availability/${nb.id}`, token, { method: 'PATCH', body: JSON.stringify({ allowWalkIn: true }) });
-                } catch (err) {
-                  console.error('Failed to set walk-in for', nb.id, err);
-                }
-              }
-              // Update local saved items to reflect walk-in change
-              setSaved(prev => prev.map(s => nonBookable.find(n => n.id === s.id) ? { ...s, allowWalkIn: true, isBookable: false } : s));
-            }
-          }
+          // if some saved slots are non-bookable we just leave them as Not bookable
+          // (previous behaviour offered to mark them as walk-in; walk-in support removed)
         }
       } catch (err) {
         console.error('Failed to save schedule', err);
@@ -313,7 +337,47 @@ export default function AvailabilityView() {
         </div>
         {/* capsule button inside the container to view saved availabilities */}
         <div style={{ position: 'absolute', right: 20, top: 20 }}>
-          <button className={styles.viewAppointmentsBtn} onClick={() => setShowSavedModal(true)}>View availabilities</button>
+          <button className={styles.viewAppointmentsBtn} onClick={async () => {
+            try {
+              const raw = localStorage.getItem('doctorProfile');
+              if (!raw) throw new Error('Not authenticated as doctor');
+              const doc = JSON.parse(raw);
+              const doctorId = doc.id;
+              const token = localStorage.getItem('doctorToken') ?? undefined;
+              let resp: AvailabilityResp[] = [];
+              // If a specific date is selected, call the locked-availabilities endpoint
+              if (selectedDate && selectedDate.length > 0) {
+                resp = await apiFetch(`/api/doctors/${doctorId}/locked-availabilities?workDate=${selectedDate}`, token);
+              } else {
+                resp = await apiFetch(`/api/doctors/${doctorId}/availability`, token);
+              }
+              if (Array.isArray(resp)) {
+                const mapped: SavedItem[] = resp.map(r => {
+                  const facility = r.facilityId ? facilities.find(f => f.id === r.facilityId) : undefined;
+                  return {
+                    id: r.id,
+                    date: r.workDate,
+                    facilityId: r.facilityId ?? null,
+                    facilityName: r.facilityName ?? facility?.name ?? 'Unknown',
+                    start: r.startTime,
+                    end: r.endTime,
+                    hours: Math.max(0, (parseMinutes(r.endTime) - parseMinutes(r.startTime)) / 60),
+                    specialities: [],
+                    roomsCount: typeof r.availableRooms === 'number' ? r.availableRooms : undefined,
+                    facilityAddress: r.facilityAddress ?? facility?.address,
+                    facilityState: r.facilityState ?? facility?.state,
+                    allowWalkIn: r.allowWalkIn ?? false,
+                    isBookable: r.bookable ?? (r.isBookable ?? true),
+                    assigned: Boolean(r.roomAssignedId) || (r.roomAssignmentStatus === 'ASSIGNED'),
+                  };
+                });
+                setSaved(mapped);
+              }
+            } catch (err) {
+              console.error('Failed to load saved availabilities', err);
+            }
+            setShowSavedModal(true);
+          }}>View availabilities</button>
         </div>
 
   <ViewAvailabilityModal
@@ -334,20 +398,6 @@ export default function AvailabilityView() {
       } catch (err) {
         console.error('Failed to delete availability', err);
         alert('Failed to delete availability: ' + (err as Error).message);
-      }
-    }}
-    onToggleWalkIn={async (id: string, allow: boolean) => {
-      try {
-        const raw = localStorage.getItem('doctorProfile');
-        if (!raw) throw new Error('Not authenticated as doctor');
-        const doc = JSON.parse(raw);
-        const doctorId = doc.id;
-        const token = localStorage.getItem('doctorToken') ?? undefined;
-        await apiFetch(`/api/doctors/${doctorId}/availability/${id}`, token, { method: 'PATCH', body: JSON.stringify({ allowWalkIn: allow }) });
-        setSaved(prev => prev.map(s => s.id === id ? { ...s, allowWalkIn: allow, isBookable: allow ? false : s.isBookable } : s));
-      } catch (err) {
-        console.error('Failed to toggle walk-in', err);
-        alert('Failed to update walk-in setting');
       }
     }}
   />

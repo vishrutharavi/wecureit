@@ -23,10 +23,12 @@ export default function DatePickerGrid({ selectedDate, setSelectedDate, weekInde
 
       <div className={styles.dateGrid} style={{ gridTemplateColumns: 'repeat(7, 1fr)' }}>
         {Array.from({ length: 14 }).slice((weekIndex-1)*7, weekIndex*7).map((_, idx) => {
+          // build a local-date (midnight) to avoid UTC shifts from toISOString
           const base = new Date();
-          const d = new Date(base);
-          d.setDate(base.getDate() + ((weekIndex-1)*7 + idx));
-          const iso = d.toISOString().slice(0,10);
+          const offset = (weekIndex - 1) * 7 + idx;
+          const d = new Date(base.getFullYear(), base.getMonth(), base.getDate() + offset);
+          // format ISO date using local components to ensure the string matches the local date
+          const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
           const day = d.getDate();
           const month = d.toLocaleString(undefined, { month: 'short' });
           const weekday = d.toLocaleDateString(undefined, { weekday: 'short' });

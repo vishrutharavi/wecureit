@@ -1,77 +1,138 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import styles from "../../patient.module.scss";
 import { FiActivity } from "react-icons/fi";
-
-type Doctor = { id: string; name: string; specialtyId: string; facilityId: string };
-type Facility = { id: string; name: string };
-type Specialty = { id: string; name: string };
+import { apiFetch, showInlineToast } from '@/lib/api';
+import type { Doctor, Facility, Specialty, BookingResponse } from '@/app/protected/patient/types';
 
 type Props = {
   onChange: (selection: { doctor?: Doctor | null; facility?: Facility | null; specialty?: Specialty | null }) => void;
 };
 
-// Sample data – replace with API integration as needed
-const SPECIALTIES: Specialty[] = [
-  { id: "s1", name: "Cardiology" },
-  { id: "s2", name: "Orthopedics" },
-  { id: "s3", name: "Dermatology" },
-  { id: "s4", name: "Pediatrics" },
-];
+// BookingResponse type is imported from shared types
 
-const FACILITIES: Facility[] = [
-  { id: "f1", name: "Downtown Medical Center" },
-  { id: "f2", name: "Alexandria Main Hospital" },
-  { id: "f3", name: "Northside Clinic" },
-];
-
-const DOCTORS: Doctor[] = [
-  { id: "d1", name: "Dr. Sarah Johnson", specialtyId: "s1", facilityId: "f1" },
-  { id: "d2", name: "Dr. Michael Chen", specialtyId: "s2", facilityId: "f2" },
-  { id: "d3", name: "Dr. Priya Patel", specialtyId: "s3", facilityId: "f1" },
-  { id: "d4", name: "Dr. Omar Ali", specialtyId: "s1", facilityId: "f3" },
-  { id: "d5", name: "Dr. Emily Park", specialtyId: "s4", facilityId: "f2" },
-];
+// runtime data loaded from server
+const EMPTY_SPECIALTIES: Specialty[] = [];
+const EMPTY_FACILITIES: Facility[] = [];
+const EMPTY_DOCTORS: Doctor[] = [];
 
 export default function DropdownSelection({ onChange }: Props) {
-  const [selectedSpecialty, setSelectedSpecialty] = React.useState<string | "">("");
-  const [selectedFacility, setSelectedFacility] = React.useState<string | "">("");
-  const [selectedDoctor, setSelectedDoctor] = React.useState<string | "">("");
+  const [selectedSpecialty, setSelectedSpecialty] = useState<string | "">("");
+  const [selectedFacility, setSelectedFacility] = useState<string | "">("");
+  const [selectedDoctor, setSelectedDoctor] = useState<string | "">("");
 
-  // Intersection of both filters
-  const filteredDoctors = React.useMemo(() => {
-    return DOCTORS.filter((d) => {
-      if (selectedSpecialty && d.specialtyId !== selectedSpecialty) return false;
-      if (selectedFacility && d.facilityId !== selectedFacility) return false;
-      return true;
-    });
-  }, [selectedSpecialty, selectedFacility]);
+  const [specialties, setSpecialties] = useState<Specialty[]>(EMPTY_SPECIALTIES);
+  const [facilities, setFacilities] = useState<Facility[]>(EMPTY_FACILITIES);
+  const [doctors, setDoctors] = useState<Doctor[]>(EMPTY_DOCTORS);
+  const [loading, setLoading] = useState<boolean>(false);
+  
+  // load dropdown data on mount
+  useEffect(() => {
+    (async () => {
+      try {
+        // include workDate from any existing bookingSelection in sessionStorage so server can apply facility locks
+        let url = '/api/patients/booking/dropdown-data';
+        try {
+          const raw = sessionStorage.getItem('bookingSelection');
+          if (raw) {
+            const parsed = JSON.parse(raw || '{}');
+            if (parsed && parsed.date) {
+              const params = new URLSearchParams();
+              params.set('workDate', parsed.date);
+              url = url + `?${params.toString()}`;
+            }
+          }
+        } catch {
+          // ignore session read errors
+        }
+        const resp = await apiFetch(url) as BookingResponse;
+        if (resp) {
+          // map specialties
+          const specs = Array.isArray(resp.specialties) ? resp.specialties.map((s) => ({ id: s.code, name: s.name })) : [];
+          setSpecialties(specs);
+    // map facilities (include specialties offered at facility)
+          const facs = Array.isArray(resp.facilities) ? resp.facilities.map((f) => ({ id: f.id, name: f.name, specialties: Array.isArray(f.specialties) ? f.specialties.map((s: { code?: string; name?: string }) => ({ code: s.code, name: s.name ?? s.code ?? '' })) : [] })) : [];
+          setFacilities(facs);
+          // map doctors
+          const docs = Array.isArray(resp.doctors) ? resp.doctors.map((d) => ({ id: d.id, name: d.displayName ?? d.name ?? 'Doctor', specialties: (d.specialties || []).map((s) => ({ code: s.code, name: s.name })), facilities: (d.facilities || []).map((fd) => ({ id: fd.id, name: fd.name })) })) : [];
+          setDoctors(docs);
+        }
+      } catch (err) {
+        console.error('Failed to load dropdown data', err);
+        showInlineToast('Failed to load doctors and facilities');
+      }
+    })();
+  }, []);
 
-  const availableFacilities = React.useMemo(() => {
-    const set = new Set<string>();
-    filteredDoctors.forEach((d) => set.add(d.facilityId));
-    return FACILITIES.filter((f) => set.has(f.id));
-  }, [filteredDoctors]);
+  // call backend to compute filtered options whenever selection changes. Debounced to avoid rapid calls.
+  useEffect(() => {
+    let mounted = true;
+    const timer = setTimeout(async () => {
+      try {
+        setLoading(true);
+        const params = new URLSearchParams();
+        if (selectedFacility) params.set('facilityId', selectedFacility);
+        if (selectedSpecialty) params.set('specialityCode', selectedSpecialty);
+        if (selectedDoctor) params.set('doctorId', selectedDoctor);
+        // include workDate from any existing bookingSelection in sessionStorage so server can apply facility locks
+        try {
+          const raw = sessionStorage.getItem('bookingSelection');
+          if (raw) {
+            const parsed = JSON.parse(raw || '{}');
+            if (parsed && parsed.date) params.set('workDate', parsed.date);
+          }
+        } catch {
+          // ignore
+        }
+        const url = '/api/patients/booking/dropdown-data' + (params.toString() ? `?${params.toString()}` : '');
+        const resp = await apiFetch(url) as BookingResponse;
+        if (!mounted) return;
+        if (resp) {
+          const specs = Array.isArray(resp.specialties) ? resp.specialties.map((s) => ({ id: s.code, name: s.name })) : [];
+          setSpecialties(specs);
+          const facs = Array.isArray(resp.facilities) ? resp.facilities.map((f) => ({ id: f.id, name: f.name, specialties: Array.isArray(f.specialties) ? f.specialties.map((s: { code?: string; name?: string }) => ({ code: s.code, name: s.name ?? s.code ?? '' })) : [] })) : [];
+          setFacilities(facs);
+          const docs = Array.isArray(resp.doctors) ? resp.doctors.map((d) => ({ id: d.id, name: d.displayName ?? d.name ?? 'Doctor', specialties: (d.specialties || []).map((s) => ({ code: s.code, name: s.name })), facilities: (d.facilities || []).map((fd) => ({ id: fd.id, name: fd.name })) })) : [];
+          setDoctors(docs);
 
-  const availableSpecialties = React.useMemo(() => {
-    const set = new Set<string>();
-    filteredDoctors.forEach((d) => set.add(d.specialtyId));
-    return SPECIALTIES.filter((s) => set.has(s.id));
-  }, [filteredDoctors]);
+          // if current selections are no longer present in server response, clear them
+          // Preserve selections when the server returned NO facilities (user wants selections kept and counts shown as 0)
+          // Only clear a selection when the server returned a non-empty list for that type and the selected value is not included.
+          // Additionally, we avoid clearing doctor/specialty when there are zero facilities in the response.
+          if (selectedDoctor && docs.length > 0 && facs.length > 0 && !docs.some(dd => dd.id === selectedDoctor)) setSelectedDoctor("");
+          if (selectedFacility && facs.length > 0 && !facs.some(ff => ff.id === selectedFacility)) setSelectedFacility("");
+          if (selectedSpecialty && specs.length > 0 && facs.length > 0 && !specs.some(ss => (ss.id ?? ss.name) === selectedSpecialty)) setSelectedSpecialty("");
+        }
+      } catch (err) {
+        console.error('Failed to load filtered dropdown data', err);
+        showInlineToast('Failed to update doctors and facilities');
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    }, 250);
+    return () => {
+      mounted = false;
+      clearTimeout(timer);
+    };
+  }, [selectedDoctor, selectedFacility, selectedSpecialty]);
 
-  React.useEffect(() => {
-    // when filters change, clear doctor selection if it no longer exists
-    if (selectedDoctor) {
-      const stillAvailable = filteredDoctors.some((d) => d.id === selectedDoctor);
-      if (!stillAvailable) setSelectedDoctor("");
-    }
-    // report up
-    const doctor = DOCTORS.find((d) => d.id === selectedDoctor) || null;
-    const facility = FACILITIES.find((f) => f.id === selectedFacility) || null;
-    const specialty = SPECIALTIES.find((s) => s.id === selectedSpecialty) || null;
+  // Client now relies on server-side validation of compatibility; no local availability checks.
+
+  function handleClear() {
+    setSelectedDoctor("");
+    setSelectedFacility("");
+    setSelectedSpecialty("");
+    onChange({ doctor: null, facility: null, specialty: null });
+  }
+
+  useEffect(() => {
+    // report up whenever selection changes
+    const doctor = doctors.find((d) => d.id === selectedDoctor) || null;
+    const facility = facilities.find((f) => f.id === selectedFacility) || null;
+    const specialty = specialties.find((s) => (s.id ?? s.name) === selectedSpecialty) || null;
     onChange({ doctor, facility, specialty });
-  }, [selectedDoctor, selectedFacility, selectedSpecialty, filteredDoctors, onChange]);
+  }, [selectedDoctor, selectedFacility, selectedSpecialty, onChange, doctors, facilities, specialties]);
 
   return (
     <div>
@@ -82,6 +143,16 @@ export default function DropdownSelection({ onChange }: Props) {
             <div className={styles.sectionTitle}>Appointment Details</div>
             <div className={styles.sectionSubtitle}>Choose your preferences below</div>
           </div>
+          <div style={{ marginLeft: 'auto' }}>
+            <button
+              type="button"
+              onClick={handleClear}
+              aria-label="Clear selections"
+              className={styles.clearButton}
+            >
+              Clear
+            </button>
+          </div>
         </div>
 
         <div className={styles.cardContent}>
@@ -90,15 +161,20 @@ export default function DropdownSelection({ onChange }: Props) {
             <select
               className={styles.inputField}
               value={selectedDoctor}
-              onChange={(e) => setSelectedDoctor(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value;
+                // simply update selection; server will return a filtered set and client effect will clear invalid selections
+                setSelectedDoctor(val);
+              }}
+              disabled={loading}
             >
               <option value="">Choose a doctor</option>
-              {filteredDoctors.map((d) => (
+              {doctors.map((d) => (
                 <option key={d.id} value={d.id}>{d.name}</option>
               ))}
             </select>
           </div>
-          <div className={styles.profileSubtitle}>{filteredDoctors.length} doctors available</div>
+          <div className={styles.profileSubtitle}>{doctors.length} doctors available</div>
 
           <div style={{ height: 12 }} />
 
@@ -107,15 +183,20 @@ export default function DropdownSelection({ onChange }: Props) {
             <select
               className={styles.inputField}
               value={selectedFacility}
-              onChange={(e) => setSelectedFacility(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value;
+                // update facility selection; server will provide compatibility updates
+                setSelectedFacility(val);
+              }}
+              disabled={loading}
             >
               <option value="">Choose a facility</option>
-              {availableFacilities.map((f) => (
+              {facilities.map((f) => (
                 <option key={f.id} value={f.id}>{f.name}</option>
               ))}
             </select>
           </div>
-          <div className={styles.profileSubtitle}>{availableFacilities.length} facilities available</div>
+          <div className={styles.profileSubtitle}>{facilities.length} facilities available</div>
 
           <div style={{ height: 12 }} />
 
@@ -124,15 +205,20 @@ export default function DropdownSelection({ onChange }: Props) {
             <select
               className={styles.inputField}
               value={selectedSpecialty}
-              onChange={(e) => setSelectedSpecialty(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value;
+                // update specialty selection; server will respond with filtered lists
+                setSelectedSpecialty(val);
+              }}
+              disabled={loading}
             >
               <option value="">Choose a specialty</option>
-              {availableSpecialties.map((s) => (
-                <option key={s.id} value={s.id}>{s.name}</option>
+              {specialties.map((s) => (
+                <option key={s.id ?? s.name} value={s.id ?? s.name}>{s.name}</option>
               ))}
             </select>
           </div>
-          <div className={styles.profileSubtitle}>{availableSpecialties.length} specialties available</div>
+          <div className={styles.profileSubtitle}>{specialties.length} specialties available</div>
         </div>
       </div>
     </div>

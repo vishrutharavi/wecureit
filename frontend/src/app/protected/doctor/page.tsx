@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { ArrowLeft, MapPin, Calendar } from "lucide-react";
 import styles from "./doctor.module.scss";
 import DoctorHeader from "./components/DoctorHeader";
@@ -12,10 +12,18 @@ import NotesView from "./components/Notes/NotesViewGrid";
 
 
 export default function DoctorPage() {
-  const searchParams = useSearchParams();
-  const initialTab = (searchParams?.get("tab") as "schedule" | "availability" | "notes") || "schedule";
   const router = useRouter();
-  const [tab, setTab] = useState<"schedule" | "availability" | "notes">(initialTab);
+  // default to schedule; read URL param on client mount to avoid useSearchParams prerender issues
+  const [tab, setTab] = useState<"schedule" | "availability" | "notes">("schedule");
+  useEffect(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        const sp = new URLSearchParams(window.location.search);
+        const t = sp.get('tab') as "schedule" | "availability" | "notes" | null;
+  if (t) setTimeout(() => setTab(t), 0);
+      }
+    } catch {}
+  }, []);
   const handleTabChange = (t: "schedule" | "availability" | "notes") => {
     setTab(t);
     // update URL so it reflects current tab
@@ -33,8 +41,20 @@ export default function DoctorPage() {
       const raw = localStorage.getItem('doctorProfile');
       if (raw) {
         const obj = JSON.parse(raw);
+        // derive a friendly display name: prefer explicit name, otherwise derive from email local-part
+        const deriveFromEmail = (e: string | undefined | null) => {
+          if (!e) return undefined;
+          try {
+            const local = String(e).split('@')[0];
+            const parts = local.split(/[._\-\s]+/).filter(Boolean).map(p => p.charAt(0).toUpperCase() + p.slice(1));
+            return parts.join(' ') || undefined;
+          } catch {
+            return e;
+          }
+        };
+        const resolvedName = obj.name && String(obj.name).trim().length > 0 ? obj.name : deriveFromEmail(obj.email);
         // defer to avoid synchronous setState in effect
-        setTimeout(() => setDoctorName(obj.name ?? obj.email ?? undefined), 0);
+        setTimeout(() => setDoctorName(resolvedName ?? undefined), 0);
       } else {
         // not logged in as doctor -> redirect to doctor login
         try {
@@ -76,8 +96,14 @@ export default function DoctorPage() {
 // component so it can be imported/used from other places if needed.
 export function ReferPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const patient = searchParams?.get("patient") || "Patient";
+  // read patient from URL on client
+  let patient = "Patient";
+  try {
+    if (typeof window !== 'undefined') {
+      const sp = new URLSearchParams(window.location.search);
+      patient = sp.get('patient') || 'Patient';
+    }
+  } catch {}
 
   return (
     <div style={{ padding: "1rem 0" }}>

@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import type { Doctor, Facility, Specialty } from '@/app/protected/patient/types';
+import { useRouter, useSearchParams } from "next/navigation";
 import styles from "./patient.module.scss";
 import PatientHeader from "./components/PatientHeader";
 import Home from "./components/Home/Home";
@@ -15,9 +16,21 @@ import DateAndTimeSelection from "./components/DateAndTimeSelection/DateAndTimeS
 import Confirmation from "./components/AppointmentSummary/Confirmation";
 
 export default function Page() {
-  const searchParams = useSearchParams();
-  const tab = searchParams?.get("tab") || "home";
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const [tab, setTab] = useState<string>("home");
+
+  // Keep the tab state in sync with the URL's `tab` search param. Using
+  // `useSearchParams()` inside a client component makes this reactive to
+  // client-side navigation (router.push) without manual popstate handling.
+  useEffect(() => {
+    try {
+      const t = searchParams?.get('tab') || 'home';
+      // Defer setState to avoid a synchronous state update inside the effect
+      // which can cause cascading renders in some React setups.
+      setTimeout(() => setTab(t), 0);
+    } catch {}
+  }, [searchParams]);
   const [justLoggedInMsg, setJustLoggedInMsg] = useState<string | null>(null);
 
   useEffect(() => {
@@ -107,18 +120,13 @@ export default function Page() {
 // A small client-side booking component kept in this file for convenience.
 // It can be imported elsewhere if you prefer a separate page file.
 export function BookAppointmentPage() {
-  type Doctor = { id: string; name: string; specialtyId: string; facilityId: string };
-  type Facility = { id: string; name: string };
-  type Specialty = { id: string; name: string };
+  type Selection = { doctor?: Doctor | null; facility?: Facility | null; specialty?: Specialty | null };
 
-  const [selection, setSelection] = React.useState<{ doctor?: Doctor | null; facility?: Facility | null; specialty?: Specialty | null }>({});
+  const [selection, setSelection] = React.useState<Selection>({});
 
-  const handleSelectionChange = React.useCallback(
-    (s: { doctor?: Doctor | null; facility?: Facility | null; specialty?: Specialty | null }) => {
-      setSelection(s);
-    },
-    []
-  );
+  const handleSelectionChange = React.useCallback((s: Selection) => {
+    setSelection(s);
+  }, []);
 
   return (
     <div className={styles.wrapper}>

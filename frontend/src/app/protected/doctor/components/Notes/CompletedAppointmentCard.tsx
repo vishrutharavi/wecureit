@@ -16,6 +16,8 @@ type Props = {
   complaint?: string;
   facility?: string;
   status?: string;
+  appointmentDbId?: string;
+  patientId?: string;
 };
 
 export default function CompletedAppointmentCard({
@@ -27,6 +29,8 @@ export default function CompletedAppointmentCard({
   complaint,
   facility,
   status,
+  appointmentDbId,
+  patientId,
 }: Props) {
   const router = useRouter();
   const [showAddNote, setShowAddNote] = React.useState(false);
@@ -47,8 +51,8 @@ export default function CompletedAppointmentCard({
   const handleRefer = () => router.push(`/protected/doctor/notes/refer?patient=${encodeURIComponent(patientName)}`);
 
   return (
-    <div className={styles.appointmentCard}>
-      <div className={styles.appointmentRow}>
+    <div className={`${styles.facilityCard} ${styles.appointmentCard}`}>
+      <div className={styles.appointmentRow} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
           <div className={`${styles.compactRow} ${styles.mt8}`}>
             <User size={16} />
@@ -74,17 +78,17 @@ export default function CompletedAppointmentCard({
           )}
         </div>
 
-        <div className={styles.appointmentMeta}>
+  <div className={styles.appointmentMeta} style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 12 }}>
           {status && <div className={`${styles.smallBadge} ${styles.statusBadge}`}>{status}</div>}
           <>
             <button className={`${styles.viewAppointmentsBtn} ${styles.btnWide}`} onClick={() => setShowAddNote(true)}>
               <span className={styles.iconSpacing}><Plus size={14} /></span> Add Note
             </button>
-            <AddNoteModal open={showAddNote} onClose={() => setShowAddNote(false)} patientName={patientName} dateLabel={date} timeLabel={time} />
+            <AddNoteModal open={showAddNote} onClose={() => setShowAddNote(false)} patientName={patientName} dateLabel={date} timeLabel={time} appointmentDbId={appointmentDbId} patientId={patientId} />
           </>
           <button className={styles.secondaryBtn} onClick={handleRefer}>Refer Specialty</button>
           <button className={`${styles.secondaryBtn} ${styles.mt6}`} onClick={() => setShowViewNotes(true)}>View Notes</button>
-          <ViewNoteModal open={showViewNotes} onClose={() => setShowViewNotes(false)} patientName={patientName} doctorName={doctorNameState} patientAge={ageGender} />
+          <ViewNoteModal open={showViewNotes} onClose={() => setShowViewNotes(false)} patientName={patientName} doctorName={doctorNameState} patientAge={ageGender} appointmentDbId={appointmentDbId} patientId={patientId} />
         </div>
       </div>
     </div>
