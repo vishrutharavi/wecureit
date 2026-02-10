@@ -20,6 +20,8 @@ import com.wecureit.entity.Appointment;
 import com.wecureit.service.AppointmentService;
 import com.wecureit.repository.DoctorRepository;
 import com.wecureit.entity.Doctor;
+import com.wecureit.repository.ClinicalNoteRepository;
+import com.wecureit.entity.ClinicalNote;
 
 import com.wecureit.repository.PatientRepository;
 import org.springframework.security.core.Authentication;
@@ -32,11 +34,13 @@ public class AppointmentController {
     private final AppointmentService appointmentService;
     private final DoctorRepository doctorRepository;
     private final PatientRepository patientRepository;
+    private final ClinicalNoteRepository clinicalNoteRepository;
 
-    public AppointmentController(AppointmentService appointmentService, DoctorRepository doctorRepository, PatientRepository patientRepository) {
+    public AppointmentController(AppointmentService appointmentService, DoctorRepository doctorRepository, PatientRepository patientRepository, ClinicalNoteRepository clinicalNoteRepository) {
         this.appointmentService = appointmentService;
         this.doctorRepository = doctorRepository;
         this.patientRepository = patientRepository;
+        this.clinicalNoteRepository = clinicalNoteRepository;
     }
 
     @org.springframework.web.bind.annotation.GetMapping("/history/byPatient")
@@ -77,9 +81,20 @@ public class AppointmentController {
                                 }
                                 if (a.getSpeciality() != null) m.put("specialty", a.getSpeciality().getSpecialityName());
                                 if (a.getFacility() != null) m.put("location", a.getFacility().getName());
-                                // Do not expose patient's chief complaints as 'remarks' in patient history.
-                                // Remarks should be doctor's notes added after completion. For now leave null.
-                                // If doctor's notes are stored in AppointmentHistory in future, populate from there.
+                                // Try to populate 'remarks' from clinical notes linked to this appointment_history row
+                                try {
+                                    if (h.getId() != null) {
+                                        java.util.List<ClinicalNote> notes = clinicalNoteRepository.findByAppointmentHistoryId(h.getId());
+                                        if (notes != null && !notes.isEmpty()) {
+                                            // pick the latest note by insertion order (repository returns by PK order) - take last
+                                            ClinicalNote last = notes.get(notes.size() - 1);
+                                            String prefix = last.getCreatedBy() != null ? last.getCreatedBy() + ": " : "";
+                                            m.put("remarks", prefix + (last.getNoteText() == null ? "" : last.getNoteText()));
+                                        }
+                                    }
+                                } catch (Exception e) {
+                                    // ignore notes lookup failures
+                                }
                             }
                         } catch (Exception e) {
                             // ignore enrichment failures
