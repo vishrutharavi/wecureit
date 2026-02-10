@@ -16,6 +16,13 @@ import com.wecureit.entity.ClinicalNote;
 import com.wecureit.repository.ClinicalNoteRepository;
 import com.wecureit.repository.AppointmentRepository;
 import com.wecureit.repository.AppointmentHistoryRepository;
+import com.wecureit.repository.PatientRepository;
+import com.wecureit.entity.Patient;
+import java.time.LocalDate;
+import java.time.Period;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/clinical-notes")
@@ -24,11 +31,47 @@ public class ClinicalNoteController {
     private final ClinicalNoteRepository clinicalNoteRepository;
     private final AppointmentRepository appointmentRepository;
     private final AppointmentHistoryRepository appointmentHistoryRepository;
+    private final PatientRepository patientRepository;
 
-    public ClinicalNoteController(ClinicalNoteRepository clinicalNoteRepository, AppointmentRepository appointmentRepository, AppointmentHistoryRepository appointmentHistoryRepository) {
+    public ClinicalNoteController(ClinicalNoteRepository clinicalNoteRepository, AppointmentRepository appointmentRepository, AppointmentHistoryRepository appointmentHistoryRepository, PatientRepository patientRepository) {
         this.clinicalNoteRepository = clinicalNoteRepository;
         this.appointmentRepository = appointmentRepository;
         this.appointmentHistoryRepository = appointmentHistoryRepository;
+        this.patientRepository = patientRepository;
+    }
+
+    // Convert ClinicalNote entity into a Map with optional patient details (age, sex, name)
+    private Map<String, Object> enrichNote(ClinicalNote n) {
+        Map<String, Object> out = new HashMap<>();
+        if (n.getId() != null) out.put("id", String.valueOf(n.getId()));
+        if (n.getAppointmentHistoryId() != null) out.put("appointmentHistoryId", String.valueOf(n.getAppointmentHistoryId()));
+        if (n.getAppointmentId() != null) out.put("appointmentId", String.valueOf(n.getAppointmentId()));
+        if (n.getPatientId() != null) out.put("patientId", String.valueOf(n.getPatientId()));
+        if (n.getDoctorId() != null) out.put("doctorId", String.valueOf(n.getDoctorId()));
+        out.put("noteText", n.getNoteText());
+        out.put("createdBy", n.getCreatedBy());
+        out.put("createdAt", n.getCreatedAt() != null ? String.valueOf(n.getCreatedAt()) : null);
+        out.put("updatedAt", n.getUpdatedAt() != null ? String.valueOf(n.getUpdatedAt()) : null);
+
+        if (n.getPatientId() != null) {
+            try {
+                Optional<Patient> maybe = patientRepository.findById(n.getPatientId());
+                if (maybe.isPresent()) {
+                    Patient p = maybe.get();
+                    out.put("patientName", p.getName());
+                    if (p.getDob() != null) {
+                        try {
+                            int years = Period.between(p.getDob(), LocalDate.now()).getYears();
+                            out.put("patientAge", years + " years old");
+                        } catch (Exception ex) { /* ignore dob parsing */ }
+                    }
+                    out.put("patientSex", p.getGender());
+                }
+            } catch (Exception ex) {
+                // ignore patient lookup errors
+            }
+        }
+        return out;
     }
 
     @PostMapping("")
@@ -79,7 +122,7 @@ public class ClinicalNoteController {
             n.setCreatedAt(now);
             n.setUpdatedAt(now);
             ClinicalNote saved = clinicalNoteRepository.save(n);
-            return ResponseEntity.ok(saved);
+            return ResponseEntity.ok(enrichNote(saved));
         } catch (Exception ex) {
             System.err.println("ClinicalNoteController.createNote: " + ex.getMessage());
             return ResponseEntity.status(500).body(Map.of("error", "Failed to create note"));
@@ -101,7 +144,9 @@ public class ClinicalNoteController {
                         var appt = maybe.get();
                         if (appt.getUuid() != null) {
                             var list = clinicalNoteRepository.findByAppointmentId(appt.getUuid());
-                            return ResponseEntity.ok(list);
+                                // enrich with patient info where possible
+                                var enriched = list.stream().map(n -> enrichNote(n)).toList();
+                                return ResponseEntity.ok(enriched);
                         }
                     }
                 } catch (Exception ex) {
@@ -110,17 +155,22 @@ public class ClinicalNoteController {
             }
             if (appointmentHistoryId != null && !appointmentHistoryId.isBlank()) {
                 var list = clinicalNoteRepository.findByAppointmentHistoryId(UUID.fromString(appointmentHistoryId));
-                return ResponseEntity.ok(list);
+                var enriched = list.stream().map(n -> enrichNote(n)).toList();
+                return ResponseEntity.ok(enriched);
             }
             if (appointmentId != null && !appointmentId.isBlank()) {
                 var list = clinicalNoteRepository.findByAppointmentId(UUID.fromString(appointmentId));
-                return ResponseEntity.ok(list);
+                var enriched = list.stream().map(n -> enrichNote(n)).toList();
+                return ResponseEntity.ok(enriched);
             }
             if (patientId != null && !patientId.isBlank()) {
                 var list = clinicalNoteRepository.findByPatientId(UUID.fromString(patientId));
-                return ResponseEntity.ok(list);
+                var enriched = list.stream().map(n -> enrichNote(n)).toList();
+                return ResponseEntity.ok(enriched);
             }
-            return ResponseEntity.ok(clinicalNoteRepository.findAll());
+            var list = clinicalNoteRepository.findAll();
+            var enriched = list.stream().map(n -> enrichNote(n)).toList();
+            return ResponseEntity.ok(enriched);
         } catch (Exception ex) {
             System.err.println("ClinicalNoteController.listNotes: " + ex.getMessage());
             return ResponseEntity.status(500).body(Map.of("error", "Failed to list notes"));

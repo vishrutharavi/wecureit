@@ -2,6 +2,7 @@
 
 import React from "react";
 import styles from "../../doctor.module.scss";
+import { apiFetch } from "../../../../../lib/api";
 import { FiX } from "react-icons/fi";
 
 type Note = {
@@ -10,6 +11,8 @@ type Note = {
   authorLicensed: boolean;
   date: string;
   text: string;
+  patientAge?: string;
+  patientSex?: string;
 };
 
 type Props = {
@@ -18,15 +21,19 @@ type Props = {
   patientName?: string;
   doctorName?: string;
   patientAge?: string;
+  patientSex?: string;
   appointmentDbId?: string;
   patientId?: string;
 };
-export default function ViewNoteModal({ open, onClose, patientName = "Patient", doctorName = "Dr. You", patientAge, appointmentDbId, patientId }: Props) {
+export default function ViewNoteModal({ open, onClose, patientName = "Patient", doctorName, patientAge, patientSex, appointmentDbId, patientId }: Props) {
   // live notes fetched from backend for the appointment; falling back to patient-wide if needed
   const [selectedSpecialty, setSelectedSpecialty] = React.useState<string>("");
   const [notes, setNotes] = React.useState<Note[]>([]);
+  const [displayAge, setDisplayAge] = React.useState<string | undefined>(patientAge);
+  const [displaySex, setDisplaySex] = React.useState<string | undefined>(patientSex);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const doctorNameDep = doctorName ?? '';
 
   React.useEffect(() => {
     if (!open) return;
@@ -41,18 +48,36 @@ export default function ViewNoteModal({ open, onClose, patientName = "Patient", 
         } else if (patientId) {
           url += `?patientId=${encodeURIComponent(patientId)}`;
         }
-        const res = await fetch(url);
-        if (!res.ok) throw new Error(`Failed to load notes (${res.status})`);
-        const data = await res.json();
+        // Use centralized apiFetch so the request goes to the backend server
+        // (apiFetch prepends API_BASE and includes auth tokens when present).
+        const data = await apiFetch(url, typeof window !== 'undefined' ? (localStorage.getItem('doctorToken') ?? undefined) : undefined);
         // Map backend ClinicalNote to Note for UI
-        const mapped: Note[] = (data || []).map((n: Record<string, unknown>) => ({
-          id: String(n['id']),
-          author: (n['createdBy'] as string) ?? (n['doctorId'] ? `Doctor ${String(n['doctorId'])}` : 'Unknown'),
-          authorLicensed: true,
-          date: n['createdAt'] ? new Date(String(n['createdAt'])).toLocaleDateString() : '',
-          text: (n['noteText'] as string) ?? (n['text'] as string) ?? '',
-        }));
+        const mapped: Note[] = (data || []).map((n: Record<string, unknown>) => {
+          const rawAuthor = (n['createdBy'] as string) ?? (n['doctorId'] ? `Doctor ${String(n['doctorId'])}` : 'Unknown');
+          // Consider this note authored by a doctor if doctorId is present, or if it matches the modal doctorName
+          const isDoctorAuthor = !!n['doctorId'] || (doctorNameDep && String(rawAuthor) === doctorNameDep);
+          const author = isDoctorAuthor && !/^Dr\b|^Doctor\b/i.test(String(rawAuthor)) ? `Dr. ${rawAuthor}` : rawAuthor;
+          const out: Note = {
+            id: String(n['id']),
+            author,
+            authorLicensed: true,
+            date: n['createdAt'] ? new Date(String(n['createdAt'])).toLocaleDateString() : '',
+            text: (n['noteText'] as string) ?? (n['text'] as string) ?? '',
+            patientAge: n['patientAge'] as string | undefined,
+            patientSex: n['patientSex'] as string | undefined,
+          };
+          // if the modal wasn't passed patientAge/sex props, take from first note
+          return out;
+        });
         setNotes(mapped);
+        // populate header age/sex from first note if not already provided
+        try {
+          if ((!patientAge || !patientSex) && mapped.length > 0) {
+            const first = mapped[0];
+            if (!patientAge && first.patientAge) setDisplayAge(first.patientAge);
+            if (!patientSex && first.patientSex) setDisplaySex(first.patientSex);
+          }
+        } catch {}
       } catch (err: unknown) {
   const msg = (err && typeof err === 'object' && 'message' in (err as Record<string, unknown>)) ? String((err as Record<string, unknown>)['message']) : String(err);
         setError(msg);
@@ -62,7 +87,7 @@ export default function ViewNoteModal({ open, onClose, patientName = "Patient", 
       }
     }
     load();
-  }, [open, appointmentDbId, patientId]);
+  }, [open, appointmentDbId, patientId, doctorNameDep, patientAge, patientSex]);
 
   if (!open) return null;
 
@@ -97,15 +122,13 @@ export default function ViewNoteModal({ open, onClose, patientName = "Patient", 
               <div className={styles.cardTitle}>
                 <div>{patientName}</div>
               </div>
-              {patientAge ? <div className={`${styles.referralMeta} ${styles.mt6}`}>{patientAge}</div> : null}
-              <div className={`${styles.compactRow} ${styles.mt6}`}>
-                <div className={styles.referralMeta}>{doctorName ? `Dr. ${doctorName}` : 'Doctor'}</div>
-                {selectedSpecialty ? (
-                  <div className={styles.specialtyPill}>
-                    {selectedSpecialty}
-                  </div>
-                ) : null}
-              </div>
+              {(displayAge || displaySex) ? (
+                <div className={`${styles.referralMeta} ${styles.mt6}`}>
+                  {displayAge ? <span>{displayAge}</span> : null}
+                  {displayAge && displaySex ? <span>{' • '}</span> : null}
+                  {displaySex ? <span>{displaySex}</span> : null}
+                </div>
+              ) : null}
             </div>
 
             <div className={styles.compactRow}>
