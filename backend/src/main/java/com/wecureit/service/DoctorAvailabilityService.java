@@ -6,6 +6,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -20,8 +22,6 @@ import com.wecureit.repository.DoctorAvailabilityRepository;
 import com.wecureit.repository.DoctorFacilityLockRepository;
 import com.wecureit.repository.DoctorLicenseRepository;
 import com.wecureit.repository.FacilityRepository;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 @Service
 public class DoctorAvailabilityService {

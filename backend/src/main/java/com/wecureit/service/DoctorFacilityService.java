@@ -9,6 +9,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import com.wecureit.dto.response.FacilityResponse;
@@ -19,8 +21,6 @@ import com.wecureit.entity.Room;
 import com.wecureit.repository.DoctorLicenseRepository;
 import com.wecureit.repository.FacilityRepository;
 import com.wecureit.repository.RoomRepository;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 @Service
 public class DoctorFacilityService {

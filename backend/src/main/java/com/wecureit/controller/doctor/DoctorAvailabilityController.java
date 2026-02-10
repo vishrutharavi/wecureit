@@ -5,6 +5,7 @@ import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -13,9 +14,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.wecureit.dto.request.AvailabilityRequest;
 import com.wecureit.dto.response.AvailabilityResponse;
-import com.wecureit.service.DoctorAvailabilityService;
 import com.wecureit.repository.DoctorRepository;
-import org.springframework.security.core.Authentication;
+import com.wecureit.service.DoctorAvailabilityService;
 
 @RestController
 @RequestMapping("/api/doctors")
