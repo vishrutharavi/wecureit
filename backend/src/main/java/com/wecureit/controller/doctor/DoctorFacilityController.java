@@ -15,20 +15,25 @@ import org.springframework.web.bind.annotation.RestController;
 import com.wecureit.dto.response.FacilityAvailabilityResponse;
 import com.wecureit.dto.response.FacilityResponse;
 import com.wecureit.service.DoctorFacilityService;
+import com.wecureit.repository.DoctorRepository;
+import org.springframework.security.core.Authentication;
 
 @RestController
 @RequestMapping("/api/doctors")
 public class DoctorFacilityController {
 
     private final DoctorFacilityService facilityService;
+    private final DoctorRepository doctorRepository;
 
-    public DoctorFacilityController(DoctorFacilityService facilityService) {
+    public DoctorFacilityController(DoctorFacilityService facilityService, DoctorRepository doctorRepository) {
         this.facilityService = facilityService;
+        this.doctorRepository = doctorRepository;
     }
 
     @GetMapping("/{doctorId}/facilities")
-    public ResponseEntity<List<FacilityResponse>> getFacilitiesForDoctor(@PathVariable UUID doctorId) {
-        var result = facilityService.getFacilitiesForDoctor(doctorId);
+    public ResponseEntity<List<FacilityResponse>> getFacilitiesForDoctor(@PathVariable UUID doctorId, Authentication authentication) {
+        UUID effectiveDoctorId = resolveDoctorId(doctorId, authentication);
+        var result = facilityService.getFacilitiesForDoctor(effectiveDoctorId);
         return ResponseEntity.ok(result);
     }
 
@@ -46,5 +51,17 @@ public class DoctorFacilityController {
         var e = LocalTime.parse(end);
         FacilityAvailabilityResponse resp = facilityService.getFacilityAvailability(facilityId, d, s, e);
         return ResponseEntity.ok(resp);
+    }
+
+    private UUID resolveDoctorId(UUID pathDoctorId, Authentication authentication) {
+        try {
+            if (authentication != null && authentication.getName() != null) {
+                var maybe = doctorRepository.findByFirebaseUid(authentication.getName());
+                if (maybe.isPresent() && maybe.get().getId() != null) return maybe.get().getId();
+            }
+        } catch (Exception ex) {
+            // ignore and fallback to path id
+        }
+        return pathDoctorId;
     }
 }

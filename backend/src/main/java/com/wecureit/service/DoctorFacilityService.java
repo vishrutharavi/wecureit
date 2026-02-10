@@ -19,9 +19,13 @@ import com.wecureit.entity.Room;
 import com.wecureit.repository.DoctorLicenseRepository;
 import com.wecureit.repository.FacilityRepository;
 import com.wecureit.repository.RoomRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Service
 public class DoctorFacilityService {
+
+    private static final Logger logger = LoggerFactory.getLogger(DoctorFacilityService.class);
 
     private final FacilityRepository facilityRepository;
     private final RoomRepository roomRepository;
@@ -42,6 +46,16 @@ public class DoctorFacilityService {
     public List<FacilityResponse> getFacilitiesForDoctor(UUID doctorId) {
         // fetch active licenses for the doctor
         List<DoctorLicense> licenses = licenseRepository.findByDoctorIdAndIsActiveTrue(doctorId);
+        logger.info("getFacilitiesForDoctor - doctorId={} licensesFound={}", doctorId, licenses == null ? 0 : licenses.size());
+        if (licenses != null && !licenses.isEmpty()) {
+            for (DoctorLicense lic : licenses) {
+                try {
+                    logger.debug("doctorLicense - id={} state={} speciality={} active={}", lic.getId(), lic.getStateCode(), lic.getSpecialityCode(), lic.isActive());
+                } catch (Exception e) {
+                    logger.debug("doctorLicense - inspect failed: {}", e.getMessage());
+                }
+            }
+        }
         if (licenses == null || licenses.isEmpty()) return Collections.emptyList();
 
         // map state -> set of speciality codes the doctor holds
@@ -52,20 +66,32 @@ public class DoctorFacilityService {
 
         // fetch all active facilities
         List<Facility> facilities = facilityRepository.findAllByIsActive(Boolean.TRUE);
+    logger.debug("getFacilitiesForDoctor - activeFacilitiesCount={}", facilities == null ? 0 : facilities.size());
 
         List<FacilityResponse> out = new ArrayList<>();
 
-        for (Facility f : facilities) {
-            String state = f.getState() != null ? f.getState().getStateCode() : null;
-            if (state == null) continue;
+    if (facilities == null) facilities = Collections.emptyList();
+    for (Facility f : facilities) {
+            String state = null;
+            try { state = f.getState() != null ? f.getState().getStateCode() : null; } catch (Exception e) { state = null; }
+            if (state == null) {
+                logger.debug("skipping facility {} ({}): state missing", f.getId(), f.getName());
+                continue;
+            }
             Set<String> specs = stateToSpecs.get(state);
-            if (specs == null || specs.isEmpty()) continue;
+            if (specs == null || specs.isEmpty()) {
+                logger.debug("skipping facility {} ({}): doctor has no licenses for state {}", f.getId(), f.getName(), state);
+                continue;
+            }
 
             // for each speciality the doctor holds in this state, collect rooms
             List<RoomResponse> roomResponses = new ArrayList<>();
             Set<UUID> seen = new HashSet<>();
             for (String spec : specs) {
                 List<Room> rooms = roomRepository.findByFacilityIdAndSpecialityCodeAndActiveTrue(f.getId(), spec);
+                int foundRooms = rooms == null ? 0 : rooms.size();
+                logger.debug("facility {} spec {} -> roomsFound={}", f.getId(), spec, foundRooms);
+                if (rooms == null || rooms.isEmpty()) continue;
                 for (Room r : rooms) {
                     if (seen.add(r.getId())) {
                         String specialtyName = spec;
@@ -81,13 +107,17 @@ public class DoctorFacilityService {
                 }
             }
 
-            if (!roomResponses.isEmpty()) {
-                FacilityResponse fr = new FacilityResponse(
-                    f.getId(), f.getName(), f.getCity(), f.getState().getStateCode(), f.getIsActive(), f.getAddress(), f.getZipCode(), roomResponses
-                );
-                out.add(fr);
+            if (roomResponses.isEmpty()) {
+                logger.debug("skipping facility {} ({}): no matching active rooms for doctor's licensed specs in state {}", f.getId(), f.getName(), state);
+                continue;
             }
+
+            FacilityResponse fr = new FacilityResponse(
+                f.getId(), f.getName(), f.getCity(), state, f.getIsActive(), f.getAddress(), f.getZipCode(), roomResponses
+            );
+            out.add(fr);
         }
+        logger.info("getFacilitiesForDoctor - doctorId={} resultFacilities={}", doctorId, out.size());
 
         return out;
     }

@@ -93,11 +93,17 @@ public class AuthController {
                         popt = patientRepo.findByEmailIgnoreCase(emailNorm);
                         patientUsedCi = popt.isPresent();
                     }
+                    // also try secondaryEmail (case-insensitive) in case user updated their email in profile
+                    boolean patientUsedSecondary = false;
+                    if (popt.isEmpty()) {
+                        popt = patientRepo.findBySecondaryEmailIgnoreCase(emailNorm);
+                        patientUsedSecondary = popt.isPresent();
+                    }
                     if (popt.isPresent()) {
                         Patient p = popt.get();
                         p.setFirebaseUid(uid);
                         patientRepo.save(p);
-                        System.out.println("AuthController.linkPortalIdentity: linked patient email=" + p.getEmail() + " uid=" + uid + " (ciLookup=" + patientUsedCi + ")");
+                        System.out.println("AuthController.linkPortalIdentity: linked patient email=" + p.getEmail() + " uid=" + uid + " (ciLookup=" + patientUsedCi + ", secondaryLookup=" + patientUsedSecondary + ")");
                     } else {
                         return ResponseEntity.status(404).body(Map.of("error", "No patient found with email " + emailNorm + ". Please create a patient record before linking."));
                     }

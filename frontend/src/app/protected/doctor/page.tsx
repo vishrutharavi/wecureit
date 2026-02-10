@@ -41,8 +41,20 @@ export default function DoctorPage() {
       const raw = localStorage.getItem('doctorProfile');
       if (raw) {
         const obj = JSON.parse(raw);
+        // derive a friendly display name: prefer explicit name, otherwise derive from email local-part
+        const deriveFromEmail = (e: string | undefined | null) => {
+          if (!e) return undefined;
+          try {
+            const local = String(e).split('@')[0];
+            const parts = local.split(/[._\-\s]+/).filter(Boolean).map(p => p.charAt(0).toUpperCase() + p.slice(1));
+            return parts.join(' ') || undefined;
+          } catch {
+            return e;
+          }
+        };
+        const resolvedName = obj.name && String(obj.name).trim().length > 0 ? obj.name : deriveFromEmail(obj.email);
         // defer to avoid synchronous setState in effect
-        setTimeout(() => setDoctorName(obj.name ?? obj.email ?? undefined), 0);
+        setTimeout(() => setDoctorName(resolvedName ?? undefined), 0);
       } else {
         // not logged in as doctor -> redirect to doctor login
         try {

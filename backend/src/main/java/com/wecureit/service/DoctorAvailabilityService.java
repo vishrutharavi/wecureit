@@ -20,9 +20,13 @@ import com.wecureit.repository.DoctorAvailabilityRepository;
 import com.wecureit.repository.DoctorFacilityLockRepository;
 import com.wecureit.repository.DoctorLicenseRepository;
 import com.wecureit.repository.FacilityRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Service
 public class DoctorAvailabilityService {
+
+    private static final Logger logger = LoggerFactory.getLogger(DoctorAvailabilityService.class);
 
     @Autowired
     private DoctorAvailabilityRepository availabilityRepo;
@@ -147,6 +151,16 @@ public class DoctorAvailabilityService {
 
     public List<AvailabilityResponse> listAvailabilities(UUID doctorId, LocalDate from, LocalDate to) {
         List<com.wecureit.entity.DoctorAvailability> avails = availabilityRepo.findByDoctorIdAndWorkDateBetween(doctorId, from, to);
+        try {
+            int found = (avails == null ? 0 : avails.size());
+            logger.info("listAvailabilities - doctorId={} from={} to={} -> found={}", doctorId, from, to, found);
+            if (avails != null && !avails.isEmpty()) {
+                String ids = avails.stream().map(a -> a.getId() == null ? "null" : a.getId().toString()).reduce((x,y) -> x + "," + y).orElse("");
+                logger.debug("listAvailabilities - availIds=[{}]", ids);
+            }
+        } catch (Exception e) {
+            logger.warn("listAvailabilities - logging failed: {}", e.getMessage());
+        }
         List<AvailabilityResponse> out = new ArrayList<>();
         if (avails == null) return out;
         for (com.wecureit.entity.DoctorAvailability da : avails) {

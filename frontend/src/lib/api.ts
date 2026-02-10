@@ -73,8 +73,18 @@ export async function apiFetch(
   }
   // Dev debug: show whether we have a token and a short preview (first 8 chars) to help diagnose 403/401 issues.
   try {
-    if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
-      console.debug('apiFetch ->', path, 'hasToken=', !!token, token ? token.slice(0,8) + '...' : null);
+    if (typeof window !== 'undefined') {
+      // Always print a short debug line locally so developers can confirm whether the
+      // Authorization header will be included. Do not expose full token.
+      try { console.debug('apiFetch ->', path, 'hasToken=', !!token, token ? token.slice(0,8) + '...' : null); } catch {}
+    }
+  } catch {}
+
+  // Final check before sending request: log outgoing Authorization header presence
+  try {
+    if (typeof window !== 'undefined') {
+      const authPreview = token ? (token.slice ? token.slice(0,8) + '...' : 'present') : null;
+      console.debug('apiFetch - will send Authorization header:', !!token, authPreview, 'for', path);
     }
   } catch {}
 

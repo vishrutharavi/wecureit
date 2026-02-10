@@ -30,6 +30,48 @@ export default function AppointmentModal({
     setCompletedIds({});
   }, [appointments]);
 
+  // If modal opened without appointments or appointments seem stale, fetch fresh schedule for the selected date
+  React.useEffect(() => {
+    (async () => {
+      if (!open) return;
+      try {
+        // If parent didn't pass appointments or it's empty, try fetching the schedule for the date stored in session
+        if ((!appointments || (appointments && appointments.length === 0))) {
+          const raw = localStorage.getItem('doctorProfile');
+          if (!raw) return;
+          const doc = JSON.parse(raw);
+          const doctorId = doc.id;
+          const token = localStorage.getItem('doctorToken') ?? undefined;
+          // date selected by ScheduleView is stored in state via useSchedule; try to read it from sessionStorage or fallback to today
+          const selDate = sessionStorage.getItem('selectedScheduleDate') ?? new Date().toISOString().slice(0,10);
+          const resp = await apiFetch(`/api/doctors/${doctorId}/schedule?date=${selDate}`, token);
+          let rows: Array<Record<string, unknown>> = [];
+          if (Array.isArray(resp)) rows = resp as Array<Record<string, unknown>>;
+          else if (resp && typeof resp === 'object' && Array.isArray((resp as Record<string, unknown>).appointments)) rows = ((resp as Record<string, unknown>).appointments) as Array<Record<string, unknown>>;
+          const mapped: Appointment[] = (rows || []).map((r) => {
+            const id = (r['id'] ?? r['appointmentId'] ?? '') as unknown;
+            const startVal = (r['startTime'] ?? r['start'] ?? '') as unknown;
+            const endVal = (r['endTime'] ?? r['end'] ?? '') as unknown;
+            const statusVal = (r['status'] ?? '') as unknown;
+            return {
+              id: String(id ?? ''),
+              patientName: String((r['patientName'] ?? (r['patientId'] ? String(r['patientId']) : 'Patient')) ?? 'Patient'),
+              patientId: r['patientId'] ? String(r['patientId']) : undefined,
+              start: String(startVal ?? ''),
+              end: String(endVal ?? ''),
+              status: (statusVal ? String(statusVal).toUpperCase() : ((r['isActive'] === false) ? 'CANCELLED' : 'UPCOMING')) as ('UPCOMING'|'CANCELLED'|'COMPLETED'),
+              notes: (r['chiefComplaints'] ?? r['notes']) as unknown as string | undefined,
+              cancelledBy: r['cancelledBy'] as unknown as string | undefined,
+            };
+          });
+          setItems(mapped);
+        }
+      } catch (e) {
+        console.warn('Failed to fetch appointments for modal', e);
+      }
+    })();
+  }, [open, appointments]);
+
   if (!open) return null;
 
   const upcoming = items.filter((a) => a.status === "UPCOMING");
