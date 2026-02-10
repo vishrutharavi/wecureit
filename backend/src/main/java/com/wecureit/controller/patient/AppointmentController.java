@@ -20,26 +20,79 @@ import com.wecureit.entity.Appointment;
 import com.wecureit.service.AppointmentService;
 import com.wecureit.repository.DoctorRepository;
 import com.wecureit.entity.Doctor;
-import com.wecureit.repository.RoomRepository;
+
 import com.wecureit.repository.PatientRepository;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
-import com.wecureit.entity.Room;
 
 @RestController
 @RequestMapping("/appointments")
 public class AppointmentController {
 
     private final AppointmentService appointmentService;
-    private final RoomRepository roomRepository;
     private final DoctorRepository doctorRepository;
     private final PatientRepository patientRepository;
 
-    public AppointmentController(AppointmentService appointmentService, RoomRepository roomRepository, DoctorRepository doctorRepository, PatientRepository patientRepository) {
+    public AppointmentController(AppointmentService appointmentService, DoctorRepository doctorRepository, PatientRepository patientRepository) {
         this.appointmentService = appointmentService;
-        this.roomRepository = roomRepository;
         this.doctorRepository = doctorRepository;
         this.patientRepository = patientRepository;
+    }
+
+    @org.springframework.web.bind.annotation.GetMapping("/history/byPatient")
+    public ResponseEntity<java.util.List<java.util.Map<String, Object>>> historyByPatient(@RequestParam(name = "patientId") java.util.UUID patientId) {
+        java.util.List<java.util.Map<String, Object>> out = new java.util.ArrayList<>();
+        try {
+            java.util.List<com.wecureit.entity.AppointmentHistory> hist = appointmentService.getAppointmentHistoryForPatient(patientId);
+            if (hist != null) {
+                java.time.format.DateTimeFormatter dateFmt = java.time.format.DateTimeFormatter.ofPattern("EEE, MMM d, uuuu");
+                java.time.format.DateTimeFormatter timeFmt = java.time.format.DateTimeFormatter.ofPattern("h:mm a");
+                for (com.wecureit.entity.AppointmentHistory h : hist) {
+                    java.util.Map<String, Object> m = new java.util.HashMap<>();
+                    m.put("id", h.getId() == null ? null : h.getId().toString());
+                    m.put("status", h.getStatus());
+                    m.put("appointmentUuid", h.getAppointmentId() == null ? null : h.getAppointmentId().toString());
+                    // try to enrich from appointment row if available
+                    if (h.getAppointmentId() != null) {
+                        try {
+                            var apptOpt = appointmentService.findByUuid(h.getAppointmentId());
+                            if (apptOpt.isPresent()) {
+                                var a = apptOpt.get();
+                                if (a.getStartTime() != null) m.put("dateLabel", a.getStartTime().format(dateFmt));
+                                if (a.getStartTime() != null && a.getEndTime() != null) m.put("timeLabel", a.getStartTime().format(timeFmt) + " - " + a.getEndTime().format(timeFmt));
+                                if (a.getDoctorAvailability() != null && a.getDoctorAvailability().getDoctorId() != null) {
+                                    try {
+                                        var docOpt = doctorRepository.findById(a.getDoctorAvailability().getDoctorId());
+                                        if (docOpt.isPresent()) {
+                                            String dname = docOpt.get().getName();
+                                            if (dname != null) {
+                                                String trimmed = dname.trim();
+                                                if (!trimmed.toLowerCase().startsWith("dr")) trimmed = "Dr. " + trimmed;
+                                                m.put("doctor", trimmed);
+                                            } else {
+                                                m.put("doctor", dname);
+                                            }
+                                        }
+                                    } catch (Exception e) { }
+                                }
+                                if (a.getSpeciality() != null) m.put("specialty", a.getSpeciality().getSpecialityName());
+                                if (a.getFacility() != null) m.put("location", a.getFacility().getName());
+                                // Do not expose patient's chief complaints as 'remarks' in patient history.
+                                // Remarks should be doctor's notes added after completion. For now leave null.
+                                // If doctor's notes are stored in AppointmentHistory in future, populate from there.
+                            }
+                        } catch (Exception e) {
+                            // ignore enrichment failures
+                        }
+                    }
+                    out.add(m);
+                }
+            }
+        } catch (Exception ex) {
+            System.out.println("historyByPatient: error: " + ex.getMessage());
+            ex.printStackTrace();
+        }
+        return ResponseEntity.ok(out);
     }
 
     @PostMapping("/create")
@@ -157,18 +210,7 @@ public class AppointmentController {
                 // don't fail response on doctor lookup issues
             }
         }
-        if (a.getRoomSchedule() != null) {
-            resp.setRoomScheduleId(a.getRoomSchedule().getId());
-            try {
-                var roomId = a.getRoomSchedule().getRoomId();
-                if (roomId != null) {
-                    Room r = roomRepository.findById(roomId).orElse(null);
-                    if (r != null) resp.setRoomNumber(r.getRoomNumber());
-                }
-            } catch (Exception e) {
-                // don't fail response if room lookup has an issue; log if needed
-            }
-        }
+        // Room assignment/reservation is disabled; do not include room info in responses
         return resp;
     }
 }

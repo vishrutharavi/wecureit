@@ -18,34 +18,64 @@ type Props = {
   patientName?: string;
   doctorName?: string;
   patientAge?: string;
+  appointmentDbId?: string;
+  patientId?: string;
 };
-
-export default function ViewNoteModal({ open, onClose, patientName = "Patient", doctorName = "Dr. You", patientAge }: Props) {
-  // Only show notes authored by the current doctor and licensed
+export default function ViewNoteModal({ open, onClose, patientName = "Patient", doctorName = "Dr. You", patientAge, appointmentDbId, patientId }: Props) {
+  // live notes fetched from backend for the appointment; falling back to patient-wide if needed
   const [selectedSpecialty, setSelectedSpecialty] = React.useState<string>("");
+  const [notes, setNotes] = React.useState<Note[]>([]);
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
 
-  const sampleNotes: Note[] = [
-    { id: 'n1', author: 'Dr. Alice Park', authorLicensed: true, date: '2026-01-10', text: 'Follow-up after surgery: healing well.', },
-    { id: 'n2', author: 'Dr. Bob Lee', authorLicensed: true, date: '2025-12-20', text: 'Initial consult: consider EKG.', },
-    { id: 'n3', author: 'Dr. Alice Park', authorLicensed: true, date: '2025-11-05', text: 'Medication adjusted, monitor BP.', },
-  ];
+  React.useEffect(() => {
+    if (!open) return;
+    async function load() {
+      setLoading(true);
+      setError(null);
+      try {
+        let url = '/api/clinical-notes';
+        // prefer appointmentDbId (numeric) when available
+        if (appointmentDbId) {
+          url += `?appointmentDbId=${encodeURIComponent(appointmentDbId)}`;
+        } else if (patientId) {
+          url += `?patientId=${encodeURIComponent(patientId)}`;
+        }
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`Failed to load notes (${res.status})`);
+        const data = await res.json();
+        // Map backend ClinicalNote to Note for UI
+        const mapped: Note[] = (data || []).map((n: Record<string, unknown>) => ({
+          id: String(n['id']),
+          author: (n['createdBy'] as string) ?? (n['doctorId'] ? `Doctor ${String(n['doctorId'])}` : 'Unknown'),
+          authorLicensed: true,
+          date: n['createdAt'] ? new Date(String(n['createdAt'])).toLocaleDateString() : '',
+          text: (n['noteText'] as string) ?? (n['text'] as string) ?? '',
+        }));
+        setNotes(mapped);
+      } catch (err: unknown) {
+  const msg = (err && typeof err === 'object' && 'message' in (err as Record<string, unknown>)) ? String((err as Record<string, unknown>)['message']) : String(err);
+        setError(msg);
+        setNotes([]);
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
+  }, [open, appointmentDbId, patientId]);
 
   if (!open) return null;
 
-  // Filter: only notes by this doctor and licensed (authorLicensed assumed true for doctor notes)
-  const doctorNotes = sampleNotes.filter(n => n.author === doctorName && n.authorLicensed === true);
-  // Derive specialties from doctor's notes (if specialty metadata existed). For now, simulate specialties from note text tags.
-  // Example mapping: if note text contains 'surgery' => 'Surgery', 'EKG' => 'Cardiology', 'Medication' => 'General'
-  const specialties = Array.from(new Set(doctorNotes.map(n => {
+  // derive specialties from notes text (best-effort)
+  const specialties = Array.from(new Set(notes.map(n => {
     if (/surgery/i.test(n.text)) return 'Surgery';
     if (/ekg|cardio/i.test(n.text)) return 'Cardiology';
     if (/medica|medication|bp|blood pressure/i.test(n.text)) return 'General Medicine';
     return 'Other';
   })));
 
-  const notes = doctorNotes.filter(n => {
+  const visibleNotes = notes.filter(n => {
     if (!selectedSpecialty) return true;
-    // map note to same specialty classification used above
     let spec = 'Other';
     if (/surgery/i.test(n.text)) spec = 'Surgery';
     else if (/ekg|cardio/i.test(n.text)) spec = 'Cardiology';
@@ -87,8 +117,12 @@ export default function ViewNoteModal({ open, onClose, patientName = "Patient", 
           </div>
 
           <div className={styles.mt12}>
-            {notes.length ? (
-              notes.map(n => (
+            {loading ? (
+              <div className={styles.emptyCard}>Loading notes…</div>
+            ) : error ? (
+              <div className={styles.emptyCard}>Error loading notes: {error}</div>
+            ) : visibleNotes.length ? (
+              visibleNotes.map(n => (
                 <div key={n.id} className={`${styles.compactCard} ${styles.cardSpacing}`}>
                   <div className={`${styles.compactRow} ${styles.justifyBetween}`}>
                     <div>

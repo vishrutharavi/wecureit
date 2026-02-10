@@ -28,6 +28,9 @@ public class AppointmentHistory {
     @Column(name = "cancelled_by")
     private String cancelledBy;
 
+    @Column(name = "status")
+    private String status;
+
     public UUID getId() { return id; }
     public void setId(UUID id) { this.id = id; }
 
@@ -42,4 +45,7 @@ public class AppointmentHistory {
 
     public String getCancelledBy() { return cancelledBy; }
     public void setCancelledBy(String cancelledBy) { this.cancelledBy = cancelledBy; }
+
+    public String getStatus() { return status; }
+    public void setStatus(String status) { this.status = status; }
 }

@@ -199,20 +199,29 @@ export default function PersonalInfo({
 					<div className={styles.twoColGrid}>
 						<div>
 							<div className={"fieldLabel"}>Email Address</div>
-									{editMode ? (
+								{editMode ? (
 										<input
 											value={email}
 											onChange={(e) => setEmail(e.target.value)}
 											className={styles.inputField}
 										/>
-									) : (
+								) : (
 										<ReadField>{email}</ReadField>
 									)}
+								{editMode ? (
+									<div style={{ fontSize: 12, color: '#6b7280', marginTop: 6 }}>
+										Note: updating this email will save it as your secondary contact email and will not change your login email.
+									</div>
+								) : null}
 						</div>
 
 						<div>
 							<div className={"fieldLabel"}>Phone Number</div>
-							<ReadField>{phone}</ReadField>
+							{editMode ? (
+								<input value={phone} onChange={(e) => setPhone(e.target.value)} className={styles.inputField} />
+							) : (
+								<ReadField>{phone}</ReadField>
+							)}
 						</div>
 					</div>
 				</div>

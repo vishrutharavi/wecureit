@@ -37,17 +37,10 @@ public class DoctorAvailability {
     @Column(name = "speciality_code", length = 4)
     private String specialityCode;
 
-    @Column(name = "room_assigned_id", columnDefinition = "uuid")
-    private UUID roomAssignedId;
+    @Column(name = "is_active")
+    private Boolean isActive = Boolean.TRUE;
 
-    @Column(name = "room_assignment_status", length = 20)
-    private String roomAssignmentStatus = "PENDING"; // PENDING, ASSIGNED, NONE
 
-    @Column(name = "allow_walk_in")
-    private Boolean allowWalkIn = false;
-
-    @Column(name = "is_bookable")
-    private Boolean isBookable = true;
 
     @Column(name = "created_at")
     private LocalDateTime createdAt = LocalDateTime.now();
@@ -72,17 +65,11 @@ public class DoctorAvailability {
     public String getSpecialityCode() { return specialityCode; }
     public void setSpecialityCode(String specialityCode) { this.specialityCode = specialityCode; }
 
-    public UUID getRoomAssignedId() { return roomAssignedId; }
-    public void setRoomAssignedId(UUID roomAssignedId) { this.roomAssignedId = roomAssignedId; }
+    public Boolean getIsActive() { return isActive; }
+    public void setIsActive(Boolean isActive) { this.isActive = isActive; }
 
-    public String getRoomAssignmentStatus() { return roomAssignmentStatus; }
-    public void setRoomAssignmentStatus(String roomAssignmentStatus) { this.roomAssignmentStatus = roomAssignmentStatus; }
+    
 
-    public Boolean getAllowWalkIn() { return allowWalkIn; }
-    public void setAllowWalkIn(Boolean allowWalkIn) { this.allowWalkIn = allowWalkIn; }
-
-    public Boolean getIsBookable() { return isBookable; }
-    public void setIsBookable(Boolean isBookable) { this.isBookable = isBookable; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }

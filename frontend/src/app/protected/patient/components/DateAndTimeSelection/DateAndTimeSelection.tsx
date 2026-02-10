@@ -42,6 +42,7 @@ export default function DateAndTimeSelection() {
   const [date, setDate] = React.useState<string | null>(null);
   const [duration, setDuration] = React.useState<number | null>(null);
   const [selectedTime, setSelectedTime] = React.useState<string | null>(null);
+  const [selectedIndex, setSelectedIndex] = React.useState<number | null>(null);
   const [selectedDoctorAvailabilityId, setSelectedDoctorAvailabilityId] = React.useState<string | null>(null);
   const [chiefComplaints, setChiefComplaints] = React.useState<string>("");
   const [chiefError, setChiefError] = React.useState<string | null>(null);
@@ -89,6 +90,13 @@ export default function DateAndTimeSelection() {
     }
   }, []);
 
+  // clear any previously selected time when date changes to avoid stale selection
+  React.useEffect(() => {
+    setSelectedTime(null);
+    setSelectedIndex(null);
+    setSelectedDoctorAvailabilityId(null);
+  }, [date]);
+
   // payment methods removed from UI — selection handled elsewhere if needed
 
   // fetch doctor availabilities (next 30 days) and compute available dates for the selected facility
@@ -135,8 +143,44 @@ export default function DateAndTimeSelection() {
         });
 
         const dates = Array.from(new Set(filtered.map((r) => r.workDate))).sort();
-        setAvailableDates(dates);
-        setAvailabilities(filtered);
+
+        // If the patient selected a specific facility, ensure dates locked to a different facility
+        // are not shown. For each date, call the locked-availabilities endpoint which will return
+        // only the active availabilities for that date (and will deactivate other availabilities
+        // server-side if a lock exists). If the returned list does not contain any availability for
+        // the selected facility, we exclude that date from the UI.
+        if (selection.facility?.id && dates.length > 0) {
+          try {
+            const facId = selection.facility.id;
+            const checks = await Promise.all(dates.map(async (d) => {
+              try {
+                const resp = await apiFetch(`/api/doctors/${doctorId}/locked-availabilities?workDate=${d}`) as AvailabilityResp[];
+                if (Array.isArray(resp) && resp.length > 0) {
+                  // keep the date only if any returned availability belongs to the selected facility
+                  return resp.some((a: AvailabilityResp) => String(a.facilityId || '').trim() === String(facId).trim());
+                }
+                // if server returned no availabilities, don't include the date for this facility
+                return false;
+              } catch (e) {
+                // on error, be conservative and exclude the date so patients don't see bookings they can't make
+                console.warn('locked-availabilities check failed for date', d, e);
+                return false;
+              }
+            }));
+            const filteredDates = dates.filter((_, idx) => checks[idx]);
+            setAvailableDates(filteredDates);
+            // also filter availabilities to entries matching remaining dates and facility
+            setAvailabilities(filtered.filter((r) => filteredDates.includes(r.workDate)));
+          } catch (e) {
+            console.error('Failed to apply facility-lock filtering', e);
+            // fallback to showing computed dates for now
+            setAvailableDates(dates);
+            setAvailabilities(filtered);
+          }
+        } else {
+          setAvailableDates(dates);
+          setAvailabilities(filtered);
+        }
       } catch (err) {
         console.error('Failed to load availabilities', err);
         showInlineToast('Failed to load doctor availability');
@@ -183,6 +227,15 @@ export default function DateAndTimeSelection() {
   // quick lookup of availabilities for the selected date (used to show message before duration)
   const generateTimeSlots = React.useMemo(() => {
     if (!date) return { labels: [] as string[], ids: [] as string[], disabled: [] as boolean[] };
+    // today's date and current local minutes used to filter out past slots when showing today's availability
+    const today = (() => {
+      const d = new Date();
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    })();
+    const nowMinutesLocal = (() => {
+      const dn = new Date();
+      return dn.getHours() * 60 + dn.getMinutes();
+    })();
     // if server provided slot-level data, use it
       if (bookingSlots && bookingSlots.length > 0) {
       // build a sorted list by start minute
@@ -192,6 +245,14 @@ export default function DateAndTimeSelection() {
         const label = dt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   return { minute, label, status: s.status, availabilityId: s.availabilityId || null };
       }).sort((a, b) => a.minute - b.minute);
+      // if the selected date is today, filter out slots earlier than the current time
+      if (date === today) {
+        const filtered = entries.filter(e => e.minute >= nowMinutesLocal);
+        const labels = filtered.map(e => e.label);
+        const ids = filtered.map(e => e.availabilityId || '');
+        const disabled = filtered.map(e => e.status !== 'AVAILABLE');
+        return { labels, ids, disabled };
+      }
       const labels = entries.map(e => e.label);
       const ids = entries.map(e => e.availabilityId || '');
       const disabled = entries.map(e => e.status !== 'AVAILABLE');
@@ -228,14 +289,7 @@ export default function DateAndTimeSelection() {
         }
       }
     }
-    const today = (() => {
-      const d = new Date();
-      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    })();
-    const nowMinutesLocal = (() => {
-      const dn = new Date();
-      return dn.getHours() * 60 + dn.getMinutes();
-    })();
+    // (today/nowMinutesLocal are defined earlier for server branch)
     let sorted = Array.from(slotMap.keys()).sort((a, b) => a - b);
     if (date === today) sorted = sorted.filter(m => m >= nowMinutesLocal);
     const labels = sorted.map(m => slotMap.get(m)!.label);
@@ -304,6 +358,7 @@ export default function DateAndTimeSelection() {
                             setDuration(d);
                             // clear any previously selected time when duration changes
                             setSelectedTime(null);
+                            setSelectedIndex(null);
                           }}
                           className={d === duration ? `${styles.durationBtn} ${styles.durationBtnActive}` : styles.durationBtn}
                         >
@@ -317,30 +372,30 @@ export default function DateAndTimeSelection() {
                       <div style={{ marginTop: 18 }}>
                         <div className={styles.sectionSubtitle}>Available Time Slots</div>
                         <div className={styles.timeSlotsGrid}>
-                          {generateTimeSlots.labels.length === 0 ? (
+                            {generateTimeSlots.labels.length === 0 ? (
                             <div className={styles.emptyCard}>No available slots for this date</div>
                           ) : (
                             generateTimeSlots.labels.map((t, idx) => {
                               // compute whether this slot falls within the selected time block
                               let inBlock = false;
-                              if (selectedTime && duration) {
-                                const startIndex = generateTimeSlots.labels.indexOf(selectedTime);
+                              if (selectedIndex !== null && duration) {
                                 const blockCount = Math.ceil(duration / 15);
-                                if (startIndex >= 0 && idx >= startIndex && idx < startIndex + blockCount) inBlock = true;
+                                if (selectedIndex >= 0 && idx >= selectedIndex && idx < selectedIndex + blockCount) inBlock = true;
                               }
                               // determine if this slot is a valid start (enough slots remain for the duration)
                               const blockCount = duration ? Math.ceil(duration / 15) : 1;
                               const canStart = idx + blockCount <= generateTimeSlots.labels.length;
-                              const isActive = t === selectedTime || inBlock;
+                              const isActive = (selectedIndex !== null && idx === selectedIndex) || inBlock;
                               const availabilityId = generateTimeSlots.ids[idx] || null;
                               const slotDisabled = Array.isArray(generateTimeSlots.disabled) ? Boolean(generateTimeSlots.disabled[idx]) : false;
                               return (
                                 <button
-                                  key={t}
+                                  key={`${t}-${idx}-${availabilityId || ''}`}
                                   onClick={() => {
                                     if (!canStart) return;
                                     if (slotDisabled) return;
                                     setSelectedTime(t);
+                                    setSelectedIndex(idx);
                                     setSelectedDoctorAvailabilityId(availabilityId);
                                     // persist selection so the confirmation step has doctorAvailabilityId
                                     try {

@@ -15,36 +15,54 @@ type Appointment = {
   status: "completed" | "cancelled";
 };
 
-const sampleAppointments: Appointment[] = [
-  {
-    id: "a1",
-    doctor: "Dr. Sarah Johnson",
-    specialty: "Cardiology",
-    dateLabel: "Tue, Oct 14, 2025",
-    timeLabel: "9:00 AM - 9:30 AM",
-    location: "Downtown Medical Center",
-    remarks: "Regular checkup. Blood pressure normal. Prescribed medication for cholesterol management.",
-    status: "completed",
-  },
-  {
-    id: "a2",
-    doctor: "Dr. Michael Chen",
-    specialty: "Orthopedics",
-    dateLabel: "Sun, Sep 21, 2025",
-    timeLabel: "2:00 PM - 2:45 PM",
-    location: "Alexandria Main Hospital",
-    remarks: "Follow-up for knee pain. Recommended physical therapy sessions. Patient showing improvement.",
-    status: "completed",
-  },
-];
+// initial empty list; will be fetched from backend
+const sampleAppointments: Appointment[] = [];
 
 export default function AppointmentHistory() {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<"all" | "completed" | "cancelled">("all");
+  const [appointments, setAppointments] = useState<Appointment[]>(sampleAppointments);
+  const toStr = (v: unknown) => (v === null || v === undefined) ? "" : String(v);
+
+  React.useEffect(() => {
+    // load patientProfile from localStorage and fetch history
+    try {
+      const raw = typeof window !== "undefined" ? localStorage.getItem("patientProfile") : null;
+      if (!raw) return;
+      const profile = JSON.parse(raw);
+      const patientId = profile?.id;
+      if (!patientId) return;
+      // Use centralized apiFetch which uses configured API base and attaches auth tokens.
+      // apiFetch handles non-JSON responses and friendly error messages.
+      (async () => {
+        try {
+          const data = await (await import("@/lib/api")).apiFetch(`/appointments/history/byPatient?patientId=${patientId}`);
+          if (!data || !Array.isArray(data)) return;
+          const arr = data as Array<Record<string, unknown>>;
+          const mapped: Appointment[] = arr.map((h, idx) => ({
+            id: toStr(h["id"]) || String(idx),
+            doctor: toStr(h["doctor"]),
+            specialty: toStr(h["specialty"]),
+            dateLabel: toStr(h["dateLabel"]),
+            timeLabel: toStr(h["timeLabel"]),
+            location: toStr(h["location"]),
+            remarks: toStr(h["remarks"]),
+            // normalize status case-insensitively so DB values like "CANCELLED" are handled
+            status: (toStr(h["status"]).toLowerCase() === "completed" ? "completed" : toStr(h["status"]).toLowerCase() === "cancelled" ? "cancelled" : "completed"),
+          }));
+          setAppointments(mapped);
+        } catch (err) {
+          console.error("Failed to load appointment history", err);
+        }
+      })();
+    } catch {
+      // ignore
+    }
+  }, []);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const matched = sampleAppointments.filter((a) => {
+  const matched = appointments.filter((a) => {
       if (filter !== "all" && a.status !== filter) return false;
       if (!q) return true;
       return (
@@ -67,7 +85,7 @@ export default function AppointmentHistory() {
         return 0;
       }
     });
-  }, [query, filter]);
+  }, [query, filter, appointments]);
 
   return (
     <div>

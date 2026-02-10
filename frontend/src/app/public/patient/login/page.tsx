@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { login } from "@/lib/auth";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, showInlineToast } from "@/lib/api";
 import styles from "./login.module.scss";
 import { User, Eye, EyeOff } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -19,26 +19,58 @@ export default function PatientLogin() {
     try {
       // login() returns a Firebase User object; retrieve an ID token string
       const user = await login(email, password);
-      const idToken = await (user as FirebaseUser).getIdToken();
+        const idToken = await (user as FirebaseUser).getIdToken(true);
 
-      const me = await apiFetch("/api/patient/me", idToken);
-      console.log(me);
-
-      // persist a lightweight patient profile for client usage similar to doctor flow
+      // Best-effort: link Firebase identity to a patient record so server can set role claim.
       try {
-        if (me) {
-          // Prefer a human-friendly name from the API, but fall back to
-          // Firebase user displayName or email if the API returns only minimal data.
-          const firebaseUser = user as FirebaseUser;
-          const profile = {
-            ...me,
-            name: me?.name || firebaseUser?.displayName || firebaseUser?.email || undefined,
-          };
-          localStorage.setItem('patientProfile', JSON.stringify(profile));
-          // persist id token for subsequent API calls
-          try { localStorage.setItem('patientToken', idToken); } catch {}
+        await apiFetch('/api/auth/link', idToken, { method: 'POST', body: JSON.stringify({ portal: 'PATIENT' }) });
+        try {
+          const fresh = await (user as FirebaseUser).getIdToken(true);
+          try { localStorage.setItem('patientToken', fresh); } catch {}
+            try { localStorage.setItem('idToken', fresh); } catch {}
+        } catch (e) {
+          console.warn('Failed to refresh token after linking', e);
         }
-      } catch {}
+      } catch (linkErr) {
+        console.warn('Linking Firebase identity to patient failed', linkErr);
+      }
+
+        let me = await apiFetch("/api/patient/me");
+        console.log(me);
+
+        // If backend hasn't yet linked the firebase UID to a patient record, retry briefly
+        if (!me || !me.id) {
+          for (let i = 0; i < 2 && (!me || !me.id); i++) {
+            try {
+              const fresh = await (user as FirebaseUser).getIdToken(true);
+              try { localStorage.setItem('patientToken', fresh); } catch {}
+              try { localStorage.setItem('idToken', fresh); } catch {}
+            } catch {}
+            try { me = await apiFetch('/api/patient/me'); } catch (e) { console.warn('Retrying /api/patient/me failed', e); }
+          }
+        }
+
+        // persist a lightweight patient profile for client usage similar to doctor flow
+        try {
+          if (me && me.id) {
+            // Prefer a human-friendly name from the API, but fall back to
+            // Firebase user displayName or email if the API returns only minimal data.
+            const firebaseUser = user as FirebaseUser;
+            const profile = {
+              ...me,
+              name: me?.name || firebaseUser?.displayName || firebaseUser?.email || undefined,
+            };
+            localStorage.setItem('patientProfile', JSON.stringify(profile));
+            // persist id token for subsequent API calls
+            try { localStorage.setItem('patientToken', idToken); } catch {}
+            try { localStorage.setItem('idToken', idToken); } catch {}
+          } else {
+            try { showInlineToast('Account not linked to a patient record. Please contact support or try linking again.'); } catch {}
+            return;
+          }
+        } catch (e) {
+          console.warn('Failed to persist patient profile or tokens', e);
+        }
       try {
         sessionStorage.setItem(
           'patientJustLoggedIn',

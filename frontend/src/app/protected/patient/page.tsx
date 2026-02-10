@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import type { Doctor, Facility, Specialty } from '@/app/protected/patient/types';
-import { useSearchParams, useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import styles from "./patient.module.scss";
 import PatientHeader from "./components/PatientHeader";
 import Home from "./components/Home/Home";
@@ -16,9 +16,21 @@ import DateAndTimeSelection from "./components/DateAndTimeSelection/DateAndTimeS
 import Confirmation from "./components/AppointmentSummary/Confirmation";
 
 export default function Page() {
-  const searchParams = useSearchParams();
-  const tab = searchParams?.get("tab") || "home";
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const [tab, setTab] = useState<string>("home");
+
+  // Keep the tab state in sync with the URL's `tab` search param. Using
+  // `useSearchParams()` inside a client component makes this reactive to
+  // client-side navigation (router.push) without manual popstate handling.
+  useEffect(() => {
+    try {
+      const t = searchParams?.get('tab') || 'home';
+      // Defer setState to avoid a synchronous state update inside the effect
+      // which can cause cascading renders in some React setups.
+      setTimeout(() => setTab(t), 0);
+    } catch {}
+  }, [searchParams]);
   const [justLoggedInMsg, setJustLoggedInMsg] = useState<string | null>(null);
 
   useEffect(() => {

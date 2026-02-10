@@ -15,6 +15,7 @@ public class AppointmentResponse {
     private LocalDate date;
     private Long duration;
     private UUID patientId;
+    private String patientName;
     private UUID doctorAvailabilityId;
     private LocalDateTime startTime;
     private LocalDateTime endTime;
@@ -23,8 +24,12 @@ public class AppointmentResponse {
     private String facilityName;
     private String specialityName;
     private String doctorName;
-    private UUID roomScheduleId;
-    private String roomNumber;
     private Boolean isActive;
     private String chiefComplaints;
+    // actor who cancelled the appointment, e.g. 'patient' or 'doctor' (normalized lowercase)
+    private String cancelledBy;
+    private String status;
+
+    public String getStatus() { return status; }
+    public void setStatus(String status) { this.status = status; }
 }

@@ -31,7 +31,22 @@ export default function DropdownSelection({ onChange }: Props) {
   useEffect(() => {
     (async () => {
       try {
-        const resp = await apiFetch('/api/patients/booking/dropdown-data') as BookingResponse;
+        // include workDate from any existing bookingSelection in sessionStorage so server can apply facility locks
+        let url = '/api/patients/booking/dropdown-data';
+        try {
+          const raw = sessionStorage.getItem('bookingSelection');
+          if (raw) {
+            const parsed = JSON.parse(raw || '{}');
+            if (parsed && parsed.date) {
+              const params = new URLSearchParams();
+              params.set('workDate', parsed.date);
+              url = url + `?${params.toString()}`;
+            }
+          }
+        } catch {
+          // ignore session read errors
+        }
+        const resp = await apiFetch(url) as BookingResponse;
         if (resp) {
           // map specialties
           const specs = Array.isArray(resp.specialties) ? resp.specialties.map((s) => ({ id: s.code, name: s.name })) : [];
@@ -60,6 +75,16 @@ export default function DropdownSelection({ onChange }: Props) {
         if (selectedFacility) params.set('facilityId', selectedFacility);
         if (selectedSpecialty) params.set('specialityCode', selectedSpecialty);
         if (selectedDoctor) params.set('doctorId', selectedDoctor);
+        // include workDate from any existing bookingSelection in sessionStorage so server can apply facility locks
+        try {
+          const raw = sessionStorage.getItem('bookingSelection');
+          if (raw) {
+            const parsed = JSON.parse(raw || '{}');
+            if (parsed && parsed.date) params.set('workDate', parsed.date);
+          }
+        } catch {
+          // ignore
+        }
         const url = '/api/patients/booking/dropdown-data' + (params.toString() ? `?${params.toString()}` : '');
         const resp = await apiFetch(url) as BookingResponse;
         if (!mounted) return;

@@ -5,15 +5,12 @@ import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.wecureit.dto.request.AllowWalkInRequest;
-import com.wecureit.dto.request.AssignRoomRequest;
 import com.wecureit.dto.request.AvailabilityRequest;
 import com.wecureit.dto.response.AvailabilityResponse;
 import com.wecureit.service.DoctorAvailabilityService;
@@ -46,26 +43,7 @@ public class DoctorAvailabilityController {
         return ResponseEntity.ok(out);
     }
 
-    @PostMapping("/{doctorId}/availability/{availabilityId}/assign-room")
-    public ResponseEntity<?> assignRoom(
-        @PathVariable("doctorId") UUID doctorId,
-        @PathVariable("availabilityId") UUID availabilityId,
-        @RequestBody AssignRoomRequest req
-    ) {
-        boolean ok = availabilityService.assignRoom(doctorId, availabilityId, UUID.fromString(req.getRoomId()));
-        if (!ok) return ResponseEntity.status(409).body("Room conflict or unavailable");
-        return ResponseEntity.ok().build();
-    }
-
-    @PatchMapping("/{doctorId}/availability/{availabilityId}")
-    public ResponseEntity<?> setAllowWalkIn(
-        @PathVariable("doctorId") UUID doctorId,
-        @PathVariable("availabilityId") UUID availabilityId,
-        @RequestBody AllowWalkInRequest req
-    ) {
-        availabilityService.setAllowWalkIn(doctorId, availabilityId, req.isAllowWalkIn());
-        return ResponseEntity.ok().build();
-    }
+    // Room assignment and walk-in toggling endpoints removed — rooms are not allocated from the API at this time.
 
     @org.springframework.web.bind.annotation.DeleteMapping("/{doctorId}/availability/{availabilityId}/delete-availability")
     public ResponseEntity<?> deleteAvailability(

@@ -11,7 +11,6 @@ type Booking = {
   date?: string | null;
   time?: string | null;
   duration?: number | null;
-  roomNumber?: string | null;
 };
 
 export default function AppointmentConfirmationModal({
@@ -66,8 +65,7 @@ export default function AppointmentConfirmationModal({
             <div className={styles['confirmation-row-label']}>Location:</div>
             <div className={styles['confirmation-row-value']}>{booking?.facility?.name || '—'}</div>
 
-            <div className={styles['confirmation-row-label']}>Room:</div>
-            <div className={styles['confirmation-row-value']}>{booking?.roomNumber || '—'}</div>
+            {/* Room details removed — rooms are not assigned/confirmed in this flow */}
           </div>
 
           <div className={styles['modal-footer']}>

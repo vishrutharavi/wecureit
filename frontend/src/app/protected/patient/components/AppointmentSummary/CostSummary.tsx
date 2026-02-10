@@ -156,7 +156,7 @@ export default function CostSummary() {
                 return { hh, mm };
               };
 
-              const t = parseTimeLabel(timeLabel);
+              const t = parseTimeLabel(timeLabel ?? undefined);
               if (!t) throw new Error('Invalid time selected');
 
               // construct local datetime strings without timezone (backend expects local datetime)
@@ -190,9 +190,8 @@ export default function CostSummary() {
               const apptId = res && res.id ? String(res.id) : null;
               const conf = apptId ? `WC${apptId}` : `WC${String(Date.now()).slice(-9)}`;
               setConfirmation(conf);
-              // pass roomNumber into modal by merging booking + res.roomNumber
-              const roomNumber = res?.roomNumber ?? null;
-              const modalBooking: Booking = { ...(booking ?? {}), roomNumber };
+              // show modal with booking details returned from storage (no room details)
+              const modalBooking: Booking = { ...(booking ?? {}) };
               // update booking shown in modal (do not overwrite session storage)
               setBooking(modalBooking);
               setShowModal(true);

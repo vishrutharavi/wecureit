@@ -1,6 +1,5 @@
 package com.wecureit.service;
 
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -15,6 +14,7 @@ import com.wecureit.entity.Doctor;
 import com.wecureit.entity.DoctorLicense;
 import com.wecureit.entity.Facility;
 import com.wecureit.entity.Speciality;
+import com.wecureit.repository.DoctorFacilityLockRepository;
 import com.wecureit.repository.DoctorLicenseRepository;
 import com.wecureit.repository.DoctorRepository;
 import com.wecureit.repository.FacilityRepository;
@@ -31,6 +31,7 @@ public class PatientBookingService {
     private final DoctorLicenseRepository doctorLicenseRepository;
     private final com.wecureit.repository.AppointmentRepository appointmentRepository;
     private final com.wecureit.service.DoctorAvailabilityService doctorAvailabilityService;
+    private final DoctorFacilityLockRepository doctorFacilityLockRepository;
 
     public PatientBookingService(DoctorRepository doctorRepository,
                                  FacilityRepository facilityRepository,
@@ -38,7 +39,8 @@ public class PatientBookingService {
                                  RoomRepository roomRepository,
                                  DoctorLicenseRepository doctorLicenseRepository,
                                  com.wecureit.repository.AppointmentRepository appointmentRepository,
-                                 com.wecureit.service.DoctorAvailabilityService doctorAvailabilityService) {
+                                 com.wecureit.service.DoctorAvailabilityService doctorAvailabilityService,
+                                 DoctorFacilityLockRepository doctorFacilityLockRepository) {
         this.doctorRepository = doctorRepository;
         this.facilityRepository = facilityRepository;
         this.specialityRepository = specialityRepository;
@@ -46,6 +48,7 @@ public class PatientBookingService {
         this.doctorLicenseRepository = doctorLicenseRepository;
         this.appointmentRepository = appointmentRepository;
         this.doctorAvailabilityService = doctorAvailabilityService;
+        this.doctorFacilityLockRepository = doctorFacilityLockRepository;
     }
 
     /**
@@ -93,21 +96,9 @@ public class PatientBookingService {
                     }
                     if (overlapped) status = "BOOKED";
                     else {
-                        // check break enforced intervals from appointments' breakStartTime / breakEndTime / duration
-                        boolean breakFound = false;
-                        for (var a : appts) {
-                            if (a.getBreakStartTime() != null) {
-                                LocalDateTime bs = a.getBreakStartTime();
-                                LocalDateTime be = null;
-                                if (a.getBreakEndTime() != null) be = a.getBreakEndTime();
-                                else if (a.getBreakDurationMinutes() != null) be = bs.plusMinutes(a.getBreakDurationMinutes());
-                                if (be != null && bs.isBefore(edt) && be.isAfter(sdt)) { status = "BREAK_ENFORCED"; breakFound = true; break; }
-                            }
-                        }
-
-                        // If no enforced break overlaps this 15-min slot, optionally simulate booking with the desired duration
-                        // and mark the slot UNAVAILABLE if adding such a booking would make the doctor work > 60 continuous minutes
-                        if (!breakFound && desiredDurationMinutes != null && desiredDurationMinutes > 0) {
+                        // Previously we read persisted break_* columns to enforce break slots. Those columns
+                        // have been removed from the schema; fall back to simulation-only logic below.
+                        if (desiredDurationMinutes != null && desiredDurationMinutes > 0) {
                             // build a simulated list of appointments including a hypothetical appointment starting at sdt
                             java.util.List<com.wecureit.entity.Appointment> sim = new java.util.ArrayList<>();
                             // only include active appointments that have start/end
@@ -155,7 +146,7 @@ public class PatientBookingService {
                                     }
                                 }
                                 // only treat as a violation when the contiguous group that includes the hypothetical booking
-                                // would strictly exceed the limit (the policy is: breaks are required only when continuous
+                                // would strictly exceed the limit (the policy: breaks are required only when continuous
                                 // work would be more than 60 minutes; exactly 60 is allowed without an extra break).
                                 if (groupHasHypo && cum > MAX_CONTINUOUS_MINUTES) { violation = true; break; }
                                 prev = sa.getEndTime();
@@ -183,7 +174,7 @@ public class PatientBookingService {
         return out;
     }
 
-    public BookingDropdownResponse getDropdownData(UUID facilityId, String specialityCode, UUID doctorId) {
+    public BookingDropdownResponse getDropdownData(UUID facilityId, String specialityCode, UUID doctorId, java.time.LocalDate workDate) {
         BookingDropdownResponse out = new BookingDropdownResponse();
 
         // specialities
@@ -219,6 +210,44 @@ public class PatientBookingService {
             fd.setSpecialties(fs);
             facDtos.add(fd);
         }
+        // If doctor+workDate provided and a facility lock exists, restrict facilities to the locked facility
+        if (doctorId != null && workDate != null) {
+            var lockOpt = doctorFacilityLockRepository.findByDoctorIdAndWorkDate(doctorId, workDate);
+            if (lockOpt.isPresent()) {
+                var lock = lockOpt.get();
+                var maybeFac = facDtos.stream().filter(fd -> fd.getId().equals(lock.getFacilityId())).findFirst();
+                if (maybeFac.isPresent()) {
+                    facDtos = new ArrayList<>();
+                    facDtos.add(maybeFac.get());
+                } else {
+                    // locked facility is not in current list (maybe inactive or filtered out by speciality) -> fetch it explicitly
+                    var facEntityOpt = facilityRepository.findById(lock.getFacilityId());
+                    if (facEntityOpt.isPresent()) {
+                        var f = facEntityOpt.get();
+                        com.wecureit.dto.response.FacilityResponse fd = new com.wecureit.dto.response.FacilityResponse(f.getId(), f.getName(), f.getCity(), f.getState() == null ? null : f.getState().getStateCode(), f.getIsActive(), f.getAddress(), f.getZipCode());
+                        // attach specialties
+                        List<com.wecureit.entity.Room> rooms = roomRepository.findByFacilityIdAndActiveTrue(f.getId());
+                        List<SpecialityResponse> fs = rooms.stream()
+                            .map(r -> {
+                                String code = r.getSpecialityCode();
+                                String name = code;
+                                if (code != null) {
+                                    var maybe = specialityRepository.findById(code);
+                                    if (maybe.isPresent()) name = maybe.get().getSpecialityName();
+                                }
+                                return new SpecialityResponse(code, name);
+                            })
+                            .filter(s -> s.getCode() != null)
+                            .collect(Collectors.groupingBy(s -> s.getCode()))
+                            .values().stream().map(l -> l.get(0)).collect(Collectors.toList());
+                        fd.setSpecialties(fs);
+                        facDtos = new ArrayList<>();
+                        facDtos.add(fd);
+                    }
+                }
+            }
+        }
+
         out.setFacilities(facDtos);
 
         // doctors (apply filters and optionally doctorId)

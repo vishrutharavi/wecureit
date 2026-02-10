@@ -46,14 +46,6 @@ public class Appointment {
     @Column(name = "end_time", columnDefinition = "timestamp without time zone")
     private LocalDateTime endTime;
 
-    @Column(name = "break_start_time", columnDefinition = "timestamp without time zone")
-    private LocalDateTime breakStartTime;
-
-    @Column(name = "break_duration_minutes")
-    private Integer breakDurationMinutes;
-
-    @Column(name = "break_end_time", columnDefinition = "timestamp without time zone")
-    private LocalDateTime breakEndTime;
 
 
     @ManyToOne
@@ -64,9 +56,6 @@ public class Appointment {
     @JoinColumn(name = "speciality_id", referencedColumnName = "speciality_code")
     private Speciality speciality;
 
-    @ManyToOne
-    @JoinColumn(name = "room_schedule_id", referencedColumnName = "id")
-    private RoomSchedule roomSchedule;
 
     @Column(name = "is_active")
     private Boolean isActive = Boolean.TRUE;

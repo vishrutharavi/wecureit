@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { ArrowLeft, MapPin, Calendar } from "lucide-react";
 import styles from "./doctor.module.scss";
 import DoctorHeader from "./components/DoctorHeader";
@@ -12,10 +12,18 @@ import NotesView from "./components/Notes/NotesViewGrid";
 
 
 export default function DoctorPage() {
-  const searchParams = useSearchParams();
-  const initialTab = (searchParams?.get("tab") as "schedule" | "availability" | "notes") || "schedule";
   const router = useRouter();
-  const [tab, setTab] = useState<"schedule" | "availability" | "notes">(initialTab);
+  // default to schedule; read URL param on client mount to avoid useSearchParams prerender issues
+  const [tab, setTab] = useState<"schedule" | "availability" | "notes">("schedule");
+  useEffect(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        const sp = new URLSearchParams(window.location.search);
+        const t = sp.get('tab') as "schedule" | "availability" | "notes" | null;
+  if (t) setTimeout(() => setTab(t), 0);
+      }
+    } catch {}
+  }, []);
   const handleTabChange = (t: "schedule" | "availability" | "notes") => {
     setTab(t);
     // update URL so it reflects current tab
@@ -76,8 +84,14 @@ export default function DoctorPage() {
 // component so it can be imported/used from other places if needed.
 export function ReferPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const patient = searchParams?.get("patient") || "Patient";
+  // read patient from URL on client
+  let patient = "Patient";
+  try {
+    if (typeof window !== 'undefined') {
+      const sp = new URLSearchParams(window.location.search);
+      patient = sp.get('patient') || 'Patient';
+    }
+  } catch {}
 
   return (
     <div style={{ padding: "1rem 0" }}>

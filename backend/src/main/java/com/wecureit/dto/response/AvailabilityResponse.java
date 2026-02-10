@@ -12,10 +12,8 @@ public class AvailabilityResponse {
     private String facilityAddress;
     private String facilityState;
     private String specialityCode;
-    private String roomAssignmentStatus;
-    private String roomAssignedId;
     private boolean bookable;
-    private Boolean allowWalkIn;
+    
     // availability counts provided so frontend can show accurate room numbers
     private Integer roomsTotal;
     private Integer occupiedRooms;
@@ -51,17 +49,8 @@ public class AvailabilityResponse {
     public String getSpecialityCode() { return specialityCode; }
     public void setSpecialityCode(String specialityCode) { this.specialityCode = specialityCode; }
 
-    public String getRoomAssignmentStatus() { return roomAssignmentStatus; }
-    public void setRoomAssignmentStatus(String roomAssignmentStatus) { this.roomAssignmentStatus = roomAssignmentStatus; }
-
-    public String getRoomAssignedId() { return roomAssignedId; }
-    public void setRoomAssignedId(String roomAssignedId) { this.roomAssignedId = roomAssignedId; }
-
     public boolean isBookable() { return bookable; }
     public void setBookable(boolean bookable) { this.bookable = bookable; }
-
-    public Boolean getAllowWalkIn() { return allowWalkIn; }
-    public void setAllowWalkIn(Boolean allowWalkIn) { this.allowWalkIn = allowWalkIn; }
 
     public Integer getRoomsTotal() { return roomsTotal; }
     public void setRoomsTotal(Integer roomsTotal) { this.roomsTotal = roomsTotal; }

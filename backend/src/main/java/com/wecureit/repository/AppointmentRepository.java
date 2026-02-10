@@ -18,7 +18,11 @@ public interface AppointmentRepository extends JpaRepository<Appointment, Long> 
     boolean existsByPatientIdAndStartTimeAndIsActiveTrue(UUID patientId, LocalDateTime startTime);
 
     Optional<Appointment> findByPatientIdAndStartTime(UUID patientId, LocalDateTime startTime);
+    Optional<Appointment> findByUuid(UUID uuid);
    
     @Query("SELECT a FROM Appointment a WHERE a.doctorAvailability.doctorId = :doctorId AND ((a.startTime < :endAt) AND (a.endTime > :startAt))")
     List<Appointment> findAppointmentsForDoctor(@Param("doctorId") UUID doctorId, @Param("startAt") LocalDateTime startAt, @Param("endAt") LocalDateTime endAt);
+
+    @Query("SELECT a FROM Appointment a WHERE a.facility.id = :facilityId AND ((a.startTime < :endAt) AND (a.endTime > :startAt))")
+    List<Appointment> findAppointmentsForFacility(@Param("facilityId") UUID facilityId, @Param("startAt") LocalDateTime startAt, @Param("endAt") LocalDateTime endAt);
 }

@@ -26,17 +26,17 @@ public class DoctorFacilityService {
     private final FacilityRepository facilityRepository;
     private final RoomRepository roomRepository;
     private final DoctorLicenseRepository licenseRepository;
-    private final com.wecureit.repository.RoomScheduleRepository roomScheduleRepository;
     private final com.wecureit.repository.SpecialityRepository specialityRepository;
+    private final com.wecureit.repository.AppointmentRepository appointmentRepository;
 
     public DoctorFacilityService(FacilityRepository facilityRepository, RoomRepository roomRepository,
-            DoctorLicenseRepository licenseRepository, com.wecureit.repository.RoomScheduleRepository roomScheduleRepository,
-            com.wecureit.repository.SpecialityRepository specialityRepository) {
+            DoctorLicenseRepository licenseRepository, com.wecureit.repository.SpecialityRepository specialityRepository,
+            com.wecureit.repository.AppointmentRepository appointmentRepository) {
         this.facilityRepository = facilityRepository;
         this.roomRepository = roomRepository;
         this.licenseRepository = licenseRepository;
-        this.roomScheduleRepository = roomScheduleRepository;
         this.specialityRepository = specialityRepository;
+        this.appointmentRepository = appointmentRepository;
     }
 
     public List<FacilityResponse> getFacilitiesForDoctor(UUID doctorId) {
@@ -108,15 +108,20 @@ public class DoctorFacilityService {
         java.time.LocalDateTime endAt = java.time.LocalDateTime.of(workDate, endTime);
 
         if (rooms != null) {
-            for (com.wecureit.entity.Room r : rooms) {
-                java.util.List<com.wecureit.entity.RoomSchedule> overlaps = roomScheduleRepository.findOverlapping(r.getId(), startAt, endAt);
-                boolean hasAppointment = false;
-                if (overlaps != null) {
-                    for (com.wecureit.entity.RoomSchedule rs : overlaps) {
-                        if (rs.getAppointmentId() != null) { hasAppointment = true; break; }
+            // compute occupied rooms by counting overlapping appointments in this facility
+            try {
+                java.util.List<com.wecureit.entity.Appointment> overlapping = appointmentRepository.findAppointmentsForFacility(facilityId, startAt, endAt);
+                int occ = 0;
+                if (overlapping != null) {
+                    for (com.wecureit.entity.Appointment a : overlapping) {
+                        if (a.getIsActive() == null || a.getIsActive()) occ++;
                     }
                 }
-                if (hasAppointment) occupied++;
+                // cap occupied by total rooms
+                occupied = Math.min(total, occ);
+            } catch (Exception ex) {
+                // fallback: assume zero occupied on error
+                occupied = 0;
             }
         }
 

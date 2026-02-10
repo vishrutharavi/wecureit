@@ -17,7 +17,6 @@ public class AppointmentRequest {
     private LocalDateTime endTime;
     private UUID facilityId;
     private String specialityId;
-    private UUID roomScheduleId;
     private Boolean isActive;
     private String chiefComplaints;
 }
