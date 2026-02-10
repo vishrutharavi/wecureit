@@ -1,7 +1,11 @@
 package com.wecureit.controller;
 
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.Period;
+import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.http.ResponseEntity;
@@ -13,16 +17,11 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.wecureit.entity.ClinicalNote;
-import com.wecureit.repository.ClinicalNoteRepository;
-import com.wecureit.repository.AppointmentRepository;
-import com.wecureit.repository.AppointmentHistoryRepository;
-import com.wecureit.repository.PatientRepository;
 import com.wecureit.entity.Patient;
-import java.time.LocalDate;
-import java.time.Period;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Optional;
+import com.wecureit.repository.AppointmentHistoryRepository;
+import com.wecureit.repository.AppointmentRepository;
+import com.wecureit.repository.ClinicalNoteRepository;
+import com.wecureit.repository.PatientRepository;
 
 @RestController
 @RequestMapping("/api/clinical-notes")
