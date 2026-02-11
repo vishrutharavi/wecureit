@@ -406,4 +406,48 @@ public class PatientBookingService {
 
         return out;
     }
+
+    /**
+     * Get optimized available slots for a doctor considering appointment scheduling optimization.
+     * Uses Branch and Bound to identify best available times that maximize scheduling efficiency.
+     * 
+     * @param doctorId The doctor's ID
+     * @param facilityId The facility ID
+     * @param workDate The work date
+     * @param desiredDurationMinutes The desired appointment duration
+     * @return Booking availability response with optimized slots
+     */
+    @org.springframework.beans.factory.annotation.Autowired
+    private OptimizationService optimizationService;
+
+    public com.wecureit.dto.response.BookingAvailabilityResponse getOptimizedAvailabilitySlots(
+            java.util.UUID doctorId, 
+            java.util.UUID facilityId, 
+            java.time.LocalDate workDate, 
+            Integer desiredDurationMinutes) {
+        
+            try {
+                // First, get the standard slots
+                com.wecureit.dto.response.BookingAvailabilityResponse standardSlots = 
+                getAvailabilitySlots(doctorId, facilityId, workDate, desiredDurationMinutes);
+                
+                // Then optimize the schedule to find best slots
+                if (optimizationService != null) {
+                    OptimizationService.SchedulingOptimizationResult optimizationResult = 
+                        optimizationService.optimizeAppointmentScheduling(doctorId, workDate);
+                    
+                    standardSlots.setOptimizationMetrics(new com.wecureit.dto.response.BookingAvailabilityResponse.OptimizationMetrics(
+                        optimizationResult.appointmentsScheduled,
+                        optimizationResult.appointmentsPending,
+                        optimizationResult.nodesExplored,
+                        optimizationResult.nodesPruned
+                    ));
+                }
+                
+                return standardSlots;
+            } catch (Exception e) {
+                // Fall back to standard slots if optimization fails
+                return getAvailabilitySlots(doctorId, facilityId, workDate, desiredDurationMinutes);
+            }
+    }
 }

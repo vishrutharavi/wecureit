@@ -218,4 +218,22 @@ public class DoctorAvailabilityService {
         availabilityRepo.delete(da);
     }
 
+    /**
+     * Optimize appointment scheduling for a doctor on a specific date using Branch and Bound.
+     * This method delegates to OptimizationService.
+     * 
+     * @param doctorId The doctor's ID
+     * @param workDate The date to optimize
+     * @return Scheduling optimization result
+     */
+    @Autowired
+    private OptimizationService optimizationService;
+
+    public OptimizationService.SchedulingOptimizationResult optimizeScheduling(UUID doctorId, LocalDate workDate) {
+        if (optimizationService == null) {
+            throw new IllegalStateException("OptimizationService not available");
+        }
+        return optimizationService.optimizeAppointmentScheduling(doctorId, workDate);
+    }
+
 }

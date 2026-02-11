@@ -735,4 +735,44 @@ public class AppointmentService {
             return new java.util.ArrayList<>();
         }
     }
+
+    /**
+     * Optimize doctor workload by distributing appointments across available doctors.
+     * Uses Branch and Bound algorithm to minimize workload imbalance.
+     * 
+     * @param appointmentIds List of appointment IDs (as Long) to distribute
+     * @param doctorIds List of available doctor IDs
+     * @return Workload optimization result
+     */
+    @org.springframework.beans.factory.annotation.Autowired
+    private OptimizationService optimizationService;
+
+    public OptimizationService.WorkloadOptimizationResult optimizeWorkloadDistribution(java.util.List<Long> appointmentIds, java.util.List<java.util.UUID> doctorIds) {
+        if (optimizationService == null) {
+            throw new IllegalStateException("OptimizationService not available");
+        }
+        
+        java.util.List<Appointment> appointments = new java.util.ArrayList<>();
+        for (Long apptId : appointmentIds) {
+            repo.findById(apptId).ifPresent(appointments::add);
+        }
+        
+        return optimizationService.optimizeDoctorWorkload(appointments, doctorIds);
+    }
+
+    /**
+     * Optimize room allocation for a set of appointments.
+     * Uses Branch and Bound algorithm to maximize room utilization.
+     * 
+     * @param appointmentIds List of appointment IDs (as UUID, will need to be converted) to allocate rooms for
+     * @param facilityId Optional facility ID to filter rooms
+     * @return Room allocation optimization result
+     */
+    public OptimizationService.RoomAllocationOptimizationResult optimizeRoomAllocation(java.util.List<java.util.UUID> appointmentIds, java.util.UUID facilityId) {
+        if (optimizationService == null) {
+            throw new IllegalStateException("OptimizationService not available");
+        }
+        
+        return optimizationService.optimizeRoomAllocation(appointmentIds, facilityId);
+    }
 }
