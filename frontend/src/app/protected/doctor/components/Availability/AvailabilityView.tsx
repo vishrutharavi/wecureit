@@ -176,11 +176,11 @@ export default function AvailabilityView() {
     // call backend to persist pending items
     (async () => {
       try {
-  const raw = localStorage.getItem('doctorProfile');
+        const raw = localStorage.getItem('doctorProfile');
         if (!raw) throw new Error('Not authenticated as doctor');
         const doc = JSON.parse(raw);
         const doctorId = doc.id;
-  const token = localStorage.getItem('doctorToken') ?? undefined;
+        const token = localStorage.getItem('doctorToken') ?? undefined;
 
         const payload = pending.map(p => ({
           workDate: p.date,
@@ -190,39 +190,40 @@ export default function AvailabilityView() {
           facilityId: p.facilityId
         }));
 
-  const resp: AvailabilityResp[] = await apiFetch(`/api/doctors/${doctorId}/availability`, token, { method: 'POST', body: JSON.stringify(payload) });
-        // resp is array of saved availability responses
-        if (Array.isArray(resp)) {
-          // map server response back to saved items, preserving facilityName and hours from pending
-          const savedFromResp: SavedItem[] = resp.map((r: AvailabilityResp) => {
-            const matching = pending.find(p => p.date === r.workDate && p.start === r.startTime && p.end === r.endTime);
-            const roomsCount = (typeof r.availableRooms === 'number') ? r.availableRooms : (matching?.roomsCount ?? 0);
+        // Post the new availabilities
+        const resp: AvailabilityResp[] = await apiFetch(`/api/doctors/${doctorId}/availability`, token, { method: 'POST', body: JSON.stringify(payload) });
+        
+        // After successful save, refetch all availabilities to get accurate merged data
+        const allAvails: AvailabilityResp[] = await apiFetch(`/api/doctors/${doctorId}/availability`, token);
+        
+        if (Array.isArray(allAvails)) {
+          const savedItems: SavedItem[] = allAvails.map((r: AvailabilityResp) => {
+            const facility = r.facilityId ? facilities.find(f => f.id === r.facilityId) : undefined;
+            const startMin = parseMinutes(r.startTime);
+            const endMin = parseMinutes(r.endTime);
+            const hours = +(Math.max(0, (endMin - startMin) / 60).toFixed(2));
+            
             return {
               id: r.id,
               date: r.workDate,
-              facilityId: matching?.facilityId ?? null,
-              facilityName: r.facilityName ?? matching?.facilityName ?? 'Unknown',
+              facilityId: r.facilityId ?? null,
+              facilityName: r.facilityName ?? facility?.name ?? 'Unknown',
               start: r.startTime,
               end: r.endTime,
-              hours: matching?.hours ?? 0,
-              specialities: matching?.specialities ?? [],
-              roomsCount,
-              facilityAddress: r.facilityAddress ?? ((matching && (facilities.find(f => f.id === matching.facilityId)?.address)) ?? undefined),
-              facilityState: r.facilityState ?? ((matching && (facilities.find(f => f.id === matching.facilityId)?.state)) ?? undefined),
-              // attach server flags if present
+              hours: hours,
+              specialities: [],
+              roomsCount: typeof r.availableRooms === 'number' ? r.availableRooms : undefined,
+              facilityAddress: r.facilityAddress ?? facility?.address,
+              facilityState: r.facilityState ?? facility?.state,
               allowWalkIn: r.allowWalkIn ?? false,
               isBookable: r.bookable ?? (r.isBookable ?? true),
               assigned: Boolean(r.roomAssignedId) || (r.roomAssignmentStatus === 'ASSIGNED'),
             };
           });
-
-          // update saved list locally and show modal; do not render saved items inline
-          setSaved((s) => [...s, ...savedFromResp]);
+          
+          setSaved(savedItems);
           setPending([]);
           setShowSavedModal(true);
-
-          // if some saved slots are non-bookable we just leave them as Not bookable
-          // (previous behaviour offered to mark them as walk-in; walk-in support removed)
         }
       } catch (err) {
         console.error('Failed to save schedule', err);
