@@ -17,6 +17,8 @@ public interface DoctorAvailabilityRepository extends JpaRepository<DoctorAvaila
 
     List<DoctorAvailability> findByDoctorIdAndWorkDateBetween(UUID doctorId, LocalDate from, LocalDate to);
 
+    List<DoctorAvailability> findByDoctorIdAndFacilityIdAndWorkDate(UUID doctorId, UUID facilityId, LocalDate workDate);
+
     boolean existsByDoctorIdAndFacilityIdAndWorkDateAndStartTimeAndEndTime(UUID doctorId, UUID facilityId,
             LocalDate workDate, LocalTime startTime, LocalTime endTime);
 
