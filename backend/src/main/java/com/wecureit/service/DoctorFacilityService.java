@@ -1,17 +1,13 @@
 package com.wecureit.service;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
+
+import java.util.*;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import java.time.*;
+
 
 import com.wecureit.dto.response.FacilityResponse;
 import com.wecureit.dto.response.RoomResponse;
@@ -129,18 +125,18 @@ public class DoctorFacilityService {
      * appointment do not reduce the available room count (they are considered
      * eligible for walk-in behavior).
      */
-    public com.wecureit.dto.response.FacilityAvailabilityResponse getFacilityAvailability(java.util.UUID facilityId, java.time.LocalDate workDate, java.time.LocalTime startTime, java.time.LocalTime endTime) {
-        java.util.List<com.wecureit.entity.Room> rooms = roomRepository.findByFacilityIdAndActiveTrue(facilityId);
+    public com.wecureit.dto.response.FacilityAvailabilityResponse getFacilityAvailability(UUID facilityId, LocalDate workDate, LocalTime startTime, LocalTime endTime) {
+        List<com.wecureit.entity.Room> rooms = roomRepository.findByFacilityIdAndActiveTrue(facilityId);
         int total = rooms == null ? 0 : rooms.size();
         int occupied = 0;
 
-        java.time.LocalDateTime startAt = java.time.LocalDateTime.of(workDate, startTime);
-        java.time.LocalDateTime endAt = java.time.LocalDateTime.of(workDate, endTime);
+        LocalDateTime startAt = LocalDateTime.of(workDate, startTime);
+        LocalDateTime endAt = LocalDateTime.of(workDate, endTime);
 
         if (rooms != null) {
             // compute occupied rooms by counting overlapping appointments in this facility
             try {
-                java.util.List<com.wecureit.entity.Appointment> overlapping = appointmentRepository.findAppointmentsForFacility(facilityId, startAt, endAt);
+                List<com.wecureit.entity.Appointment> overlapping = appointmentRepository.findAppointmentsForFacility(facilityId, startAt, endAt);
                 int occ = 0;
                 if (overlapping != null) {
                     for (com.wecureit.entity.Appointment a : overlapping) {

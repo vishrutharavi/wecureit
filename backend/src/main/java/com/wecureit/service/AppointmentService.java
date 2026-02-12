@@ -176,7 +176,7 @@ public class AppointmentService {
                 if (appt.getDoctorAvailability() != null && appt.getStartTime() != null) {
                     LocalDate day = appt.getStartTime().toLocalDate();
                     try {
-                        recomputeBreaksAndAssociateIfNeeded(appt.getDoctorAvailability().getDoctorId(), day, true);
+                        recomputeBreaksForDoctorAndDay(appt.getDoctorAvailability().getDoctorId(), day);
                     } catch (Exception ex) {
                         System.out.println("cancelAppointment: synchronous recompute failed: " + ex.getMessage());
                         ex.printStackTrace();
@@ -319,7 +319,7 @@ public class AppointmentService {
                 }
                 // Also invoke recompute synchronously so breaks are persisted immediately for booking flows
                 try {
-                    recomputeBreaksAndAssociateIfNeeded(saved.getDoctorAvailability().getDoctorId(), day, true);
+                    recomputeBreaksForDoctorAndDay(saved.getDoctorAvailability().getDoctorId(), day);
                 } catch (Exception ex) {
                     System.out.println("createAppointment: synchronous recompute failed: " + ex.getMessage());
                     ex.printStackTrace();
@@ -514,50 +514,6 @@ public class AppointmentService {
             return a.getStartTime().compareTo(b.getStartTime());
         });
         return appts;
-    }
-
-    /**
-     * Maintenance helper: attempt to associate existing appointments (for a doctor on a day)
-     * with a matching DoctorAvailability row when missing, then recompute breaks.
-     * If associateMissing is false, only recompute breaks.
-     */
-    @Transactional
-    public void recomputeBreaksAndAssociateIfNeeded(UUID doctorId, LocalDate day, boolean associateMissing) {
-        if (doctorId == null || day == null) return;
-
-        // optionally associate missing doctor_availability_id for appointments
-        if (associateMissing) {
-            try {
-                // find all availabilities for this doctor on the day
-                List<DoctorAvailability> avails = doctorAvailabilityRepository.findByDoctorIdAndWorkDateBetween(doctorId, day, day);
-                // find appointments for doctor/day
-                LocalDateTime startOfDay = day.atStartOfDay();
-                LocalDateTime endOfDay = day.plusDays(1).atStartOfDay();
-                List<Appointment> appts = repo.findAppointmentsForDoctor(doctorId, startOfDay, endOfDay);
-                if (appts != null) {
-                    for (Appointment a : appts) {
-                        if (a.getDoctorAvailability() == null && a.getStartTime() != null && a.getEndTime() != null) {
-                            // try to find an availability window that fully contains the appointment
-                            for (DoctorAvailability da : avails) {
-                                java.time.LocalDateTime availStart = java.time.LocalDateTime.of(da.getWorkDate(), da.getStartTime());
-                                java.time.LocalDateTime availEnd = java.time.LocalDateTime.of(da.getWorkDate(), da.getEndTime());
-                                if (!a.getStartTime().isBefore(availStart) && !a.getEndTime().isAfter(availEnd)) {
-                                    a.setDoctorAvailability(da);
-                                    repo.save(a);
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                }
-            } catch (Exception ex) {
-                System.out.println("recomputeBreaksAndAssociateIfNeeded: error during association: " + ex.getMessage());
-                ex.printStackTrace();
-            }
-        }
-
-        // now call the existing recompute logic to set/clear break fields
-        recomputeBreaksForDoctorAndDay(doctorId, day);
     }
 
     /**
