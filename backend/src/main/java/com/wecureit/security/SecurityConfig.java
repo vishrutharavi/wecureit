@@ -6,6 +6,7 @@ import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.http.HttpMethod;
 
 @Configuration
 public class SecurityConfig {
@@ -24,13 +25,12 @@ public class SecurityConfig {
             .httpBasic(basic -> basic.disable())
             .formLogin(form -> form.disable())
             .authorizeHttpRequests(auth -> auth
+                .requestMatchers(org.springframework.http.HttpMethod.OPTIONS).permitAll()
                 .requestMatchers("/api/auth/**").permitAll()
-
-
+                .requestMatchers("/api/agent/ask", "/api/health", "/health", "/actuator/**").permitAll()
                 .requestMatchers("/api/patient/**").hasRole("PATIENT")
-                .requestMatchers("/api/doctor/**").hasRole("DOCTOR")
+                .requestMatchers("/api/doctor/**", "/api/doctors/**").hasRole("DOCTOR")
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
-
                 .anyRequest().authenticated()
             )
             .addFilterBefore(
