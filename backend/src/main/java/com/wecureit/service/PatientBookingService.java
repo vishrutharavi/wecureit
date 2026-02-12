@@ -170,7 +170,28 @@ public class PatientBookingService {
             }
         }
 
-        out.setSlots(slots);
+        // Deduplicate slots by startAt time - keep first occurrence but prefer more restrictive status
+        java.util.Map<String, com.wecureit.dto.response.BookingAvailabilitySlot> uniqueSlots = new java.util.LinkedHashMap<>();
+        for (var slot : slots) {
+            String key = slot.getStartAt();
+            if (!uniqueSlots.containsKey(key)) {
+                uniqueSlots.put(key, slot);
+            } else {
+                // If duplicate exists, prefer BOOKED/UNAVAILABLE over AVAILABLE (more restrictive wins)
+                var existing = uniqueSlots.get(key);
+                if ("AVAILABLE".equals(existing.getStatus()) && 
+                    ("BOOKED".equals(slot.getStatus()) || "UNAVAILABLE".equals(slot.getStatus()) || "BREAK_ENFORCED".equals(slot.getStatus()))) {
+                    uniqueSlots.put(key, slot);
+                }
+            }
+        }
+        
+        // Convert back to list and sort by time
+        java.util.List<com.wecureit.dto.response.BookingAvailabilitySlot> dedupedSlots = 
+            new java.util.ArrayList<>(uniqueSlots.values());
+        dedupedSlots.sort((a, b) -> a.getStartAt().compareTo(b.getStartAt()));
+
+        out.setSlots(dedupedSlots);
         return out;
     }
 
@@ -183,8 +204,8 @@ public class PatientBookingService {
         out.setSpecialties(specDtos);
 
         // facilities (active)
-    List<Facility> facilities = facilityRepository.findAllByIsActive(Boolean.TRUE);
-    List<com.wecureit.dto.response.FacilityResponse> facDtos = new ArrayList<>();
+        List<Facility> facilities = facilityRepository.findAllByIsActive(Boolean.TRUE);
+        List<com.wecureit.dto.response.FacilityResponse> facDtos = new ArrayList<>();
         for (Facility f : facilities) {
             // if speciality filter is provided, ensure facility has at least one active room for that speciality
             if (specialityCode != null && !specialityCode.isBlank()) {
@@ -324,7 +345,7 @@ public class PatientBookingService {
         out.setDoctors(docDtos);
 
         // Final cross-filtering: compute authoritative lists depending on provided params
-    List<com.wecureit.dto.response.FacilityResponse> finalFacs = new ArrayList<>(facDtos);
+        List<com.wecureit.dto.response.FacilityResponse> finalFacs = new ArrayList<>(facDtos);
         List<DoctorDropdownDto> finalDocs = new ArrayList<>(docDtos);
         List<SpecialityResponse> finalSpecs = new ArrayList<>(specDtos);
 

@@ -1,14 +1,14 @@
 package com.wecureit.controller.patient;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Optional;
 
+import java.util.*;
+import java.time.LocalDate;
+
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+
+import org.springframework.web.bind.annotation.*;
 
 import com.wecureit.entity.Patient;
 import com.wecureit.repository.PatientRepository;
@@ -60,12 +60,12 @@ public class PatientLoginController {
         return ResponseEntity.ok(out);
     }
 
-    @org.springframework.web.bind.annotation.PostMapping("/profile")
-    public ResponseEntity<?> updateProfile(@org.springframework.web.bind.annotation.RequestBody java.util.Map<String, Object> body, Authentication authentication) {
+    @PostMapping("/profile")
+    public ResponseEntity<?> updateProfile(@RequestBody Map<String, Object> body, Authentication authentication) {
         String uid = authentication.getName();
         try {
-            java.util.Optional<Patient> maybe = patientRepository.findByFirebaseUid(uid);
-            if (maybe.isEmpty()) return ResponseEntity.status(org.springframework.http.HttpStatus.NOT_FOUND).body(java.util.Map.of("error", "Patient not found"));
+            Optional<Patient> maybe = patientRepository.findByFirebaseUid(uid);
+            if (maybe.isEmpty()) return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "Patient not found"));
             Patient p = maybe.get();
 
             // update allowed fields. Do not touch primary email (login) here; store edited email in secondaryEmail
@@ -78,7 +78,7 @@ public class PatientLoginController {
             if (body.containsKey("sex") && body.get("sex") != null) p.setGender(String.valueOf(body.get("sex")));
             if (body.containsKey("dob") && body.get("dob") != null) {
                 try {
-                    java.time.LocalDate parsed = java.time.LocalDate.parse(String.valueOf(body.get("dob")));
+                    LocalDate parsed = LocalDate.parse(String.valueOf(body.get("dob")));
                     p.setDob(parsed);
                 } catch (Exception ex) {
                     // ignore parse errors and do not update dob
@@ -89,7 +89,7 @@ public class PatientLoginController {
 
             patientRepository.save(p);
 
-            java.util.Map<String, Object> out = new java.util.HashMap<>();
+            Map<String, Object> out = new HashMap<>();
             out.put("id", p.getId() == null ? null : p.getId().toString());
             out.put("email", p.getEmail());
             out.put("secondaryEmail", p.getSecondaryEmail());
@@ -104,7 +104,7 @@ public class PatientLoginController {
             return ResponseEntity.ok(out);
         } catch (Exception ex) {
             System.err.println("PatientLoginController.updateProfile: " + ex.getMessage());
-            return ResponseEntity.status(org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR).body(java.util.Map.of("error", "Failed to update profile"));
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("error", "Failed to update profile"));
         }
     }
 }
