@@ -100,6 +100,7 @@ export default function BookingCopilot() {
     null;
 
   const resolveSpecialtyId = (slot: SlotSuggestion) =>
+    slot.specialtyId ??  
     lookup.specialties.find(
       (s) =>
         normalize(s.name) === normalize(slot.specialty) ||
@@ -170,6 +171,7 @@ export default function BookingCopilot() {
         date: slot.date,
         time: formatTimeLabel(slot.startTime),
         duration: duration,
+        doctorAvailabilityId: slot.doctorAvailabilityId ?? null,  // ADD THIS LINE
       };
 
       try {
@@ -178,7 +180,7 @@ export default function BookingCopilot() {
 
       router.push("/protected/patient?tab=confirmation");
     },
-    [router]
+    [router, intent] 
   );
 
   return (

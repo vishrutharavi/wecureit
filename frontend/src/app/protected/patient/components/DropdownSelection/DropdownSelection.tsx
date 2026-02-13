@@ -31,27 +31,18 @@ export default function DropdownSelection({ onChange }: Props) {
   useEffect(() => {
     (async () => {
       try {
-        // include workDate from any existing bookingSelection in sessionStorage so server can apply facility locks
-        let url = '/api/patients/booking/dropdown-data';
-        try {
-          const raw = sessionStorage.getItem('bookingSelection');
-          if (raw) {
-            const parsed = JSON.parse(raw || '{}');
-            if (parsed && parsed.date) {
-              const params = new URLSearchParams();
-              params.set('workDate', parsed.date);
-              url = url + `?${params.toString()}`;
-            }
-          }
-        } catch {
-          // ignore session read errors
-        }
+        // Use today's date to get current availability
+        const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+        const params = new URLSearchParams();
+        params.set('workDate', today);
+        const url = `/api/patients/booking/dropdown-data?${params.toString()}`;
+      
         const resp = await apiFetch(url) as BookingResponse;
         if (resp) {
           // map specialties
           const specs = Array.isArray(resp.specialties) ? resp.specialties.map((s) => ({ id: s.code, name: s.name })) : [];
           setSpecialties(specs);
-    // map facilities (include specialties offered at facility)
+          // map facilities (include specialties offered at facility)
           const facs = Array.isArray(resp.facilities) ? resp.facilities.map((f) => ({ id: f.id, name: f.name, specialties: Array.isArray(f.specialties) ? f.specialties.map((s: { code?: string; name?: string }) => ({ code: s.code, name: s.name ?? s.code ?? '' })) : [] })) : [];
           setFacilities(facs);
           // map doctors
@@ -75,16 +66,11 @@ export default function DropdownSelection({ onChange }: Props) {
         if (selectedFacility) params.set('facilityId', selectedFacility);
         if (selectedSpecialty) params.set('specialityCode', selectedSpecialty);
         if (selectedDoctor) params.set('doctorId', selectedDoctor);
-        // include workDate from any existing bookingSelection in sessionStorage so server can apply facility locks
-        try {
-          const raw = sessionStorage.getItem('bookingSelection');
-          if (raw) {
-            const parsed = JSON.parse(raw || '{}');
-            if (parsed && parsed.date) params.set('workDate', parsed.date);
-          }
-        } catch {
-          // ignore
-        }
+        
+        // Always use today's date for filtering
+        const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+        params.set('workDate', today);
+        
         const url = '/api/patients/booking/dropdown-data' + (params.toString() ? `?${params.toString()}` : '');
         const resp = await apiFetch(url) as BookingResponse;
         if (!mounted) return;
@@ -97,9 +83,6 @@ export default function DropdownSelection({ onChange }: Props) {
           setDoctors(docs);
 
           // if current selections are no longer present in server response, clear them
-          // Preserve selections when the server returned NO facilities (user wants selections kept and counts shown as 0)
-          // Only clear a selection when the server returned a non-empty list for that type and the selected value is not included.
-          // Additionally, we avoid clearing doctor/specialty when there are zero facilities in the response.
           if (selectedDoctor && docs.length > 0 && facs.length > 0 && !docs.some(dd => dd.id === selectedDoctor)) setSelectedDoctor("");
           if (selectedFacility && facs.length > 0 && !facs.some(ff => ff.id === selectedFacility)) setSelectedFacility("");
           if (selectedSpecialty && specs.length > 0 && facs.length > 0 && !specs.some(ss => (ss.id ?? ss.name) === selectedSpecialty)) setSelectedSpecialty("");

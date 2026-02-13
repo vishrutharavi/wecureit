@@ -13,6 +13,7 @@ export type SlotSuggestion = {
   doctorId?: string | null;
   doctorName?: string | null;
   specialty?: string | null;
+  specialtyId?: string | null;
   facilityId?: string | null;
   facilityName?: string | null;
   date?: string | null;
@@ -20,6 +21,7 @@ export type SlotSuggestion = {
   endTime?: string | null;
   durationMinutes?: number | null;
   reason?: string | null;
+  doctorAvailabilityId?: string | null;
 };
 
 export type SuggestResponse = {

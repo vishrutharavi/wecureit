@@ -11,6 +11,7 @@ public class SlotSuggestion {
     private String doctorId;
     private String doctorName;
     private String specialty;
+    private String specialtyId;
     private String facilityId;
     private String facilityName;
     private String date;
@@ -18,4 +19,5 @@ public class SlotSuggestion {
     private String endTime;
     private Integer durationMinutes;
     private String reason;
+    private String doctorAvailabilityId;
 }
