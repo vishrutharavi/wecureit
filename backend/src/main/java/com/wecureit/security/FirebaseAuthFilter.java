@@ -38,22 +38,14 @@ public class FirebaseAuthFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        String method = request.getMethod();
-        String uri = request.getRequestURI();
+        // String method = request.getMethod();
+        // String uri = request.getRequestURI();
         
         // Skip filter for:
         // 1. Auth endpoints
-        // 2. Agent endpoints (health and ask)
-        // 3. Health check endpoints
-        // 4. OPTIONS requests (CORS preflight)
-        return uri.startsWith("/api/auth/") || 
-               uri.equals("/api/agent/health") ||
-               uri.equals("/api/agent/ask") ||
-               uri.startsWith("/api/agent/booking/") ||
-               uri.startsWith("/api/health") ||
-               uri.startsWith("/health") ||
-               uri.startsWith("/actuator") ||
-               "OPTIONS".equalsIgnoreCase(method);
+        // 2. Health check endpoints
+        // 3. OPTIONS requests (CORS preflight)
+        return request.getRequestURI().startsWith("/api/auth/");
     }
 
     @Override

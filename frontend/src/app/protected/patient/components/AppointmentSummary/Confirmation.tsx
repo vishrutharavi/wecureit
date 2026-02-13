@@ -62,7 +62,19 @@ export default function Confirmation() {
             <div className={styles['grid-two-col-12']}>
               <div className={styles.summaryCard}>
                 <div className={styles.fieldLabel}>Date</div>
-                <ReadField>{date ? new Date(date).toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : '—'}</ReadField>
+                <ReadField>
+                  {date ? (() => {
+                    // Parse as local date to avoid timezone issues
+                    const [year, month, day] = date.split('-').map(Number);
+                    const localDate = new Date(year, month - 1, day);
+                    return localDate.toLocaleDateString(undefined, { 
+                      weekday: 'long', 
+                      year: 'numeric', 
+                      month: 'long', 
+                      day: 'numeric' 
+                    });
+                  })() : '—'}
+                </ReadField>
               </div>
 
               <div className={styles.summaryCard}>
