@@ -27,7 +27,7 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(org.springframework.http.HttpMethod.OPTIONS).permitAll()
                 .requestMatchers("/api/auth/**").permitAll()
-                .requestMatchers("/api/agent/ask", "/api/health", "/health", "/actuator/**").permitAll()
+                .requestMatchers("/api/agent/**", "/api/health", "/health", "/actuator/**").permitAll()
                 .requestMatchers("/api/patient/**").hasRole("PATIENT")
                 .requestMatchers("/api/doctor/**", "/api/doctors/**").hasRole("DOCTOR")
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
