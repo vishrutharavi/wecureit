@@ -379,6 +379,11 @@
 }
 
 /* Clear button used in booking dropdown header */
+.bookingLeftStack {
+  display: grid;
+  gap: 18px;
+}
+
 .clearButton {
   background: linear-gradient(135deg, var(--patient-primary), var(--patient-dark));
   color: #fff;
@@ -1104,6 +1109,24 @@
   color: var(--patient-dark);
   font-weight: 800;
   transform: translateY(-2px);
+}
+
+.manualDivider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #6b7280;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.manualDivider::before,
+.manualDivider::after {
+  content: "";
+  height: 1px;
+  flex: 1;
+  background: rgba(239, 68, 68, 0.2);
 }
 
 
