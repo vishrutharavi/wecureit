@@ -14,6 +14,8 @@ import DropdownSelection from "./components/DropdownSelection/DropdownSelection"
 import SelectionSummary from "./components/DropdownSelection/SelectionSummary";
 import DateAndTimeSelection from "./components/DateAndTimeSelection/DateAndTimeSelection";
 import Confirmation from "./components/AppointmentSummary/Confirmation";
+import BookingCopilot from "./components/BookingCopilot/BookingCopilot";
+//import BookingCopilot from "./components/BookingCopilot/BookingCopilot";
 
 export default function Page() {
   const router = useRouter();
@@ -137,7 +139,11 @@ export function BookAppointmentPage() {
       </div>
 
       <div className={styles.bookingGrid}>
-        <div>
+        <div className={styles.bookingLeftStack}>
+          <BookingCopilot />
+          <div className={styles.manualDivider}>
+            <span>or book manually with the dropdowns below</span>
+          </div>
           <DropdownSelection onChange={handleSelectionChange} />
         </div>
 
