@@ -47,7 +47,9 @@ public class FirebaseAuthFilter extends OncePerRequestFilter {
         // 3. Health check endpoints
         // 4. OPTIONS requests (CORS preflight)
         return uri.startsWith("/api/auth/") || 
-               uri.startsWith("/api/agent/") ||
+               uri.equals("/api/agent/health") ||
+               uri.equals("/api/agent/ask") ||
+               uri.startsWith("/api/agent/booking/") ||
                uri.startsWith("/api/health") ||
                uri.startsWith("/health") ||
                uri.startsWith("/actuator") ||
