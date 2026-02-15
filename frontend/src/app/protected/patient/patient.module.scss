@@ -1210,4 +1210,26 @@
   line-height: 1.4;
 }
 
-
+.quickBookDetails {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  background: linear-gradient(135deg, #fff5f5, #ffecec);
+  border-radius: 8px;
+}
+.quickBookRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.quickBookLabel {
+  font-size: 0.85rem;
+  color: #6b7280;
+  font-weight: 500;
+}
+.quickBookValue {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--patient-dark, #1e293b);
+}
