@@ -3,6 +3,7 @@
 import React from "react";
 import { apiFetch, showInlineToast } from '@/lib/api';
 import { useRouter } from "next/navigation";
+import { toLocalIso } from '@/lib/dateUtils';
 import styles from "../../patient.module.scss";
 import DatePickerGrid from "./DatePickerGrid";
 
@@ -10,6 +11,21 @@ type Selection = {
   doctor?: { id: string; name: string } | null;
   facility?: { id: string; name: string } | null;
   specialty?: { id: string; name: string } | null;
+};
+
+type SlotSuggestion = {
+  doctorId: string;
+  doctorName: string;
+  specialty: string;
+  specialtyId: string;
+  facilityId: string;
+  facilityName: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  durationMinutes: number;
+  reason: string;
+  doctorAvailabilityId: string;
 };
 
 // saved card shape used by the payment UI
@@ -46,6 +62,7 @@ export default function DateAndTimeSelection() {
   const [selectedDoctorAvailabilityId, setSelectedDoctorAvailabilityId] = React.useState<string | null>(null);
   const [chiefComplaints, setChiefComplaints] = React.useState<string>("");
   const [chiefError, setChiefError] = React.useState<string | null>(null);
+  const [suggestedSlots, setSuggestedSlots] = React.useState<SlotSuggestion[] | null>(null);
 
   const computeRange = (timeLabel: string | null, durationMin: number | null) => {
     if (!timeLabel || !date || !durationMin) return null;
@@ -84,9 +101,19 @@ export default function DateAndTimeSelection() {
         setSelection(parsed);
         if (parsed.chiefComplaints) setChiefComplaints(String(parsed.chiefComplaints));
         if (parsed.doctorAvailabilityId) setSelectedDoctorAvailabilityId(String(parsed.doctorAvailabilityId));
+        // restore duration if it was previously selected, otherwise use 30 as default
+        if (parsed.duration) {
+          setDuration(parsed.duration);
+        } else {
+          setDuration(30);
+        }
+      } else {
+        // If no booking selection exists, default to 30 minutes
+        setDuration(30);
       }
     } catch {
-      // ignore
+      // On error, default to 30 minutes
+      setDuration(30);
     }
   }, []);
 
@@ -111,8 +138,8 @@ export default function DateAndTimeSelection() {
         const doctorId = selection.doctor.id;
         const from = new Date();
         const to = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-        const fromIso = from.toISOString().slice(0, 10);
-        const toIso = to.toISOString().slice(0, 10);
+        const fromIso = toLocalIso(from);
+        const toIso = toLocalIso(to);
         const url = `/api/doctors/${doctorId}/availability?from=${fromIso}&to=${toIso}`;
         const resp = await apiFetch(url) as AvailabilityResp[];
         if (canceled) return;
@@ -190,6 +217,44 @@ export default function DateAndTimeSelection() {
     })();
     return () => { canceled = true; };
   }, [selection]);
+
+  // fetch optimal slot suggestions when selection and duration are ready
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!selection || !selection.doctor?.id || !selection.facility?.id) {
+        setSuggestedSlots(null);
+        return;
+      }
+
+      try {
+        const requestBody = {
+          doctorId: selection.doctor.id,
+          facilityId: selection.facility.id,
+          specialtyCode: selection.specialty?.id || null,
+          duration: duration || 30
+        };
+
+        const response = await apiFetch('/api/patients/booking/suggest-optimal-slots', undefined, {
+          method: 'POST',
+          body: JSON.stringify(requestBody)
+        });
+
+        if (cancelled) return;
+
+        if (Array.isArray(response)) {
+          setSuggestedSlots(response);
+        } else {
+          setSuggestedSlots(null);
+        }
+      } catch (err) {
+        console.error('Failed to fetch optimal slot suggestions', err);
+        setSuggestedSlots(null);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [selection, duration]);
 
   // fetch slot-level availability for selected date (15-min slots with status)
   React.useEffect(() => {
@@ -329,6 +394,46 @@ export default function DateAndTimeSelection() {
         <h1 className={styles.bookingTitle}>Select Date & Time</h1>
         <div className={styles.subtitle}>Choose your preferred appointment date and time</div>
       </div>
+
+      {/* Optimal Slot Suggestions */}
+      {suggestedSlots && suggestedSlots.length > 0 && (
+        <div className={styles.suggestionsPanel}>
+          <div className={styles.sectionTitle}>Recommended Time Slots</div>
+          <div className={styles.sectionSubtitle}>
+            These slots optimize schedule efficiency and minimize doctor idle time
+          </div>
+
+          <div className={styles.suggestionGrid}>
+            {suggestedSlots.map((slot, idx) => (
+              <div
+                key={idx}
+                className={styles.suggestionCard}
+                onClick={() => {
+                  setDate(slot.date);
+                  setDuration(slot.durationMinutes);
+                  setSelectedTime(slot.startTime);
+                  setSelectedDoctorAvailabilityId(slot.doctorAvailabilityId);
+                }}
+              >
+                <div className={styles.suggestionBadge}>#{idx + 1}</div>
+                <div className={styles.suggestionDate}>
+                  {new Date(slot.date + 'T00:00:00').toLocaleDateString('en-US', {
+                    weekday: 'short',
+                    month: 'short',
+                    day: 'numeric'
+                  })}
+                </div>
+                <div className={styles.suggestionTime}>
+                  {slot.startTime} - {slot.endTime}
+                </div>
+                <div className={styles.suggestionReason}>
+                  {slot.reason}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className={styles.bookingGrid}>
         <div>

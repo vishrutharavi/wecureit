@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import { apiFetch } from "../../../../../lib/api";
+import { toLocalIso } from "../../../../../lib/dateUtils";
 
 type ApiAppointment = {
   id: number | string;
@@ -33,7 +34,7 @@ export type Appointment = {
 };
 
 export function useSchedule() {
-  const [date, setDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState<string>(() => toLocalIso(new Date()));
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [breaks, setBreaks] = useState<Array<{ id: string; start: string; end: string; appointmentId?: string;}>>([]);
   const [loading, setLoading] = useState<boolean>(false);

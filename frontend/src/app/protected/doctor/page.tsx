@@ -81,13 +81,15 @@ export default function DoctorPage() {
 
   return (
     <div className={styles.wrapper}>
-      {justLoggedInMsg && <div className={styles.loginBanner}>{justLoggedInMsg}</div>}
-      <DoctorHeader doctorName={doctorName} />
-      <DoctorTabs active={tab} onChange={handleTabChange} />
+      <div className={styles.content}>
+        {justLoggedInMsg && <div className={styles.loginBanner}>{justLoggedInMsg}</div>}
+        <DoctorHeader doctorName={doctorName} />
+        <DoctorTabs active={tab} onChange={handleTabChange} />
 
-      {tab === "schedule" && <ScheduleView />}
-      {tab === "availability" && <AvailabilityView />}
-      {tab === "notes" && <NotesView />}
+        {tab === "schedule" && <ScheduleView />}
+        {tab === "availability" && <AvailabilityView />}
+        {tab === "notes" && <NotesView />}
+      </div>
     </div>
   );
 }

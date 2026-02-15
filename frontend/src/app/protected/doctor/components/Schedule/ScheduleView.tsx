@@ -5,16 +5,10 @@ import AppointmentModal from "./AppointmentModal";
 import { useSchedule } from "./useSchedule";
 import type { Appointment } from "./useSchedule";
 import { apiFetch } from "../../../../../lib/api";
+import { toLocalIso } from "../../../../../lib/dateUtils";
 
 function formatShort(date: Date) {
 	return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-}
-
-function toLocalIso(d: Date) {
-	const y = d.getFullYear();
-	const m = String(d.getMonth() + 1).padStart(2, '0');
-	const day = String(d.getDate()).padStart(2, '0');
-	return `${y}-${m}-${day}`;
 }
 
 export default function ScheduleView() {
@@ -124,10 +118,16 @@ export default function ScheduleView() {
 
 			<div className={styles.dateGrid}>
 				{days.map((d, idx) => {
-					const isToday = idx === 0;
+					// Compare actual dates instead of using array index
+					const today = new Date();
+					const tomorrow = new Date(today);
+					tomorrow.setDate(today.getDate() + 1);
+					const isToday = toLocalIso(d) === toLocalIso(today);
+					const isTomorrow = toLocalIso(d) === toLocalIso(tomorrow);
+
 					return (
 						<div key={idx} className={`${styles.dateCard} ${isToday ? ' ' + styles.today : ''}`}>
-								<div className={styles.cardTitle}>{isToday ? 'Today' : idx === 1 ? 'Tomorrow' : d.toLocaleDateString(undefined, { weekday: 'short' })}</div>
+								<div className={styles.cardTitle}>{isToday ? 'Today' : isTomorrow ? 'Tomorrow' : d.toLocaleDateString(undefined, { weekday: 'short' })}</div>
 							<div className={styles.cardDate}>{formatShort(d)}</div>
 
 								<div style={{ marginTop: 12 }}>
@@ -138,7 +138,13 @@ export default function ScheduleView() {
 										return has ? (facility ?? '') : '';
 									})()}</div>
 										<div style={{ marginTop: 12 }}>
-											<button className={styles.viewAppointmentsBtn} onClick={() => { const iso = d.toISOString().slice(0,10); setDate(iso); setShowModal(true); }}>{'View appointments'}</button>
+											<button className={styles.viewAppointmentsBtn} onClick={() => {
+												const iso = toLocalIso(d);
+												// Store selected date in sessionStorage for the modal to use
+												sessionStorage.setItem('selectedScheduleDate', iso);
+												setDate(iso);
+												setShowModal(true);
+											}}>{'View appointments'}</button>
 										</div>
 								</div>
 						</div>
