@@ -63,6 +63,9 @@ export default function DateAndTimeSelection() {
   const [chiefComplaints, setChiefComplaints] = React.useState<string>("");
   const [chiefError, setChiefError] = React.useState<string | null>(null);
   const [suggestedSlots, setSuggestedSlots] = React.useState<SlotSuggestion[] | null>(null);
+  const [quickBookSlot, setQuickBookSlot] = React.useState<SlotSuggestion | null>(null);
+  const [quickBookComplaints, setQuickBookComplaints] = React.useState<string>("");
+  const [quickBookError, setQuickBookError] = React.useState<string | null>(null);
 
   const computeRange = (timeLabel: string | null, durationMin: number | null) => {
     if (!timeLabel || !date || !durationMin) return null;
@@ -409,10 +412,9 @@ export default function DateAndTimeSelection() {
                 key={idx}
                 className={styles.suggestionCard}
                 onClick={() => {
-                  setDate(slot.date);
-                  setDuration(slot.durationMinutes);
-                  setSelectedTime(slot.startTime);
-                  setSelectedDoctorAvailabilityId(slot.doctorAvailabilityId);
+                  setQuickBookSlot(slot);
+                  setQuickBookComplaints(chiefComplaints);
+                  setQuickBookError(null);
                 }}
               >
                 <div className={styles.suggestionBadge}>#{idx + 1}</div>
@@ -622,6 +624,108 @@ export default function DateAndTimeSelection() {
           </div>
         </div>
       </div>
+
+      {/* Quick-book modal for recommended slot cards */}
+      {quickBookSlot && (
+        <div className={styles['modal-overlay']} onClick={() => setQuickBookSlot(null)}>
+          <div className={styles['modal-container']} onClick={(e) => e.stopPropagation()}>
+            <div className={styles['modal-header']}>
+              <h2 className={styles['modal-title']}>Book Recommended Slot</h2>
+              <button onClick={() => setQuickBookSlot(null)} className={styles['modal-close'] ?? ''}>&#x2715;</button>
+            </div>
+            <div className={styles['modal-body']}>
+              <div className={styles.quickBookDetails}>
+                <div className={styles.quickBookRow}>
+                  <span className={styles.quickBookLabel}>Doctor</span>
+                  <span className={styles.quickBookValue}>{selection?.doctor?.name || quickBookSlot.doctorName}</span>
+                </div>
+                <div className={styles.quickBookRow}>
+                  <span className={styles.quickBookLabel}>Facility</span>
+                  <span className={styles.quickBookValue}>{selection?.facility?.name || quickBookSlot.facilityName}</span>
+                </div>
+                <div className={styles.quickBookRow}>
+                  <span className={styles.quickBookLabel}>Specialty</span>
+                  <span className={styles.quickBookValue}>{selection?.specialty?.name || quickBookSlot.specialty}</span>
+                </div>
+                <div className={styles.quickBookRow}>
+                  <span className={styles.quickBookLabel}>Date</span>
+                  <span className={styles.quickBookValue}>
+                    {new Date(quickBookSlot.date + 'T00:00:00').toLocaleDateString('en-US', {
+                      weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'
+                    })}
+                  </span>
+                </div>
+                <div className={styles.quickBookRow}>
+                  <span className={styles.quickBookLabel}>Time</span>
+                  <span className={styles.quickBookValue}>{quickBookSlot.startTime} - {quickBookSlot.endTime}</span>
+                </div>
+                <div className={styles.quickBookRow}>
+                  <span className={styles.quickBookLabel}>Duration</span>
+                  <span className={styles.quickBookValue}>{quickBookSlot.durationMinutes} minutes</span>
+                </div>
+              </div>
+
+              <div style={{ marginTop: 16 }}>
+                <div className={styles.fieldLabel}>Chief Complaints <span style={{ color: '#c0392b' }}>*</span></div>
+                <textarea
+                  className={styles.inputField}
+                  placeholder="Briefly describe the patient's chief complaints"
+                  value={quickBookComplaints}
+                  onChange={(e) => {
+                    setQuickBookComplaints(e.target.value);
+                    if (quickBookError) setQuickBookError(null);
+                  }}
+                  rows={3}
+                />
+                {quickBookError && <div className={styles.errorText}>{quickBookError}</div>}
+              </div>
+
+              <div style={{ marginTop: 16, display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                <button
+                  className={styles.viewAppointmentsBtn}
+                  onClick={() => setQuickBookSlot(null)}
+                >
+                  Cancel
+                </button>
+                <button
+                  className={styles.continueBtn}
+                  onClick={() => {
+                    if (!quickBookComplaints || !quickBookComplaints.trim()) {
+                      setQuickBookError('Please enter the chief complaints to proceed');
+                      return;
+                    }
+                    try {
+                      // Convert 24-hour format time to 12-hour format with AM/PM
+                      const convert24To12Hour = (time24: string) => {
+                        const match = time24.match(/(\d{1,2}):(\d{2})/);
+                        if (!match) return time24;
+                        let hours = parseInt(match[1], 10);
+                        const minutes = match[2];
+                        const ampm = hours >= 12 ? 'PM' : 'AM';
+                        hours = hours % 12 || 12;
+                        return `${hours}:${minutes} ${ampm}`;
+                      };
+                      
+                      const payload = {
+                        ...selection,
+                        date: quickBookSlot.date,
+                        time: convert24To12Hour(quickBookSlot.startTime),
+                        duration: quickBookSlot.durationMinutes,
+                        doctorAvailabilityId: quickBookSlot.doctorAvailabilityId,
+                        chiefComplaints: quickBookComplaints.trim(),
+                      };
+                      sessionStorage.setItem('bookingSelection', JSON.stringify(payload));
+                    } catch {}
+                    router.push('/protected/patient?tab=confirmation');
+                  }}
+                >
+                  Continue to Confirmation
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

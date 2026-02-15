@@ -5,7 +5,6 @@ import com.wecureit.dto.response.BookingAvailabilitySlot;
 import com.wecureit.dto.response.SlotSuggestion;
 import com.wecureit.entity.Appointment;
 import com.wecureit.entity.Doctor;
-import com.wecureit.entity.DoctorAvailability;
 import com.wecureit.entity.Facility;
 import com.wecureit.entity.Speciality;
 import com.wecureit.repository.AppointmentRepository;
@@ -195,26 +194,127 @@ public class OptimalSlotSuggestionService {
                             doctorId, dayStart, dayEnd
                     );
 
-                    // Detect gaps in the schedule
-                    List<Gap> gaps = detectGaps(currentDate, existingAppts);
-
-                    // Create search nodes for each available slot
+                    // Build sets: unbookedSlotTimes = not occupied by appointment (for consecutive check),
+                    // candidateSlotTimes = all slot start times within the availability window
+                    Set<LocalTime> unbookedSlotTimes = new HashSet<>();
+                    Map<LocalTime, String> slotAvailabilityIdMap = new HashMap<>();
+                    LocalTime officeStart = null;
+                    LocalTime officeEnd = null;
                     for (BookingAvailabilitySlot slot : availability.getSlots()) {
-                        if (!"AVAILABLE".equals(slot.getStatus())) {
-                            continue; // Only consider available slots
+                        LocalTime st = LocalTime.parse(slot.getStartAt().substring(11, 16));
+                        LocalTime et = LocalTime.parse(slot.getEndAt().substring(11, 16));
+                        if (!"BOOKED".equals(slot.getStatus())) {
+                            unbookedSlotTimes.add(st);
+                        }
+                        if (slot.getAvailabilityId() != null) {
+                            slotAvailabilityIdMap.putIfAbsent(st, slot.getAvailabilityId());
+                        }
+                        // Track office hours window from availability slots
+                        if (officeStart == null || st.isBefore(officeStart)) {
+                            officeStart = st;
+                        }
+                        if (officeEnd == null || et.isAfter(officeEnd)) {
+                            officeEnd = et;
+                        }
+                    }
+
+                    // Detect gaps in the schedule (including edge gaps at start/end of office hours)
+                    List<Gap> gaps = detectGaps(currentDate, existingAppts, officeStart, officeEnd);
+
+                    // Number of consecutive 15-min slots needed for the requested duration
+                    int slotsNeeded = (int) Math.ceil(durationMinutes / 15.0);
+
+                    // Filter active appointments for direct overlap check
+                    List<Appointment> activeAppts = new ArrayList<>();
+                    for (Appointment appt : existingAppts) {
+                        if (appt.getIsActive() != null && !appt.getIsActive()) continue;
+                        if (appt.getStartTime() == null || appt.getEndTime() == null) continue;
+                        activeAppts.add(appt);
+                    }
+
+                    // Break rule constants
+                    final long GAP_MIN = 15L;
+                    final long MAX_CONTINUOUS_MINUTES = 60L;
+
+                    // Current time - skip past slots if searching today
+                    LocalTime now = LocalTime.now();
+
+                    for (LocalTime candidateStart : unbookedSlotTimes) {
+                        LocalTime slotEndTime = candidateStart.plusMinutes(durationMinutes);
+
+                        // CHECK 0: Skip slots in the past (only for today)
+                        if (currentDate.equals(LocalDate.now()) && candidateStart.isBefore(now)) {
+                            continue;
                         }
 
-                        LocalTime slotTime = LocalTime.parse(slot.getStartAt().substring(11, 16));
-                        LocalTime slotEndTime = LocalTime.parse(slot.getEndAt().substring(11, 16));
+                        // CHECK 1: All 15-min intervals must not be BOOKED
+                        boolean allSlotsAvailable = true;
+                        for (int i = 0; i < slotsNeeded; i++) {
+                            LocalTime required = candidateStart.plusMinutes(i * 15L);
+                            if (!unbookedSlotTimes.contains(required)) {
+                                allSlotsAvailable = false;
+                                break;
+                            }
+                        }
+                        if (!allSlotsAvailable) {
+                            continue;
+                        }
+
+                        // CHECK 2: Direct overlap check - full duration must not overlap any active appointment
+                        LocalDateTime candidateStartDt = currentDate.atTime(candidateStart);
+                        LocalDateTime candidateEndDt = currentDate.atTime(slotEndTime);
+                        boolean overlaps = false;
+                        for (Appointment appt : activeAppts) {
+                            if (appt.getStartTime().isBefore(candidateEndDt) && appt.getEndTime().isAfter(candidateStartDt)) {
+                                overlaps = true;
+                                break;
+                            }
+                        }
+                        if (overlaps) {
+                            continue;
+                        }
+
+                        // CHECK 3: Break rule - continuous work must not exceed 60 min without 15-min break
+                        List<long[]> schedule = new ArrayList<>();
+                        for (Appointment appt : activeAppts) {
+                            long aStart = appt.getStartTime().getHour() * 60L + appt.getStartTime().getMinute();
+                            long aEnd = appt.getEndTime().getHour() * 60L + appt.getEndTime().getMinute();
+                            schedule.add(new long[]{aStart, aEnd});
+                        }
+                        long cStart = candidateStart.getHour() * 60L + candidateStart.getMinute();
+                        long cEnd = slotEndTime.getHour() * 60L + slotEndTime.getMinute();
+                        schedule.add(new long[]{cStart, cEnd});
+                        schedule.sort(Comparator.comparingLong(a -> a[0]));
+
+                        boolean breakViolation = false;
+                        long cumulative = 0;
+                        long prevEnd = -999;
+                        for (long[] block : schedule) {
+                            long gap = block[0] - prevEnd;
+                            long blockDuration = block[1] - block[0];
+                            if (prevEnd < 0 || gap >= GAP_MIN) {
+                                cumulative = blockDuration;
+                            } else {
+                                cumulative += blockDuration;
+                            }
+                            if (cumulative > MAX_CONTINUOUS_MINUTES) {
+                                breakViolation = true;
+                                break;
+                            }
+                            prevEnd = block[1];
+                        }
+                        if (breakViolation) {
+                            continue;
+                        }
 
                         SearchNode node = new SearchNode();
                         node.setDate(currentDate);
-                        node.setSlotStartTime(slotTime);
+                        node.setSlotStartTime(candidateStart);
                         node.setSlotEndTime(slotEndTime);
                         node.setDurationMinutes(durationMinutes);
                         node.setExistingAppts(existingAppts);
                         node.setGaps(gaps);
-                        node.setAvailabilityId(slot.getAvailabilityId());
+                        node.setAvailabilityId(slotAvailabilityIdMap.get(candidateStart));
                         node.setFacilityId(facilityId);
                         node.setFacilityName(facilityName);
                         node.setDoctorId(doctorId);
@@ -279,29 +379,94 @@ public class OptimalSlotSuggestionService {
             }
         }
 
-        // Convert top-K nodes to SlotSuggestion objects
-        return topKSlots.stream()
+        // Deduplicate overlapping suggestions: keep highest-scoring non-overlapping slots
+        List<SearchNode> sorted = topKSlots.stream()
                 .sorted(Comparator.comparingDouble(SearchNode::getActualScore).reversed())
+                .collect(Collectors.toList());
+
+        List<SearchNode> deduplicated = new ArrayList<>();
+        for (SearchNode candidate : sorted) {
+            boolean overlapsExisting = false;
+            for (SearchNode accepted : deduplicated) {
+                if (candidate.getDate().equals(accepted.getDate())
+                        && candidate.getSlotStartTime().isBefore(accepted.getSlotEndTime())
+                        && candidate.getSlotEndTime().isAfter(accepted.getSlotStartTime())) {
+                    overlapsExisting = true;
+                    break;
+                }
+            }
+            if (!overlapsExisting) {
+                deduplicated.add(candidate);
+            }
+        }
+
+        // If we removed too many due to overlap, backfill from remaining non-overlapping candidates
+        if (deduplicated.size() < MAX_SUGGESTIONS && sorted.size() > deduplicated.size()) {
+            for (SearchNode candidate : sorted) {
+                if (deduplicated.size() >= MAX_SUGGESTIONS) break;
+                if (deduplicated.contains(candidate)) continue;
+                // Allow if it doesn't overlap with any already accepted
+                boolean overlaps = false;
+                for (SearchNode accepted : deduplicated) {
+                    if (candidate.getDate().equals(accepted.getDate())
+                            && candidate.getSlotStartTime().isBefore(accepted.getSlotEndTime())
+                            && candidate.getSlotEndTime().isAfter(accepted.getSlotStartTime())) {
+                        overlaps = true;
+                        break;
+                    }
+                }
+                if (!overlaps) {
+                    deduplicated.add(candidate);
+                }
+            }
+        }
+
+        // Convert to SlotSuggestion objects
+        return deduplicated.stream()
                 .map(this::nodeToSlotSuggestion)
                 .collect(Collectors.toList());
     }
 
     /**
-     * Detect gaps (idle time) in a doctor's schedule for a given date
+     * Detect gaps (idle time) in a doctor's schedule for a given date,
+     * including gaps before the first appointment and after the last appointment
+     * within the office hours window.
      */
-    private List<Gap> detectGaps(LocalDate date, List<Appointment> appointments) {
+    private List<Gap> detectGaps(LocalDate date, List<Appointment> appointments,
+                                  LocalTime officeStart, LocalTime officeEnd) {
         List<Gap> gaps = new ArrayList<>();
 
-        if (appointments.isEmpty()) {
-            // No appointments - entire day is one big gap (handled by availability windows)
+        // Only consider active appointments with valid times
+        List<Appointment> active = new ArrayList<>();
+        for (Appointment appt : appointments) {
+            if (appt.getIsActive() != null && !appt.getIsActive()) continue;
+            if (appt.getStartTime() == null || appt.getEndTime() == null) continue;
+            active.add(appt);
+        }
+
+        if (active.isEmpty()) {
+            // Entire office hours window is a gap
+            long totalMinutes = Duration.between(officeStart, officeEnd).toMinutes();
+            if (totalMinutes > 0) {
+                gaps.add(new Gap(officeStart, officeEnd, totalMinutes));
+            }
             return gaps;
         }
 
         // Sort appointments by start time
-        List<Appointment> sorted = new ArrayList<>(appointments);
+        List<Appointment> sorted = new ArrayList<>(active);
         sorted.sort(Comparator.comparing(Appointment::getStartTime));
 
-        // Find gaps between consecutive appointments
+        // Gap before first appointment (from office hours start)
+        LocalTime firstApptStart = sorted.get(0).getStartTime().toLocalTime();
+        if (officeStart.isBefore(firstApptStart)) {
+            long gapMinutes = Duration.between(officeStart, firstApptStart).toMinutes();
+            if (gapMinutes > 0) {
+                gaps.add(new Gap(officeStart, firstApptStart, gapMinutes));
+            }
+        }
+
+        // Gaps between consecutive appointments
         for (int i = 0; i < sorted.size() - 1; i++) {
             LocalDateTime currentEnd = sorted.get(i).getEndTime();
             LocalDateTime nextStart = sorted.get(i + 1).getStartTime();
@@ -315,6 +480,15 @@ public class OptimalSlotSuggestionService {
                             gapMinutes
                     ));
                 }
+            }
+        }
+
+        // Gap after last appointment (to office hours end)
+        LocalTime lastApptEnd = sorted.get(sorted.size() - 1).getEndTime().toLocalTime();
+        if (lastApptEnd.isBefore(officeEnd)) {
+            long gapMinutes = Duration.between(lastApptEnd, officeEnd).toMinutes();
+            if (gapMinutes > 0) {
+                gaps.add(new Gap(lastApptEnd, officeEnd, gapMinutes));
             }
         }
 
