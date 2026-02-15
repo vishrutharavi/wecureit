@@ -4,10 +4,11 @@ import React, { useEffect, useState } from "react";
 import styles from "../../patient.module.scss";
 import { FiActivity } from "react-icons/fi";
 import { apiFetch, showInlineToast } from '@/lib/api';
+import { toLocalIso } from '@/lib/dateUtils';
 import type { Doctor, Facility, Specialty, BookingResponse } from '@/app/protected/patient/types';
 
 type Props = {
-  onChange: (selection: { doctor?: Doctor | null; facility?: Facility | null; specialty?: Specialty | null }) => void;
+  onChange: (selection: { doctor?: Doctor | null; facility?: Facility | null; specialty?: Specialty | null; duration?: number | null }) => void;
 };
 
 // BookingResponse type is imported from shared types
@@ -21,6 +22,7 @@ export default function DropdownSelection({ onChange }: Props) {
   const [selectedSpecialty, setSelectedSpecialty] = useState<string | "">("");
   const [selectedFacility, setSelectedFacility] = useState<string | "">("");
   const [selectedDoctor, setSelectedDoctor] = useState<string | "">("");
+  const [selectedDuration, setSelectedDuration] = useState<number>(30); // default to 30 minutes
 
   const [specialties, setSpecialties] = useState<Specialty[]>(EMPTY_SPECIALTIES);
   const [facilities, setFacilities] = useState<Facility[]>(EMPTY_FACILITIES);
@@ -32,7 +34,7 @@ export default function DropdownSelection({ onChange }: Props) {
     (async () => {
       try {
         // Use today's date to get current availability
-        const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+        const today = toLocalIso(new Date());
         const params = new URLSearchParams();
         params.set('workDate', today);
         const url = `/api/patients/booking/dropdown-data?${params.toString()}`;
@@ -66,9 +68,9 @@ export default function DropdownSelection({ onChange }: Props) {
         if (selectedFacility) params.set('facilityId', selectedFacility);
         if (selectedSpecialty) params.set('specialityCode', selectedSpecialty);
         if (selectedDoctor) params.set('doctorId', selectedDoctor);
-        
+
         // Always use today's date for filtering
-        const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+        const today = toLocalIso(new Date());
         params.set('workDate', today);
         
         const url = '/api/patients/booking/dropdown-data' + (params.toString() ? `?${params.toString()}` : '');
@@ -106,7 +108,8 @@ export default function DropdownSelection({ onChange }: Props) {
     setSelectedDoctor("");
     setSelectedFacility("");
     setSelectedSpecialty("");
-    onChange({ doctor: null, facility: null, specialty: null });
+    setSelectedDuration(30); // reset to default
+    onChange({ doctor: null, facility: null, specialty: null, duration: 30 });
   }
 
   useEffect(() => {
@@ -114,8 +117,8 @@ export default function DropdownSelection({ onChange }: Props) {
     const doctor = doctors.find((d) => d.id === selectedDoctor) || null;
     const facility = facilities.find((f) => f.id === selectedFacility) || null;
     const specialty = specialties.find((s) => (s.id ?? s.name) === selectedSpecialty) || null;
-    onChange({ doctor, facility, specialty });
-  }, [selectedDoctor, selectedFacility, selectedSpecialty, onChange, doctors, facilities, specialties]);
+    onChange({ doctor, facility, specialty, duration: selectedDuration });
+  }, [selectedDoctor, selectedFacility, selectedSpecialty, selectedDuration, onChange, doctors, facilities, specialties]);
 
   return (
     <div>
@@ -202,6 +205,26 @@ export default function DropdownSelection({ onChange }: Props) {
             </select>
           </div>
           <div className={styles.profileSubtitle}>{specialties.length} specialties available</div>
+
+          <div style={{ height: 12 }} />
+
+          <div className={styles.fieldLabel}>Appointment Duration</div>
+          <div className={styles.searchInputWrap}>
+            <select
+              className={styles.inputField}
+              value={selectedDuration}
+              onChange={(e) => {
+                const val = parseInt(e.target.value, 10);
+                setSelectedDuration(val);
+              }}
+              disabled={loading}
+            >
+              <option value="15">15 minutes</option>
+              <option value="30">30 minutes</option>
+              <option value="60">60 minutes</option>
+            </select>
+          </div>
+          <div className={styles.profileSubtitle}>Select your preferred appointment length</div>
         </div>
       </div>
     </div>

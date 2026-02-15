@@ -65,10 +65,11 @@ export default function Page() {
 
   return (
     <div className={styles.wrapper} style={{ padding: 24 }}>
-  {justLoggedInMsg && <div className={styles.loginBanner}>{justLoggedInMsg}</div>}
-  <PatientHeader />
+      <div className={styles.content}>
+        {justLoggedInMsg && <div className={styles.loginBanner}>{justLoggedInMsg}</div>}
+        <PatientHeader />
 
-      <div style={{ paddingLeft: 16, paddingRight: 16 }}>
+        <div style={{ paddingLeft: 16, paddingRight: 16 }}>
         {tab === "profile" ? (
           <>
             <div className={styles.profileHeader}>
@@ -114,6 +115,7 @@ export default function Page() {
             </div>
           </>
         )}
+        </div>
       </div>
     </div>
   );
@@ -122,7 +124,7 @@ export default function Page() {
 // A small client-side booking component kept in this file for convenience.
 // It can be imported elsewhere if you prefer a separate page file.
 export function BookAppointmentPage() {
-  type Selection = { doctor?: Doctor | null; facility?: Facility | null; specialty?: Specialty | null };
+  type Selection = { doctor?: Doctor | null; facility?: Facility | null; specialty?: Specialty | null; duration?: number | null };
 
   const [selection, setSelection] = React.useState<Selection>({});
 
@@ -138,17 +140,18 @@ export function BookAppointmentPage() {
         <div className={styles.subtitle}>Select your doctor, facility, and specialty to continue</div>
       </div>
 
+      <BookingCopilot />
+      <div className={styles.manualDivider}>
+        <span>or book manually with the dropdowns below</span>
+      </div>
+
       <div className={styles.bookingGrid}>
-        <div className={styles.bookingLeftStack}>
-          <BookingCopilot />
-          <div className={styles.manualDivider}>
-            <span>or book manually with the dropdowns below</span>
-          </div>
+        <div>
           <DropdownSelection onChange={handleSelectionChange} />
         </div>
 
         <div>
-          <SelectionSummary doctor={selection.doctor} facility={selection.facility} specialty={selection.specialty} />
+          <SelectionSummary doctor={selection.doctor} facility={selection.facility} specialty={selection.specialty} duration={selection.duration} />
         </div>
       </div>
     </div>

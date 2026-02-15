@@ -33,3 +33,30 @@ body {
   color: white;
 }
 
+/* Global container for portal pages - centers content with max-width */
+.portal-container {
+  max-width: 1400px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+/* Responsive breakpoints */
+@media (max-width: 1600px) {
+  .portal-container {
+    max-width: 1300px;
+  }
+}
+
+@media (max-width: 1400px) {
+  .portal-container {
+    max-width: 1200px;
+  }
+}
+
+@media (max-width: 1024px) {
+  .portal-container {
+    max-width: 100%;
+    padding: 0 0.5rem;
+  }
+}
+
