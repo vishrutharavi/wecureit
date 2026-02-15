@@ -31,7 +31,7 @@ import java.util.stream.Collectors;
 public class OptimalSlotSuggestionService {
 
     private static final int MAX_NODES_EXPLORED = 500;
-    private static final long MAX_EXECUTION_TIME_MS = 400;
+    private static final long MAX_EXECUTION_TIME_MS = 2000;
     private static final int MAX_SUGGESTIONS = 5;
     private static final double EXCELLENT_SCORE_THRESHOLD = 80.0;
 

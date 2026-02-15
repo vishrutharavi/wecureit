@@ -26,10 +26,11 @@ export default function ScheduleView() {
 			const { appointments, setDate } = useSchedule();
 			const [facilitiesByDate, setFacilitiesByDate] = useState<Record<string, string | null>>({});
 			const [hasAppointmentsByDate, setHasAppointmentsByDate] = useState<Record<string, boolean>>({});
+			const [availabilityByDate, setAvailabilityByDate] = useState<Record<string, string | null>>({});
 			const days = allDays.slice((weekIndex - 1) * 7, weekIndex * 7);
 
 			useEffect(() => {
-				// fetch facility name for each visible date and cache it
+				// fetch facility name and availability for each visible date and cache it
 				const load = async () => {
 					try {
 						const raw = localStorage.getItem('doctorProfile');
@@ -37,7 +38,7 @@ export default function ScheduleView() {
 						const doc = JSON.parse(raw);
 						const doctorId = doc.id;
 						const token = localStorage.getItem('doctorToken') ?? undefined;
-						const entries: Array<[string, string | null, boolean]> = [];
+						const entries: Array<[string, string | null, boolean, string | null]> = [];
 						const visibleDays = allDays.slice((weekIndex - 1) * 7, weekIndex * 7);
 						await Promise.all(visibleDays.map(async (d) => {
 							const iso = toLocalIso(d);
@@ -68,15 +69,44 @@ export default function ScheduleView() {
 											return isActiveRaw === undefined || isActiveRaw === true;
 										} catch { return false; }
 									});
-								} else {
+								}
+
+								// Fetch availability data
+								let availabilityText: string | null = null;
+								try {
+									const availResp = await apiFetch(`/api/doctors/${doctorId}/availability?from=${iso}&to=${iso}`, token);
+									if (Array.isArray(availResp) && availResp.length > 0) {
+										// Format availability times
+										const timeRanges = availResp.map((avail: Record<string, unknown>) => {
+											const start = avail.startTime as string;
+											const end = avail.endTime as string;
+											if (start && end) {
+												// Format HH:mm to 12-hour format
+												const formatTime = (time: string) => {
+													const [h, m] = time.split(':').map(Number);
+													const period = h >= 12 ? 'PM' : 'AM';
+													const hour = h % 12 || 12;
+													return `${hour}:${m.toString().padStart(2, '0')} ${period}`;
+												};
+												return `${formatTime(start)} - ${formatTime(end)}`;
+											}
+											return null;
+										}).filter(Boolean);
+										availabilityText = timeRanges.length > 0 ? timeRanges.join(', ') : null;
+									}
+								} catch (e) {
+									console.warn('failed to fetch availability for', iso, e);
+								}
+
+								if (!hasAppts && !facility) {
 									// no appointments present for this date
-									entries.push([iso, null, false]);
+									entries.push([iso, null, false, availabilityText]);
 									return;
 								}
-								entries.push([iso, facility, hasAppts]);
+								entries.push([iso, facility, hasAppts, availabilityText]);
 							} catch (e) {
 								console.warn('failed to fetch schedule for', iso, e);
-								entries.push([iso, null, false]);
+								entries.push([iso, null, false, null]);
 							}
 						}));
 						setFacilitiesByDate(prev => {
@@ -93,6 +123,15 @@ export default function ScheduleView() {
 							for (const e of entries) {
 								const k = e[0] as string;
 								const v = e[2] as boolean;
+								copy[k] = v;
+							}
+							return copy;
+						});
+						setAvailabilityByDate(prev => {
+							const copy = { ...prev };
+							for (const e of entries) {
+								const k = e[0] as string;
+								const v = e[3] as string | null;
 								copy[k] = v;
 							}
 							return copy;
@@ -131,11 +170,16 @@ export default function ScheduleView() {
 							<div className={styles.cardDate}>{formatShort(d)}</div>
 
 								<div style={{ marginTop: 12 }}>
-									<div style={{ marginTop: 8, fontSize: 13, color: '#444' }}>{(() => {
+									<div style={{ marginTop: 8, fontSize: 13, color: '#444', fontWeight: 600 }}>{(() => {
 										const iso = toLocalIso(d);
 										const facility = facilitiesByDate[iso];
 										const has = hasAppointmentsByDate[iso];
 										return has ? (facility ?? '') : '';
+									})()}</div>
+									<div style={{ marginTop: 4, fontSize: 12, color: '#666' }}>{(() => {
+										const iso = toLocalIso(d);
+										const availability = availabilityByDate[iso];
+										return availability ?? '';
 									})()}</div>
 										<div style={{ marginTop: 12 }}>
 											<button className={styles.viewAppointmentsBtn} onClick={() => {
