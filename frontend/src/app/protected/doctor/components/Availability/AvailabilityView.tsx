@@ -6,7 +6,8 @@ import DatePickerGrid from "./DatePickerGrid";
 import FacilitySelector from "./FacilitySelector";
 import TimeRangePicker from "./TimeRangePicker";
 import ViewAvailabilityModal from "./ViewAvailabilityModal";
-import { apiFetch, showInlineToast } from '@/lib/api';
+import { showInlineToast } from '@/lib/api';
+import { getDoctorFacilities, getDoctorAvailability, createDoctorAvailability, deleteDoctorAvailability, getLockedAvailabilities, getFacilityAvailability } from '@/lib/doctor/doctorApi';
 
 type AvailabilityResp = {
   id: string;
@@ -74,7 +75,7 @@ export default function AvailabilityView() {
         const doc = JSON.parse(raw);
         const doctorId = doc.id;
         const token = localStorage.getItem('doctorToken') ?? undefined;
-        const resp = await apiFetch(`/api/doctors/${doctorId}/facilities`, token);
+        const resp = await getDoctorFacilities(doctorId, token);
         if (Array.isArray(resp)) {
           setFacilities((resp as FacilityApi[]).map((f) => {
             const roomsArr = (f.rooms || []) as Array<Record<string, unknown>>;
@@ -102,7 +103,7 @@ export default function AvailabilityView() {
         // Initial load: fetch saved availabilities, then for each unique date call the locked-availabilities
         // endpoint to ensure server-side locks are applied (which will deactivate other availabilities).
         // After that, re-fetch the availability list so the UI shows the updated active availabilities.
-        const initialResp: AvailabilityResp[] = await apiFetch(`/api/doctors/${doctorId}/availability`, token);
+        const initialResp: AvailabilityResp[] = await getDoctorAvailability(doctorId, undefined, token);
         let mapped: SavedItem[] = [];
         if (Array.isArray(initialResp)) {
           mapped = initialResp.map(r => {
@@ -129,9 +130,9 @@ export default function AvailabilityView() {
         // Ensure server enforces locks for the dates present in the initial response.
         try {
           const uniqueDates = Array.from(new Set(mapped.map(m => m.date))).filter(Boolean);
-          await Promise.all(uniqueDates.map(d => apiFetch(`/api/doctors/${doctorId}/locked-availabilities?workDate=${d}`, token).catch(e => { console.warn('locked-availabilities check failed for', d, e); })));
+          await Promise.all(uniqueDates.map(d => getLockedAvailabilities(doctorId, d, token).catch(e => { console.warn('locked-availabilities check failed for', d, e); })));
           // re-fetch availabilities after locks may have been applied
-          const refreshed: AvailabilityResp[] = await apiFetch(`/api/doctors/${doctorId}/availability`, token);
+          const refreshed: AvailabilityResp[] = await getDoctorAvailability(doctorId, undefined, token);
           if (Array.isArray(refreshed)) {
             const refreshedMapped: SavedItem[] = refreshed.map(r => {
               const facility = r.facilityId ? facilities.find(f => f.id === r.facilityId) : undefined;
@@ -191,10 +192,10 @@ export default function AvailabilityView() {
         }));
 
         // Post the new availabilities
-        const resp: AvailabilityResp[] = await apiFetch(`/api/doctors/${doctorId}/availability`, token, { method: 'POST', body: JSON.stringify(payload) });
+        const resp: AvailabilityResp[] = await createDoctorAvailability(doctorId, payload, token);
         
         // After successful save, refetch all availabilities to get accurate merged data
-        const allAvails: AvailabilityResp[] = await apiFetch(`/api/doctors/${doctorId}/availability`, token);
+        const allAvails: AvailabilityResp[] = await getDoctorAvailability(doctorId, undefined, token);
         
         if (Array.isArray(allAvails)) {
           const savedItems: SavedItem[] = allAvails.map((r: AvailabilityResp) => {
@@ -321,7 +322,7 @@ export default function AvailabilityView() {
                     const doc = JSON.parse(raw);
                     const doctorId = doc.id;
                     const token = localStorage.getItem('doctorToken') ?? undefined;
-                    const avail = await apiFetch(`/api/doctors/${doctorId}/facilities/${selectedFacility}/availability?workDate=${selectedDate}&start=${startTime}&end=${endTime}`, token);
+                    const avail = await getFacilityAvailability(doctorId, selectedFacility!, { workDate: selectedDate, start: startTime, end: endTime }, token);
                     if (avail && typeof avail.availableRooms === 'number') {
                       roomsCount = avail.availableRooms;
                     }
@@ -348,9 +349,9 @@ export default function AvailabilityView() {
               let resp: AvailabilityResp[] = [];
               // If a specific date is selected, call the locked-availabilities endpoint
               if (selectedDate && selectedDate.length > 0) {
-                resp = await apiFetch(`/api/doctors/${doctorId}/locked-availabilities?workDate=${selectedDate}`, token);
+                resp = await getLockedAvailabilities(doctorId, selectedDate, token);
               } else {
-                resp = await apiFetch(`/api/doctors/${doctorId}/availability`, token);
+                resp = await getDoctorAvailability(doctorId, undefined, token);
               }
               if (Array.isArray(resp)) {
                 const mapped: SavedItem[] = resp.map(r => {
@@ -393,7 +394,7 @@ export default function AvailabilityView() {
         const doctorId = doc.id;
         const token = localStorage.getItem('doctorToken') ?? undefined;
         // call backend delete endpoint (as requested path)
-        await apiFetch(`/api/doctors/${doctorId}/availability/${id}/delete-availability`, token, { method: 'DELETE' });
+        await deleteDoctorAvailability(doctorId, id, token);
         // remove locally
         setSaved(prev => prev.filter(x => x.id !== id));
       } catch (err) {

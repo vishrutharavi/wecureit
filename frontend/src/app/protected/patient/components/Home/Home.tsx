@@ -5,7 +5,8 @@ import styles from "../../patient.module.scss";
 import { useRouter } from "next/navigation";
 import { AiOutlineCalendar } from "react-icons/ai";
 import { FiAlertTriangle } from "react-icons/fi";
-import { apiFetch } from '@/lib/api';
+import { getPatientMe } from '@/lib/auth/authApi';
+import { getUpcomingAppointments, cancelAppointment } from '@/lib/patient/patientApi';
 
 type Appointment = {
   id: string;
@@ -82,7 +83,7 @@ function AppointmentCard({ a }: { a: Appointment }) {
                 return;
               }
 
-              await apiFetch(`/appointments/${a.id}/cancel?cancelledBy=patient`, token, { method: 'POST' });
+              await cancelAppointment(a.id, token);
               // remove from UI optimistically by dispatching window event so parent can update state
               window.dispatchEvent(new CustomEvent('wecureit:appointmentCancelled', { detail: { id: a.id } }));
             } catch {
@@ -109,7 +110,7 @@ export default function Home() {
         let patientId: string | undefined = profile?.id;
         if (!patientId) {
           try {
-            const me = await apiFetch('/api/patient/me');
+            const me = await getPatientMe();
             if (me && me.id) {
               patientId = String(me.id);
               profile = { ...(profile || {}), id: patientId, name: profile?.name ?? me?.name };
@@ -122,7 +123,7 @@ export default function Home() {
 
         if (!patientId) return;
 
-        const res = await apiFetch(`/appointments/byPatient?patientId=${patientId}`);
+        const res = await getUpcomingAppointments(patientId);
         if (!Array.isArray(res)) return;
 
         const now = new Date();

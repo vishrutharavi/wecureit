@@ -1,6 +1,6 @@
 "use client";
 import React, { useState } from "react";
-import { apiFetch } from "../../../../../lib/api";
+import { getDoctorSchedule, completeAppointment } from "@/lib/doctor/doctorApi";
 import { toLocalIso } from "../../../../../lib/dateUtils";
 import { FiX } from "react-icons/fi";
 import styles from "../../doctor.module.scss";
@@ -43,7 +43,7 @@ export default function AppointmentModal({
         const token = localStorage.getItem('doctorToken') ?? undefined;
         // date selected by ScheduleView is stored in sessionStorage
         const selDate = sessionStorage.getItem('selectedScheduleDate') ?? toLocalIso(new Date());
-        const resp = await apiFetch(`/api/doctors/${doctorId}/schedule?date=${selDate}`, token);
+        const resp = await getDoctorSchedule(doctorId, selDate, token);
         let rows: Array<Record<string, unknown>> = [];
         if (Array.isArray(resp)) rows = resp as Array<Record<string, unknown>>;
         else if (resp && typeof resp === 'object' && Array.isArray((resp as Record<string, unknown>).appointments)) rows = ((resp as Record<string, unknown>).appointments) as Array<Record<string, unknown>>;
@@ -141,7 +141,7 @@ export default function AppointmentModal({
                                 const doctorId = doc.id;
                                 const token = localStorage.getItem('doctorToken') ?? undefined;
                                 // appointment id expected as numeric id in backend
-                                await apiFetch(`/api/doctors/${doctorId}/appointments/${a.id}/complete`, token, { method: 'POST' });
+                                await completeAppointment(doctorId, a.id, token);
                                 // persist appointment object for the add-note modal (we remove it from list)
                                 setNoteAppointment(a);
                                 // remove from current list so it no longer appears in Upcoming
@@ -163,7 +163,7 @@ export default function AppointmentModal({
                                 const doc = JSON.parse(raw);
                                 const doctorId = doc.id;
                                 const token = localStorage.getItem('doctorToken') ?? undefined;
-                                await apiFetch(`/api/doctors/${doctorId}/appointments/${a.id}/complete`, token, { method: 'POST' });
+                                await completeAppointment(doctorId, a.id, token);
                                 setItems(prev => prev.filter(it => it.id !== a.id));
                                 setCompletedIds(prev => ({ ...prev, [a.id]: true }));
                                 setCompletedMenuId(null);

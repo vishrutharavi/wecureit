@@ -2,7 +2,8 @@
 
 import React from "react";
 import styles from "../../patient.module.scss";
-import { apiFetch } from '@/lib/api';
+import { getPatientMe } from '@/lib/auth/authApi';
+import { createAppointment } from '@/lib/patient/patientApi';
 import { useRouter } from 'next/navigation';
 // router not needed here (modal handles navigation)
 import AppointmentConfirmationModal from "../AppointmentConfirmation/AppointmentConfirmationModal";
@@ -134,7 +135,7 @@ export default function CostSummary() {
               } catch {}
 
               if (!patientId) {
-                const me = await apiFetch('/api/patient/me');
+                const me = await getPatientMe();
                 if (me && me.id) patientId = String(me.id);
               }
               if (!patientId) throw new Error('Unable to determine patient id');
@@ -181,10 +182,7 @@ export default function CostSummary() {
                 chiefComplaints: payload?.chiefComplaints ?? null,
               };
 
-              const res = await apiFetch('/appointments/create', undefined, {
-                method: 'POST',
-                body: JSON.stringify(body),
-              });
+              const res = await createAppointment(body);
 
               // res expected to be AppointmentResponse with id and roomNumber
               const apptId = res && res.id ? String(res.id) : null;

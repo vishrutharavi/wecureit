@@ -10,6 +10,7 @@ public class SignupRequest {
     private String gender;
     private String city;
     private String state;
+    private String address;
     private String zip;
 
     // authentication fields
@@ -36,6 +37,9 @@ public class SignupRequest {
 
     public String getState() { return state; }
     public void setState(String state) { this.state = state; }
+
+    public String getAddress() { return address; }
+    public void setAddress(String address) { this.address = address; }
 
     public String getZip() { return zip; }
     public void setZip(String zip) { this.zip = zip; }

@@ -3,7 +3,7 @@
 import React from "react";
 import { useRouter } from "next/navigation";
 import styles from "./bookingCopilot.module.scss";
-import { apiFetch } from "@/lib/api";
+import { getBookingDropdownData, interpretBookingUtterance, suggestBookingSlots } from "@/lib/patient/patientApi";
 import CopilotInput from "./CopilotInput";
 import CopilotIntent from "./CopilotIntent";
 import CopilotSuggestions from "./CopilotSuggestions";
@@ -53,7 +53,7 @@ export default function BookingCopilot() {
     let mounted = true;
     (async () => {
       try {
-        const resp = (await apiFetch("/api/patients/booking/dropdown-data")) as BookingResponse;
+        const resp = (await getBookingDropdownData()) as BookingResponse;
         if (!mounted || !resp) return;
 
         const specialties = Array.isArray(resp.specialties)
@@ -126,16 +126,10 @@ export default function BookingCopilot() {
     setAlternatives([]);
 
     try {
-      const parsed = await apiFetch("/api/agent/booking/interpret", undefined, {
-        method: "POST",
-        body: JSON.stringify({ utterance: trimmed }),
-      });
+      const parsed = await interpretBookingUtterance(trimmed);
       setIntent(parsed as BookingIntent);
 
-      const suggest = await apiFetch("/api/agent/booking/suggest", undefined, {
-        method: "POST",
-        body: JSON.stringify(parsed),
-      });
+      const suggest = await suggestBookingSlots(parsed as Record<string, unknown>);
 
       const typed = suggest as SuggestResponse;
       setSuggestions(typed?.suggestions ?? []);

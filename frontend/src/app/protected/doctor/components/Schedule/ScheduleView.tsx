@@ -4,7 +4,7 @@ import styles from "../../doctor.module.scss";
 import AppointmentModal from "./AppointmentModal";
 import { useSchedule } from "./useSchedule";
 import type { Appointment } from "./useSchedule";
-import { apiFetch } from "../../../../../lib/api";
+import { getDoctorSchedule, getDoctorAvailability } from "@/lib/doctor/doctorApi";
 import { toLocalIso } from "../../../../../lib/dateUtils";
 
 function formatShort(date: Date) {
@@ -43,7 +43,7 @@ export default function ScheduleView() {
 						await Promise.all(visibleDays.map(async (d) => {
 							const iso = toLocalIso(d);
 							try {
-								const resp = await apiFetch(`/api/doctors/${doctorId}/schedule?date=${iso}`, token);
+								const resp = await getDoctorSchedule(doctorId, iso, token);
 								let facility: string | null = null;
 								let hasAppts = false;
 								if (Array.isArray(resp) && resp.length) {
@@ -74,7 +74,7 @@ export default function ScheduleView() {
 								// Fetch availability data
 								let availabilityText: string | null = null;
 								try {
-									const availResp = await apiFetch(`/api/doctors/${doctorId}/availability?from=${iso}&to=${iso}`, token);
+									const availResp = await getDoctorAvailability(doctorId, { from: iso, to: iso }, token);
 									if (Array.isArray(availResp) && availResp.length > 0) {
 										// Format availability times
 										const timeRanges = availResp.map((avail: Record<string, unknown>) => {
