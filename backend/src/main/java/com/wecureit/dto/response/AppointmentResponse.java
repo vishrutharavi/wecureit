@@ -26,6 +26,8 @@ public class AppointmentResponse {
     private String doctorName;
     private Boolean isActive;
     private String chiefComplaints;
+    private UUID roomId;
+    private String roomNumber;
     // actor who cancelled the appointment, e.g. 'patient' or 'doctor' (normalized lowercase)
     private String cancelledBy;
     private String status;

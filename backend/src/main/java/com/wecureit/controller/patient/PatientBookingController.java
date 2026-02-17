@@ -51,12 +51,13 @@ public class PatientBookingController {
     public ResponseEntity<?> getBookingAvailability(
         @RequestParam(value = "doctorId") UUID doctorId,
         @RequestParam(value = "facilityId", required = false) UUID facilityId,
-        @RequestParam(value = "date") String dateStr
-        , @RequestParam(value = "duration", required = false) Integer duration
+        @RequestParam(value = "date") String dateStr,
+        @RequestParam(value = "duration", required = false) Integer duration,
+        @RequestParam(value = "specialityCode", required = false) String specialityCode
     ) {
         try {
             java.time.LocalDate d = java.time.LocalDate.parse(dateStr);
-            var resp = bookingService.getAvailabilitySlots(doctorId, facilityId, d, duration);
+            var resp = bookingService.getAvailabilitySlots(doctorId, facilityId, d, duration, specialityCode);
             return ResponseEntity.ok(resp);
         } catch (java.time.format.DateTimeParseException ex) {
             return ResponseEntity.badRequest().body(java.util.Map.of("error", "Invalid date format. Use YYYY-MM-DD"));

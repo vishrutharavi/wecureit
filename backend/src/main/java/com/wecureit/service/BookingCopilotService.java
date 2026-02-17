@@ -312,8 +312,8 @@ public class BookingCopilotService {
         LocalDate current = startDate;
         while (!current.isAfter(endDate) && slots.size() < 5) {
             try {
-                BookingAvailabilityResponse availability = 
-                        patientBookingService.getAvailabilitySlots(doctor.getId(), facilityId, current, duration);
+                BookingAvailabilityResponse availability =
+                        patientBookingService.getAvailabilitySlots(doctor.getId(), facilityId, current, duration, specialtyCode);
                 
                 for (BookingAvailabilitySlot slot : availability.getSlots()) {
                     if (!"AVAILABLE".equals(slot.getStatus())) continue;
