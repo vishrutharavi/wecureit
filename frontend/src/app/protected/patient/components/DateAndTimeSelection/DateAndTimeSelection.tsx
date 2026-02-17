@@ -490,9 +490,13 @@ export default function DateAndTimeSelection() {
                                 const blockCount = Math.ceil(duration / 15);
                                 if (selectedIndex >= 0 && idx >= selectedIndex && idx < selectedIndex + blockCount) inBlock = true;
                               }
-                              // determine if this slot is a valid start (enough slots remain for the duration)
+                              // determine if this slot is a valid start (enough consecutive AVAILABLE slots for the duration)
                               const blockCount = duration ? Math.ceil(duration / 15) : 1;
-                              const canStart = idx + blockCount <= generateTimeSlots.labels.length;
+                              const enoughSlots = idx + blockCount <= generateTimeSlots.labels.length;
+                              const allAvailable = enoughSlots && Array.from({ length: blockCount }, (_, i) => idx + i).every(
+                                i => !Array.isArray(generateTimeSlots.disabled) || !generateTimeSlots.disabled[i]
+                              );
+                              const canStart = enoughSlots && allAvailable;
                               const isActive = (selectedIndex !== null && idx === selectedIndex) || inBlock;
                               const availabilityId = generateTimeSlots.ids[idx] || null;
                               const slotDisabled = Array.isArray(generateTimeSlots.disabled) ? Boolean(generateTimeSlots.disabled[idx]) : false;
