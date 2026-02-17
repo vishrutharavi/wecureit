@@ -13,4 +13,6 @@ public interface DoctorRepository extends JpaRepository<Doctor, UUID> {
     Optional<Doctor> findByEmail(String email);
     Optional<Doctor> findByEmailIgnoreCase(String email);
     List<Doctor> findByIsActiveTrue();
+
+    List<Doctor> findByNameContainingIgnoreCaseAndIsActiveTrue(String name);
 }

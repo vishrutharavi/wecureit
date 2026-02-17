@@ -137,3 +137,101 @@ export async function getClinicalNotes(
     token
   );
 }
+
+/* ---------- Referrals ---------- */
+
+export async function createReferral(
+  doctorId: string,
+  payload: {
+    patientId: string;
+    toDoctorId: string;
+    appointmentId?: number;
+    specialityCode: string;
+    reason: string;
+  },
+  token?: string
+) {
+  return apiFetch(`/api/doctors/${doctorId}/referrals`, token, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function getOutgoingReferrals(
+  doctorId: string,
+  token?: string
+) {
+  return apiFetch(`/api/doctors/${doctorId}/referrals/outgoing`, token);
+}
+
+export async function getIncomingReferrals(
+  doctorId: string,
+  token?: string
+) {
+  return apiFetch(`/api/doctors/${doctorId}/referrals/incoming`, token);
+}
+
+export async function cancelReferral(
+  doctorId: string,
+  referralId: string,
+  cancelReason?: string,
+  token?: string
+) {
+  return apiFetch(`/api/doctors/${doctorId}/referrals/${referralId}/cancel`, token, {
+    method: "PATCH",
+    body: JSON.stringify({ cancelReason: cancelReason || null }),
+  });
+}
+
+export async function acceptReferral(
+  doctorId: string,
+  referralId: string,
+  token?: string
+) {
+  return apiFetch(`/api/doctors/${doctorId}/referrals/${referralId}/accept`, token, {
+    method: "PATCH",
+  });
+}
+
+export async function completeReferral(
+  doctorId: string,
+  referralId: string,
+  token?: string
+) {
+  return apiFetch(`/api/doctors/${doctorId}/referrals/${referralId}/complete`, token, {
+    method: "PATCH",
+  });
+}
+
+export async function getRecommendedDoctors(
+  doctorId: string,
+  patientId: string,
+  specialityCode: string,
+  token?: string
+) {
+  return apiFetch(
+    `/api/doctors/${doctorId}/referrals/recommendations?patientId=${patientId}&specialityCode=${specialityCode}`,
+    token
+  );
+}
+
+export async function searchDoctorsForReferral(
+  doctorId: string,
+  query: string,
+  specialityCode?: string,
+  token?: string
+) {
+  const qs = new URLSearchParams({ query });
+  if (specialityCode) qs.set("specialityCode", specialityCode);
+  return apiFetch(
+    `/api/doctors/${doctorId}/referrals/search-doctors?${qs.toString()}`,
+    token
+  );
+}
+
+export async function getReferralSpecialities(
+  doctorId: string,
+  token?: string
+) {
+  return apiFetch(`/api/doctors/${doctorId}/referrals/specialities`, token);
+}
