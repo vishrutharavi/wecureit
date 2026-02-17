@@ -1,9 +1,14 @@
 "use client";
 
-import { useState } from "react";
-import { signup } from "@/lib/auth/authApi";
+import { useState, useEffect } from "react";
+import { signup, getStates } from "@/lib/auth/authApi";
 import { Eye, EyeOff } from "lucide-react";
 import styles from "./register.module.scss";
+
+type State = {
+  code: string;
+  name: string;
+};
 
 export default function PatientSignup() {
   const [form, setForm] = useState({
@@ -16,12 +21,33 @@ export default function PatientSignup() {
     gender: "",
     city: "",
     state: "",
+    address: "",
     zip: "",
   });
 
+  const [states, setStates] = useState<State[]>([]);
+  const [loadingStates, setLoadingStates] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [step, setStep] = useState(1);
+
+  // Fetch states on mount
+  useEffect(() => {
+    const fetchStates = async () => {
+      setLoadingStates(true);
+      try {
+        const data = await getStates();
+        if (data) {
+          setStates(data);
+        }
+      } catch (error) {
+        console.error("Failed to fetch states:", error);
+      } finally {
+        setLoadingStates(false);
+      }
+    };
+    fetchStates();
+  }, []);
 
 
   function updateField(key: string, value: string) {
@@ -53,6 +79,7 @@ export default function PatientSignup() {
     gender: form.gender,
     city: form.city,
     state: form.state,
+    address: form.address,
     zip: form.zip,
   });
 
@@ -129,12 +156,27 @@ export default function PatientSignup() {
           onChange={(e) => updateField("city", e.target.value)}
         />
 
-        <input
+        <select
           className={styles.input}
-          placeholder="State"
           value={form.state}
           required
+          disabled={loadingStates}
           onChange={(e) => updateField("state", e.target.value)}
+        >
+          <option value="">{loadingStates ? "Loading states..." : "Select State"}</option>
+          {states.map((state) => (
+            <option key={state.code} value={state.code}>
+              {state.name}
+            </option>
+          ))}
+        </select>
+
+        <input
+          className={styles.input}
+          placeholder="Address"
+          value={form.address}
+          required
+          onChange={(e) => updateField("address", e.target.value)}
         />
 
         <input
@@ -157,7 +199,7 @@ export default function PatientSignup() {
             type="button"
             className={styles.primaryBtn}
             onClick={() => {
-              if (!form.name || !form.email || !form.phone || !form.dob || !form.gender || !form.city || !form.state || !form.zip) {
+              if (!form.name || !form.email || !form.phone || !form.dob || !form.gender || !form.city || !form.state || !form.address || !form.zip) {
                 alert("Please fill in all required fields before continuing.");
                 return;
               }

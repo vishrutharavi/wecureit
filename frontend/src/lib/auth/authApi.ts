@@ -9,6 +9,12 @@ export async function linkIdentity(token: string, portal: "PATIENT" | "DOCTOR" |
   });
 }
 
+/* ---------- Public Data ---------- */
+
+export async function getStates() {
+  return apiFetch("/api/auth/states", undefined);
+}
+
 /* ---------- Patient Profile ---------- */
 
 export async function getPatientMe(token?: string) {

@@ -30,6 +30,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.OPTIONS).permitAll()
                 .requestMatchers("/api/auth/**").permitAll()
                 .requestMatchers("/api/agent/ask", "/api/health", "/health", "/actuator/**").permitAll()
+                .requestMatchers("/error").permitAll()
                 
                 // DEBUG: Log when doctor availability endpoints are accessed
                 .requestMatchers(HttpMethod.GET, "/api/doctors/*/availability", "/api/doctors/*/locked-availabilities")

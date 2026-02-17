@@ -398,9 +398,9 @@ export default function DateAndTimeSelection() {
       {suggestedSlots && suggestedSlots.length > 0 && (
         <div className={styles.suggestionsPanel}>
           <div className={styles.sectionTitle}>Recommended Time Slots</div>
-          <div className={styles.sectionSubtitle}>
+          {/* <div className={styles.sectionSubtitle}>
             These slots optimize schedule efficiency and minimize doctor idle time
-          </div>
+          </div> */}
 
           <div className={styles.suggestionGrid}>
             {suggestedSlots.map((slot, idx) => (
@@ -443,7 +443,6 @@ export default function DateAndTimeSelection() {
               <DatePickerGrid value={date} onChange={(iso) => setDate(iso)} availableDates={availableDates} />
             </div>
 
-            {/* debug UI removed */}
 
             {/* Duration only visible after a date is chosen */}
             {date ? (
