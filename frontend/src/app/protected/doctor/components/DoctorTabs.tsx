@@ -4,7 +4,6 @@ import React from "react";
 import styles from "../doctor.module.scss";
 import { Calendar, Clock, FileText, Share2, Mail } from "lucide-react";
 import ReferralModal from "./Referral/ReferralModal";
-import MessageModal from "./Message/MessageModal";
 
 type Tab = "schedule" | "availability" | "notes";
 
@@ -15,7 +14,6 @@ type Props = {
 
 export default function DoctorTabs({ active, onChange }: Props) {
   const [showReferrals, setShowReferrals] = React.useState(false);
-  const [showMessages, setShowMessages] = React.useState(false);
 
   // sample referrals; in future this should come from an API
   const sampleReferrals = [
@@ -65,17 +63,13 @@ export default function DoctorTabs({ active, onChange }: Props) {
       </div>
 
       <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 12 }}>
-        <button className={`${styles.tab} ${showMessages ? styles.active : ''}`} onClick={() => setShowMessages(true)} title="Messages">
-          <Mail size={14} style={{ marginRight: 8 }} /> Messages
-        </button>
-
         <button className={`${styles.tab} ${showReferrals ? styles.active : ''}`} onClick={() => setShowReferrals(true)} title="View Referrals">
           <Share2 size={14} style={{ marginRight: 8 }} /> Referrals {sampleReferrals.length ? <span style={{ marginLeft: 6 }} className={styles.smallBadge}>{sampleReferrals.length}</span> : null}
         </button>
       </div>
 
       <ReferralModal open={showReferrals} onClose={() => setShowReferrals(false)} items={sampleReferrals} />
-      <MessageModal open={showMessages} onClose={() => setShowMessages(false)} />
+
     </div>
   );
 }
