@@ -32,6 +32,7 @@ public class PatientBookingService {
     private final com.wecureit.repository.AppointmentRepository appointmentRepository;
     private final com.wecureit.service.DoctorAvailabilityService doctorAvailabilityService;
     private final DoctorFacilityLockRepository doctorFacilityLockRepository;
+    private final DoctorFacilityService doctorFacilityService;
 
     public PatientBookingService(DoctorRepository doctorRepository,
                                  FacilityRepository facilityRepository,
@@ -40,7 +41,8 @@ public class PatientBookingService {
                                  DoctorLicenseRepository doctorLicenseRepository,
                                  com.wecureit.repository.AppointmentRepository appointmentRepository,
                                  com.wecureit.service.DoctorAvailabilityService doctorAvailabilityService,
-                                 DoctorFacilityLockRepository doctorFacilityLockRepository) {
+                                 DoctorFacilityLockRepository doctorFacilityLockRepository,
+                                 DoctorFacilityService doctorFacilityService) {
         this.doctorRepository = doctorRepository;
         this.facilityRepository = facilityRepository;
         this.specialityRepository = specialityRepository;
@@ -49,6 +51,7 @@ public class PatientBookingService {
         this.appointmentRepository = appointmentRepository;
         this.doctorAvailabilityService = doctorAvailabilityService;
         this.doctorFacilityLockRepository = doctorFacilityLockRepository;
+        this.doctorFacilityService = doctorFacilityService;
     }
 
     /**
@@ -56,6 +59,10 @@ public class PatientBookingService {
      * Status values: AVAILABLE | BOOKED | BREAK_ENFORCED | UNAVAILABLE
      */
     public com.wecureit.dto.response.BookingAvailabilityResponse getAvailabilitySlots(java.util.UUID doctorId, java.util.UUID facilityId, java.time.LocalDate workDate, Integer desiredDurationMinutes) {
+        return getAvailabilitySlots(doctorId, facilityId, workDate, desiredDurationMinutes, null);
+    }
+
+    public com.wecureit.dto.response.BookingAvailabilityResponse getAvailabilitySlots(java.util.UUID doctorId, java.util.UUID facilityId, java.time.LocalDate workDate, Integer desiredDurationMinutes, String specialityCode) {
         var out = new com.wecureit.dto.response.BookingAvailabilityResponse();
         out.setDoctorId(doctorId);
         out.setFacilityId(facilityId);
@@ -92,6 +99,9 @@ public class PatientBookingService {
                     for (var a : appts) {
                         if (a.getIsActive() != null && !a.getIsActive()) continue;
                         if (a.getStartTime() == null || a.getEndTime() == null) continue;
+                        // when filtering by speciality, only mark slots as BOOKED for same-speciality appointments
+                        if (specialityCode != null && a.getSpeciality() != null &&
+                            !specialityCode.equals(a.getSpeciality().getSpecialityCode())) continue;
                         if (a.getStartTime().isBefore(edt) && a.getEndTime().isAfter(sdt)) { overlapped = true; break; }
                     }
                     if (overlapped) status = "BOOKED";
@@ -155,9 +165,15 @@ public class PatientBookingService {
                         }
                     }
 
-                    // if facility capacity reported as no available rooms, mark UNAVAILABLE (best-effort)
-                    if (w.getAvailableRooms() != null && w.getAvailableRooms() <= 0) {
-                        status = "UNAVAILABLE";
+                    // per-slot room availability check: if no rooms available for the speciality at this slot, mark UNAVAILABLE
+                    if (facilityId != null && "AVAILABLE".equals(status)) {
+                        String slotSpecCode = specialityCode != null ? specialityCode : w.getSpecialityCode();
+                        if (slotSpecCode != null) {
+                            com.wecureit.entity.Room availRoom = doctorFacilityService.findAvailableRoom(facilityId, slotSpecCode, sdt, edt);
+                            if (availRoom == null) {
+                                status = "UNAVAILABLE";
+                            }
+                        }
                     }
 
                     // include the originating availability window id when available so frontend can persist it

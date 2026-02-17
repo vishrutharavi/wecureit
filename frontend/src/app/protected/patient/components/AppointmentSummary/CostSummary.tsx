@@ -186,13 +186,14 @@ export default function CostSummary() {
                 body: JSON.stringify(body),
               });
 
-              // res expected to be AppointmentResponse with id
+              // res expected to be AppointmentResponse with id and roomNumber
               const apptId = res && res.id ? String(res.id) : null;
               const conf = apptId ? `WC${apptId}` : `WC${String(Date.now()).slice(-9)}`;
               setConfirmation(conf);
-              // show modal with booking details returned from storage (no room details)
               const modalBooking: Booking = { ...(booking ?? {}) };
-              // update booking shown in modal (do not overwrite session storage)
+              if (res && res.roomNumber) {
+                modalBooking.roomNumber = res.roomNumber;
+              }
               setBooking(modalBooking);
               setShowModal(true);
             } catch (err: unknown) {

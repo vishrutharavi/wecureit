@@ -25,4 +25,10 @@ public interface AppointmentRepository extends JpaRepository<Appointment, Long> 
 
     @Query("SELECT a FROM Appointment a WHERE a.facility.id = :facilityId AND ((a.startTime < :endAt) AND (a.endTime > :startAt))")
     List<Appointment> findAppointmentsForFacility(@Param("facilityId") UUID facilityId, @Param("startAt") LocalDateTime startAt, @Param("endAt") LocalDateTime endAt);
+
+    @Query("SELECT a FROM Appointment a WHERE a.room.id = :roomId AND a.isActive = true AND a.startTime < :endAt AND a.endTime > :startAt")
+    List<Appointment> findActiveAppointmentsByRoomAndTimeOverlap(@Param("roomId") UUID roomId, @Param("startAt") LocalDateTime startAt, @Param("endAt") LocalDateTime endAt);
+
+    @Query("SELECT a FROM Appointment a WHERE a.facility.id = :facilityId AND a.room IS NOT NULL AND a.isActive = true AND a.startTime < :endAt AND a.endTime > :startAt")
+    List<Appointment> findActiveAppointmentsWithRoomForFacility(@Param("facilityId") UUID facilityId, @Param("startAt") LocalDateTime startAt, @Param("endAt") LocalDateTime endAt);
 }

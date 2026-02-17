@@ -39,7 +39,7 @@ public class AppointmentService {
     private final AppointmentHistoryRepository appointmentHistoryRepository;
     private final com.wecureit.repository.RoomRepository roomRepository;
     private final DoctorFacilityLockRepository doctorFacilityLockRepository;
-    // doctorBreakRepository removed: breaks are computed on-the-fly but not persisted
+    private final DoctorFacilityService doctorFacilityService;
 
     // ComputedBreak is a lightweight in-memory representation of a computed break
     // — used only for returning computed break info to callers. These are NOT persisted.
@@ -73,6 +73,7 @@ public class AppointmentService {
                               com.wecureit.repository.RoomRepository roomRepository,
                               AppointmentHistoryRepository appointmentHistoryRepository,
                               DoctorFacilityLockRepository doctorFacilityLockRepository,
+                              DoctorFacilityService doctorFacilityService,
                               ApplicationEventPublisher applicationEventPublisher) {
         this.repo = repo;
         this.patientRepository = patientRepository;
@@ -82,8 +83,7 @@ public class AppointmentService {
     this.roomRepository = roomRepository;
     this.appointmentHistoryRepository = appointmentHistoryRepository;
     this.doctorFacilityLockRepository = doctorFacilityLockRepository;
-    // doctorBreakRepository intentionally not assigned; breaks are compute-only now
-        // set the publisher so this service can publish appointment change events
+    this.doctorFacilityService = doctorFacilityService;
         this.applicationEventPublisher = applicationEventPublisher;
     }
 
@@ -285,15 +285,21 @@ public class AppointmentService {
             appt.setSpeciality(s);
         }
 
-    // room assignment by room_schedule id is disabled; skip any provided roomScheduleId
+    // auto-assign a room based on speciality and facility
+    if (req.getFacilityId() != null && req.getStartTime() != null && req.getEndTime() != null) {
+        String specCode = req.getSpecialityId();
+        com.wecureit.entity.Room availableRoom = doctorFacilityService.findAvailableRoom(
+            req.getFacilityId(), specCode, req.getStartTime(), req.getEndTime());
+        if (availableRoom == null) {
+            throw new IllegalArgumentException("No rooms available for this speciality at the requested time");
+        }
+        appt.setRoom(availableRoom);
+    }
 
     // ensure appointment UUID is set for new rows (DB column 'uuid')
     if (appt.getUuid() == null) appt.setUuid(UUID.randomUUID());
 
-    // save appointment first so we have an id to reference from RoomSchedule
     Appointment saved = repo.save(appt);
-
-        // room auto-assignment disabled: do not try to reserve rooms for appointments
 
         // After creating the appointment, publish an event so an async listener recomputes breaks
         try {

@@ -30,7 +30,7 @@ import java.util.stream.Collectors;
 public class OptimalSlotSuggestionService {
 
     private static final int MAX_NODES_EXPLORED = 500;
-    private static final long MAX_EXECUTION_TIME_MS = 2000;
+    private static final long MAX_EXECUTION_TIME_MS = 6000;
     private static final int MAX_SUGGESTIONS = 5;
     private static final double EXCELLENT_SCORE_THRESHOLD = 80.0;
 
@@ -184,7 +184,7 @@ public class OptimalSlotSuggestionService {
             try {
                 // Fetch available slots for this date
                 BookingAvailabilityResponse availability =
-                        patientBookingService.getAvailabilitySlots(doctorId, facilityId, currentDate, durationMinutes);
+                        patientBookingService.getAvailabilitySlots(doctorId, facilityId, currentDate, durationMinutes, specialtyCode);
 
                 if (availability != null && availability.getSlots() != null && !availability.getSlots().isEmpty()) {
                     // Fetch existing appointments for this date

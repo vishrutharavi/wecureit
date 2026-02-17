@@ -197,7 +197,7 @@ public class DoctorAvailabilityService {
         }
         
         try {
-            com.wecureit.dto.response.FacilityAvailabilityResponse far = doctorFacilityService.getFacilityAvailability(da.getFacilityId(), da.getWorkDate(), da.getStartTime(), da.getEndTime());
+            com.wecureit.dto.response.FacilityAvailabilityResponse far = doctorFacilityService.getFacilityAvailability(da.getFacilityId(), da.getWorkDate(), da.getStartTime(), da.getEndTime(), da.getSpecialityCode());
             if (far != null) {
                 resp.setRoomsTotal(far.roomsTotal);
                 resp.setOccupiedRooms(far.occupiedRooms);
@@ -238,7 +238,7 @@ public class DoctorAvailabilityService {
             // booking flag not stored; default to true for display
             resp.setBookable(true);
             try {
-                com.wecureit.dto.response.FacilityAvailabilityResponse far = doctorFacilityService.getFacilityAvailability(da.getFacilityId(), da.getWorkDate(), da.getStartTime(), da.getEndTime());
+                com.wecureit.dto.response.FacilityAvailabilityResponse far = doctorFacilityService.getFacilityAvailability(da.getFacilityId(), da.getWorkDate(), da.getStartTime(), da.getEndTime(), da.getSpecialityCode());
                 if (far != null) {
                     resp.setRoomsTotal(far.roomsTotal);
                     resp.setOccupiedRooms(far.occupiedRooms);

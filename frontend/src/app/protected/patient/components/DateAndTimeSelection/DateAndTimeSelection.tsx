@@ -275,6 +275,7 @@ export default function DateAndTimeSelection() {
         if (facilityId) params.set('facilityId', facilityId);
         params.set('date', date);
         if (duration) params.set('duration', String(duration));
+        if (selection.specialty?.id) params.set('specialityCode', selection.specialty.id);
         const url = `/api/patients/booking/availability?${params.toString()}`;
         const resp = await apiFetch(url) as { slots?: ServerSlot[] } | null;
         if (cancelled) return;

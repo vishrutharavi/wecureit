@@ -219,7 +219,10 @@ public class AppointmentController {
                 // don't fail response on doctor lookup issues
             }
         }
-        // Room assignment/reservation is disabled; do not include room info in responses
+        if (a.getRoom() != null) {
+            resp.setRoomId(a.getRoom().getId());
+            resp.setRoomNumber(a.getRoom().getRoomNumber());
+        }
         return resp;
     }
 }
