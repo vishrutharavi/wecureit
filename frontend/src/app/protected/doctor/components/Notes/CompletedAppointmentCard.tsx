@@ -3,9 +3,9 @@
 import React from "react";
 import styles from "../../doctor.module.scss";
 import { MapPin, Calendar, Clock, User, Plus } from "lucide-react";
-import { useRouter } from "next/navigation";
 import AddNoteModal from "./AddNoteModal";
 import ViewNoteModal from "./ViewNoteModal";
+import CreateReferralModal from "./CreateReferralModal";
 
 type Props = {
   patientName: string;
@@ -32,9 +32,9 @@ export default function CompletedAppointmentCard({
   appointmentDbId,
   patientId,
 }: Props) {
-  const router = useRouter();
   const [showAddNote, setShowAddNote] = React.useState(false);
   const [showViewNotes, setShowViewNotes] = React.useState(false);
+  const [showReferral, setShowReferral] = React.useState(false);
   const [doctorNameState, setDoctorNameState] = React.useState<string>('');
 
   React.useEffect(() => {
@@ -46,9 +46,6 @@ export default function CompletedAppointmentCard({
       }
     } catch {}
   }, []);
-
-  // navigate to referral page with patient query param
-  const handleRefer = () => router.push(`/protected/doctor/notes/refer?patient=${encodeURIComponent(patientName)}`);
 
   return (
     <div className={`${styles.facilityCard} ${styles.appointmentCard}`}>
@@ -86,7 +83,8 @@ export default function CompletedAppointmentCard({
             </button>
             <AddNoteModal open={showAddNote} onClose={() => setShowAddNote(false)} patientName={patientName} dateLabel={date} timeLabel={time} appointmentDbId={appointmentDbId} patientId={patientId} />
           </>
-          <button className={styles.secondaryBtn} onClick={handleRefer}>Refer Specialty</button>
+          <button className={styles.secondaryBtn} onClick={() => setShowReferral(true)}>Refer Specialty</button>
+          <CreateReferralModal open={showReferral} onClose={() => setShowReferral(false)} patientName={patientName} patientId={patientId} appointmentDbId={appointmentDbId} />
           <button className={`${styles.secondaryBtn} ${styles.mt6}`} onClick={() => setShowViewNotes(true)}>View Notes</button>
           <ViewNoteModal open={showViewNotes} onClose={() => setShowViewNotes(false)} patientName={patientName} doctorName={doctorNameState} patientAge={ageGender} appointmentDbId={appointmentDbId} patientId={patientId} />
         </div>

@@ -28,4 +28,5 @@ public interface DoctorAvailabilityRepository extends JpaRepository<DoctorAvaila
     int deactivateOtherAvailabilities(@Param("doctorId") UUID doctorId, @Param("workDate") LocalDate workDate,
             @Param("facilityId") UUID facilityId);
 
+    List<DoctorAvailability> findByDoctorIdAndWorkDateGreaterThanEqualAndIsActiveTrue(UUID doctorId, LocalDate fromDate);
 }
