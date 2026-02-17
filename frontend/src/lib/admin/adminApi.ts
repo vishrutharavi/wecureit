@@ -119,3 +119,34 @@ export async function deactivateDoctor(token: string, doctorId: string) {
     method: "PATCH",
   });
 }
+
+/* ---------- Meta (States & Specialities) ---------- */
+
+export async function getStates(token: string) {
+  return apiFetch("/api/admin/states", token);
+}
+
+export async function getSpecialities(token: string) {
+  return apiFetch("/api/admin/specialities", token);
+}
+
+/* ---------- Doctor Update ---------- */
+
+export async function updateDoctor(
+  token: string,
+  doctorId: string,
+  payload: { name?: string; gender?: string }
+) {
+  return apiFetch(`/api/admin/doctors/${doctorId}/update`, token, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
+/* ---------- Doctor License Deactivation ---------- */
+
+export async function deactivateDoctorLicense(token: string, licenseId: string) {
+  return apiFetch(`/api/admin/doctor-licenses/${licenseId}/deactivate`, token, {
+    method: "PATCH",
+  });
+}

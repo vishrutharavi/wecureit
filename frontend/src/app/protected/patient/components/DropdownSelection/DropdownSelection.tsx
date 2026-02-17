@@ -3,7 +3,8 @@
 import React, { useEffect, useState } from "react";
 import styles from "../../patient.module.scss";
 import { FiActivity } from "react-icons/fi";
-import { apiFetch, showInlineToast } from '@/lib/api';
+import { showInlineToast } from '@/lib/api';
+import { getBookingDropdownData } from '@/lib/patient/patientApi';
 import { toLocalIso } from '@/lib/dateUtils';
 import type { Doctor, Facility, Specialty, BookingResponse } from '@/app/protected/patient/types';
 
@@ -37,9 +38,7 @@ export default function DropdownSelection({ onChange }: Props) {
         const today = toLocalIso(new Date());
         const params = new URLSearchParams();
         params.set('workDate', today);
-        const url = `/api/patients/booking/dropdown-data?${params.toString()}`;
-      
-        const resp = await apiFetch(url) as BookingResponse;
+        const resp = await getBookingDropdownData(params) as BookingResponse;
         if (resp) {
           // map specialties
           const specs = Array.isArray(resp.specialties) ? resp.specialties.map((s) => ({ id: s.code, name: s.name })) : [];
@@ -73,8 +72,7 @@ export default function DropdownSelection({ onChange }: Props) {
         const today = toLocalIso(new Date());
         params.set('workDate', today);
         
-        const url = '/api/patients/booking/dropdown-data' + (params.toString() ? `?${params.toString()}` : '');
-        const resp = await apiFetch(url) as BookingResponse;
+        const resp = await getBookingDropdownData(params) as BookingResponse;
         if (!mounted) return;
         if (resp) {
           const specs = Array.isArray(resp.specialties) ? resp.specialties.map((s) => ({ id: s.code, name: s.name })) : [];

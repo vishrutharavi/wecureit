@@ -3,8 +3,7 @@
 import styles from "../../admin.module.scss";
 import { useState, useEffect } from "react";
 import { auth } from "@/lib/firebase";
-import { apiFetch } from "@/lib/api";
-import { createDoctor, addDoctorLicense, getDoctors } from "@/lib/admin/adminApi";
+import { createDoctor, addDoctorLicense, getDoctors, updateDoctor, deactivateDoctorLicense } from "@/lib/admin/adminApi";
 import { useDoctorMeta } from "./useDoctors";
 import type { Doctor } from "../../types";
 import { Trash2 } from "lucide-react";
@@ -143,14 +142,7 @@ export default function AddDoctorModal({
 
     try {
       if (initialDoctor) {
-        const updated = await apiFetch(
-          `/api/admin/doctors/${initialDoctor.id}/update`,
-          token,
-          {
-            method: "PUT",
-            body: JSON.stringify({ name: form.name, gender: form.gender }),
-          }
-        );
+        const updated = await updateDoctor(token, initialDoctor.id, { name: form.name, gender: form.gender });
 
         // after updating doctor core fields, ensure any newly-added licenses are created
         for (const lic of licenses) {
@@ -229,7 +221,7 @@ export default function AddDoctorModal({
 
     // deactivate each saved license id for this state
     for (const id of serverIds) {
-      await apiFetch(`/api/admin/doctor-licenses/${id}/deactivate`, token, { method: "PATCH" });
+      await deactivateDoctorLicense(token, id);
     }
 
     // on success, remove the state row locally and clear original mapping

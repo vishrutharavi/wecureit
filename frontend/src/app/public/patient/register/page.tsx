@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { apiFetch } from "@/lib/api";
+import { signup } from "@/lib/auth/authApi";
 import { Eye, EyeOff } from "lucide-react";
 import styles from "./register.module.scss";
 
@@ -43,20 +43,17 @@ export default function PatientSignup() {
     return;
   }
 
-  await apiFetch("/api/auth/signup", undefined, {
-    method: "POST",
-    body: JSON.stringify({
-      email: form.email,
-      password: form.password,
-      role: "PATIENT",
-      name: form.name,
-      phone: form.phone,
-      dob: form.dob,
-      gender: form.gender,
-      city: form.city,
-      state: form.state,
-      zip: form.zip,
-    }),
+  await signup({
+    email: form.email,
+    password: form.password,
+    role: "PATIENT",
+    name: form.name,
+    phone: form.phone,
+    dob: form.dob,
+    gender: form.gender,
+    city: form.city,
+    state: form.state,
+    zip: form.zip,
   });
 
   alert("Signup successful. Please login.");

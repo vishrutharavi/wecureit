@@ -1,7 +1,9 @@
 "use client";
 
 import React from "react";
-import { apiFetch, showInlineToast } from '@/lib/api';
+import { showInlineToast } from '@/lib/api';
+import { getDoctorAvailability, getLockedAvailabilities } from '@/lib/doctor/doctorApi';
+import { getBookingAvailability, suggestOptimalSlots } from '@/lib/patient/patientApi';
 import { useRouter } from "next/navigation";
 import { toLocalIso } from '@/lib/dateUtils';
 import styles from "../../patient.module.scss";
@@ -143,8 +145,7 @@ export default function DateAndTimeSelection() {
         const to = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
         const fromIso = toLocalIso(from);
         const toIso = toLocalIso(to);
-        const url = `/api/doctors/${doctorId}/availability?from=${fromIso}&to=${toIso}`;
-        const resp = await apiFetch(url) as AvailabilityResp[];
+        const resp = await getDoctorAvailability(doctorId, { from: fromIso, to: toIso }) as AvailabilityResp[];
         if (canceled) return;
 
         if (!Array.isArray(resp)) {
@@ -184,7 +185,7 @@ export default function DateAndTimeSelection() {
             const facId = selection.facility.id;
             const checks = await Promise.all(dates.map(async (d) => {
               try {
-                const resp = await apiFetch(`/api/doctors/${doctorId}/locked-availabilities?workDate=${d}`) as AvailabilityResp[];
+                const resp = await getLockedAvailabilities(doctorId, d) as AvailabilityResp[];
                 if (Array.isArray(resp) && resp.length > 0) {
                   // keep the date only if any returned availability belongs to the selected facility
                   return resp.some((a: AvailabilityResp) => String(a.facilityId || '').trim() === String(facId).trim());
@@ -231,16 +232,11 @@ export default function DateAndTimeSelection() {
       }
 
       try {
-        const requestBody = {
+        const response = await suggestOptimalSlots({
           doctorId: selection.doctor.id,
           facilityId: selection.facility.id,
           specialtyCode: selection.specialty?.id || null,
           duration: duration || 30
-        };
-
-        const response = await apiFetch('/api/patients/booking/suggest-optimal-slots', undefined, {
-          method: 'POST',
-          body: JSON.stringify(requestBody)
         });
 
         if (cancelled) return;
@@ -276,8 +272,7 @@ export default function DateAndTimeSelection() {
         params.set('date', date);
         if (duration) params.set('duration', String(duration));
         if (selection.specialty?.id) params.set('specialityCode', selection.specialty.id);
-        const url = `/api/patients/booking/availability?${params.toString()}`;
-        const resp = await apiFetch(url) as { slots?: ServerSlot[] } | null;
+        const resp = await getBookingAvailability(params) as { slots?: ServerSlot[] } | null;
         if (cancelled) return;
         if (resp && Array.isArray(resp.slots)) {
           setBookingSlots(resp.slots.map((s) => ({ startAt: s.startAt, endAt: s.endAt, status: s.status, availabilityId: s.availabilityId || null })));

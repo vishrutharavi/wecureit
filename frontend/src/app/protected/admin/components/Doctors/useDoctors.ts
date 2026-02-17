@@ -1,9 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getDoctors } from "@/lib/admin/adminApi";
+import { getDoctors, getStates, getSpecialities } from "@/lib/admin/adminApi";
 import { auth } from "@/lib/firebase";
-import { apiFetch } from "@/lib/api";
 import type { Doctor, State, Speciality } from "../../types";
 
 export function useDoctors() {
@@ -57,8 +56,8 @@ export function useDoctorMeta() {
 
       try {
         const [statesRes, specsRes] = await Promise.all([
-          apiFetch("/api/admin/states", token),
-          apiFetch("/api/admin/specialities", token),
+          getStates(token),
+          getSpecialities(token),
         ]);
 
         setStates(statesRes || []);

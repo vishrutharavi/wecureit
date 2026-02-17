@@ -3,7 +3,7 @@
 import { useMemo, useState, useEffect } from "react";
 import CompletedAppointmentCard from "./CompletedAppointmentCard";
 import styles from "../../doctor.module.scss";
-import { apiFetch } from "../../../../../lib/api";
+import { getCompletedAppointments } from "@/lib/doctor/doctorApi";
 import { toLocalIso } from "../../../../../lib/dateUtils";
 
 type UIAppointment = {
@@ -65,7 +65,7 @@ export default function NotesGrid() {
 				const startDate = new Date(today);
 				startDate.setDate(today.getDate() - (days - 1));
 				const start = toLocalIso(startDate);
-				const res = await apiFetch(`/api/doctors/${doctorId}/completed-appointments?startDate=${start}&endDate=${end}`, localStorage.getItem('doctorToken') ?? undefined);
+				const res = await getCompletedAppointments(doctorId, start, end, localStorage.getItem('doctorToken') ?? undefined);
 				const combined: Record<string, unknown>[] = [];
 				if (res) {
 					if (Array.isArray(res)) {
