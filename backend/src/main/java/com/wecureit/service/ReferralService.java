@@ -8,10 +8,13 @@ import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.wecureit.dto.request.CreateReferralRequest;
+import com.wecureit.event.ReferralCreatedEvent;
+import com.wecureit.event.ReferralStatusChangedEvent;
 import com.wecureit.dto.response.RecommendedDoctorResponse;
 import com.wecureit.dto.response.ReferralResponse;
 import com.wecureit.entity.Appointment;
@@ -41,6 +44,7 @@ public class ReferralService {
     private final DoctorLicenseRepository doctorLicenseRepository;
     private final DoctorAvailabilityRepository doctorAvailabilityRepository;
     private final StateRepository stateRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     public ReferralService(
             ReferralRepository referralRepository,
@@ -50,7 +54,8 @@ public class ReferralService {
             SpecialityRepository specialityRepository,
             DoctorLicenseRepository doctorLicenseRepository,
             DoctorAvailabilityRepository doctorAvailabilityRepository,
-            StateRepository stateRepository) {
+            StateRepository stateRepository,
+            ApplicationEventPublisher eventPublisher) {
         this.referralRepository = referralRepository;
         this.doctorRepository = doctorRepository;
         this.patientRepository = patientRepository;
@@ -59,6 +64,7 @@ public class ReferralService {
         this.doctorLicenseRepository = doctorLicenseRepository;
         this.doctorAvailabilityRepository = doctorAvailabilityRepository;
         this.stateRepository = stateRepository;
+        this.eventPublisher = eventPublisher;
     }
 
     @Transactional
@@ -90,6 +96,15 @@ public class ReferralService {
         }
 
         referral = referralRepository.save(referral);
+
+        eventPublisher.publishEvent(new ReferralCreatedEvent(
+                referral.getId(),
+                referral.getFromDoctor().getId(),
+                referral.getToDoctor().getId(),
+                referral.getPatient().getId(),
+                referral.getSpeciality().getSpecialityCode(),
+                referral.getReason()));
+
         return toResponse(referral);
     }
 
@@ -112,9 +127,13 @@ public class ReferralService {
             throw new RuntimeException("Only the referring doctor can cancel this referral");
         }
 
+        String oldStatus = referral.getStatus();
         referral.setStatus("CANCELLED");
         referral.setCancelReason(cancelReason);
         referralRepository.save(referral);
+
+        eventPublisher.publishEvent(new ReferralStatusChangedEvent(
+                referralId, oldStatus, "CANCELLED"));
     }
 
     @Transactional
@@ -131,6 +150,9 @@ public class ReferralService {
 
         referral.setStatus("ACCEPTED");
         referralRepository.save(referral);
+
+        eventPublisher.publishEvent(new ReferralStatusChangedEvent(
+                referralId, "PENDING", "ACCEPTED"));
     }
 
     @Transactional
@@ -147,6 +169,9 @@ public class ReferralService {
 
         referral.setStatus("COMPLETED");
         referralRepository.save(referral);
+
+        eventPublisher.publishEvent(new ReferralStatusChangedEvent(
+                referralId, "ACCEPTED", "COMPLETED"));
     }
 
     public List<RecommendedDoctorResponse> getRecommendedDoctors(UUID patientId, String specialityCode) {
@@ -212,6 +237,25 @@ public class ReferralService {
             }
             rec.setReason(String.join(", ", reasons));
 
+            // Compute 0-100 recommendation score (penalty-from-100 model)
+            try {
+                int score = 100;
+                // Appointment load penalty: -2 per appointment, capped at -40
+                score -= Math.min(40, load * 2);
+                // Availability penalty: -1 per day until next slot, capped at -30
+                // No slots at all: fixed -30 penalty
+                if (availabilities.isEmpty()) {
+                    score -= 30;
+                } else {
+                    long daysUntil = java.time.temporal.ChronoUnit.DAYS.between(
+                            today, availabilities.get(0).getWorkDate());
+                    score -= (int) Math.min(30, daysUntil);
+                }
+                rec.setScore(Math.max(0, score));
+            } catch (Exception e) {
+                rec.setScore(50); // safe default if computation fails
+            }
+
             recommendations.add(rec);
         }
 
@@ -225,6 +269,11 @@ public class ReferralService {
 
         // Return top 5
         return recommendations.stream().limit(5).collect(Collectors.toList());
+    }
+
+    public List<ReferralResponse> getPatientReferrals(UUID patientId) {
+        return referralRepository.findByPatientIdOrderByCreatedAtDesc(patientId)
+                .stream().map(this::toResponse).collect(Collectors.toList());
     }
 
     public List<RecommendedDoctorResponse> searchDoctors(String query, String specialityCode) {

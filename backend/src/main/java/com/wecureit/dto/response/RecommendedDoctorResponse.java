@@ -12,6 +12,7 @@ public class RecommendedDoctorResponse {
     private String nextAvailableSlot;
     private int appointmentLoad;
     private String reason;
+    private int score;
 
     public UUID getDoctorId() { return doctorId; }
     public void setDoctorId(UUID doctorId) { this.doctorId = doctorId; }
@@ -36,4 +37,7 @@ public class RecommendedDoctorResponse {
 
     public String getReason() { return reason; }
     public void setReason(String reason) { this.reason = reason; }
+
+    public int getScore() { return score; }
+    public void setScore(int score) { this.score = score; }
 }

@@ -21,7 +21,23 @@ type RecommendedDoctor = {
   nextAvailableSlot: string;
   appointmentLoad: number;
   reason: string;
+  score: number;
 };
+
+function ScoreBadge({ score }: { score: number }) {
+  const color = score >= 70 ? "#16a34a" : score >= 40 ? "#d97706" : "#dc2626";
+  const bg    = score >= 70 ? "#dcfce7"  : score >= 40 ? "#fef3c7"  : "#fee2e2";
+  const label = score >= 70 ? "Great"    : score >= 40 ? "Good"     : "Fair";
+  return (
+    <span style={{
+      display: "inline-flex", alignItems: "center", gap: 4,
+      padding: "2px 8px", borderRadius: 999,
+      background: bg, color, fontSize: "0.75rem", fontWeight: 700,
+    }}>
+      {score}% &bull; {label}
+    </span>
+  );
+}
 
 type Props = {
   open: boolean;
@@ -95,7 +111,7 @@ export default function CreateReferralModal({
         setLoadingRecs(true);
         setRecommendations([]);
         setSelectedDoctorId("");
-        const data = await getRecommendedDoctors(doctorId, patientId, selectedSpeciality);
+        const data = await getRecommendedDoctors(doctorId, patientId!, selectedSpeciality);
         if (mounted && Array.isArray(data)) setRecommendations(data);
       } catch {
         // ignore
@@ -242,7 +258,10 @@ export default function CreateReferralModal({
                             onChange={() => setSelectedDoctorId(doc.doctorId)}
                           />
                           <div className={styles.recommendedDoctorInfo}>
-                            <div className={styles.recommendedDoctorName}>{doc.doctorName}</div>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                              <div className={styles.recommendedDoctorName}>{doc.doctorName}</div>
+                              <ScoreBadge score={doc.score ?? 0} />
+                            </div>
                             <div className={styles.recommendedDoctorMeta}>
                               {doc.stateName || doc.stateCode} &bull; Next slot: {doc.nextAvailableSlot}
                             </div>

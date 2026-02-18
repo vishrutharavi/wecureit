@@ -150,3 +150,39 @@ export async function deactivateDoctorLicense(token: string, licenseId: string) 
     method: "PATCH",
   });
 }
+
+/* ---------- Referral Analytics ---------- */
+
+export async function getReferralOverview(token: string) {
+  return apiFetch("/api/admin/referrals/stats/overview", token);
+}
+
+export async function getReferralTrends(token: string, days = 30) {
+  return apiFetch(`/api/admin/referrals/stats/trends?days=${days}`, token);
+}
+
+export async function getReferralsByDoctor(token: string) {
+  return apiFetch("/api/admin/referrals/stats/by-doctor", token);
+}
+
+export async function getReferralsBySpeciality(token: string) {
+  return apiFetch("/api/admin/referrals/stats/by-speciality", token);
+}
+
+/* ---------- Intelligence (Neo4j) ---------- */
+
+export async function getBottleneckReport(token: string) {
+  return apiFetch("/api/admin/intelligence/bottlenecks", token);
+}
+
+export async function getOverloadedSpecialists(token: string, threshold = 1) {
+  return apiFetch(`/api/admin/intelligence/bottlenecks/overloaded?threshold=${threshold}`, token);
+}
+
+export async function getReferralPatterns(token: string) {
+  return apiFetch("/api/admin/intelligence/care-path/patterns", token);
+}
+
+export async function triggerGraphSync(token: string) {
+  return apiFetch("/api/admin/intelligence/graph/sync", token, { method: "POST" });
+}
