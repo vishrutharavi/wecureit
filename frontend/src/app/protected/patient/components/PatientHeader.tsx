@@ -66,6 +66,7 @@ export default function PatientHeader({ patientName }: Props) {
     if (key === "home") return pathname === "/protected/patient" && (currentTab === "home" || !currentTab);
     if (key === "profile") return pathname === "/protected/patient" && currentTab === "profile";
     if (key === "appointments") return pathname === "/protected/patient" && currentTab === "appointments";
+    if (key === "referrals") return pathname === "/protected/patient" && currentTab === "referrals";
     if (!pathname) return false;
     return pathname.startsWith(key);
   };
@@ -97,6 +98,13 @@ export default function PatientHeader({ patientName }: Props) {
             onClick={() => router.push('/protected/patient?tab=appointments')}
           >
             Appointment History
+          </button>
+
+          <button
+            className={styles.tab + (isActive("referrals") ? " " + styles.active : "")}
+            onClick={() => router.push('/protected/patient?tab=referrals')}
+          >
+            My Referrals
           </button>
         </div>
       </div>

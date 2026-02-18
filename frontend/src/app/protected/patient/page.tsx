@@ -1,8 +1,20 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+export const dynamic = "force-dynamic";
+
+import React, { useEffect, useState, Suspense } from "react";
 import type { Doctor, Facility, Specialty } from '@/app/protected/patient/types';
 import { useRouter, useSearchParams } from "next/navigation";
+
+// Isolated component so useSearchParams is inside a Suspense boundary
+function TabSyncer({ onTab }: { onTab: (t: string) => void }) {
+  const searchParams = useSearchParams();
+  useEffect(() => {
+    const t = searchParams?.get("tab") || "home";
+    onTab(t);
+  }, [searchParams, onTab]);
+  return null;
+}
 import styles from "./patient.module.scss";
 import PatientHeader from "./components/PatientHeader";
 import Home from "./components/Home/Home";
@@ -10,6 +22,7 @@ import PersonalInfo from "./components/MyProfile/PersonalInfo";
 import Address from "./components/MyProfile/Address";
 import Payment from "./components/MyProfile/Payment";
 import AppointmentHistory from "./components/AppointmentHistory/AppointmentHistory";
+import PatientReferrals from "./components/Referrals/PatientReferrals";
 import DropdownSelection from "./components/DropdownSelection/DropdownSelection";
 import SelectionSummary from "./components/DropdownSelection/SelectionSummary";
 import DateAndTimeSelection from "./components/DateAndTimeSelection/DateAndTimeSelection";
@@ -19,20 +32,7 @@ import BookingCopilot from "./components/BookingCopilot/BookingCopilot";
 
 export default function Page() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [tab, setTab] = useState<string>("home");
-
-  // Keep the tab state in sync with the URL's `tab` search param. Using
-  // `useSearchParams()` inside a client component makes this reactive to
-  // client-side navigation (router.push) without manual popstate handling.
-  useEffect(() => {
-    try {
-      const t = searchParams?.get('tab') || 'home';
-      // Defer setState to avoid a synchronous state update inside the effect
-      // which can cause cascading renders in some React setups.
-      setTimeout(() => setTab(t), 0);
-    } catch {}
-  }, [searchParams]);
   const [justLoggedInMsg, setJustLoggedInMsg] = useState<string | null>(null);
 
   useEffect(() => {
@@ -66,8 +66,13 @@ export default function Page() {
   return (
     <div className={styles.wrapper} style={{ padding: 24 }}>
       <div className={styles.content}>
+        <Suspense fallback={null}>
+          <TabSyncer onTab={setTab} />
+        </Suspense>
         {justLoggedInMsg && <div className={styles.loginBanner}>{justLoggedInMsg}</div>}
-        <PatientHeader />
+        <Suspense fallback={null}>
+          <PatientHeader />
+        </Suspense>
 
         <div style={{ paddingLeft: 16, paddingRight: 16 }}>
         {tab === "profile" ? (
@@ -104,6 +109,10 @@ export default function Page() {
         ) : tab === "appointments" ? (
           <>
             <AppointmentHistory />
+          </>
+        ) : tab === "referrals" ? (
+          <>
+            <PatientReferrals />
           </>
         ) : (
           <>

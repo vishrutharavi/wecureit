@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
 import com.wecureit.entity.Referral;
@@ -18,4 +19,11 @@ public interface ReferralRepository extends JpaRepository<Referral, UUID> {
     List<Referral> findByPatientIdOrderByCreatedAtDesc(UUID patientId);
 
     long countByToDoctorIdAndStatus(UUID toDoctorId, String status);
+
+    @Query("SELECT DISTINCT r FROM Referral r " +
+           "LEFT JOIN FETCH r.fromDoctor " +
+           "LEFT JOIN FETCH r.toDoctor " +
+           "LEFT JOIN FETCH r.patient " +
+           "LEFT JOIN FETCH r.speciality")
+    List<Referral> findAllWithDetails();
 }

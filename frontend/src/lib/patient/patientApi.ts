@@ -73,3 +73,9 @@ export async function suggestBookingSlots(intent: Record<string, unknown>) {
     body: JSON.stringify(intent),
   });
 }
+
+/* ---------- Patient Referrals ---------- */
+
+export async function getPatientReferrals(patientId: string) {
+  return apiFetch(`/api/patient/${patientId}/referrals`);
+}
