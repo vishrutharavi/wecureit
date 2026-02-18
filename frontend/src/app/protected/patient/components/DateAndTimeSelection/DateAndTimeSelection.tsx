@@ -475,56 +475,64 @@ export default function DateAndTimeSelection() {
                         <div className={styles.sectionSubtitle}>Available Time Slots</div>
                         <div className={styles.timeSlotsGrid}>
                             {generateTimeSlots.labels.length === 0 ? (
-                            <div className={styles.emptyCard}>No available slots for this date</div>
-                          ) : (
-                            generateTimeSlots.labels.map((t, idx) => {
-                              // compute whether this slot falls within the selected time block
-                              let inBlock = false;
-                              if (selectedIndex !== null && duration) {
-                                const blockCount = Math.ceil(duration / 15);
-                                if (selectedIndex >= 0 && idx >= selectedIndex && idx < selectedIndex + blockCount) inBlock = true;
-                              }
-                              // determine if this slot is a valid start (enough consecutive AVAILABLE slots for the duration)
-                              const blockCount = duration ? Math.ceil(duration / 15) : 1;
-                              const enoughSlots = idx + blockCount <= generateTimeSlots.labels.length;
-                              const allAvailable = enoughSlots && Array.from({ length: blockCount }, (_, i) => idx + i).every(
-                                i => !Array.isArray(generateTimeSlots.disabled) || !generateTimeSlots.disabled[i]
-                              );
-                              const canStart = enoughSlots && allAvailable;
-                              const isActive = (selectedIndex !== null && idx === selectedIndex) || inBlock;
-                              const availabilityId = generateTimeSlots.ids[idx] || null;
-                              const slotDisabled = Array.isArray(generateTimeSlots.disabled) ? Boolean(generateTimeSlots.disabled[idx]) : false;
-                              return (
-                                <button
-                                  key={`${t}-${idx}-${availabilityId || ''}`}
-                                  onClick={() => {
-                                    if (!canStart) return;
-                                    if (slotDisabled) return;
-                                    setSelectedTime(t);
-                                    setSelectedIndex(idx);
-                                    setSelectedDoctorAvailabilityId(availabilityId);
-                                    // persist selection so the confirmation step has doctorAvailabilityId
-                                    try {
-                                      const raw = sessionStorage.getItem('bookingSelection');
-                                      const bs = raw ? JSON.parse(raw) : {};
-                                      bs.date = date;
-                                      bs.time = t;
-                                      bs.doctorAvailabilityId = availabilityId || null;
-                                      bs.duration = duration;
-                                      // keep chiefComplaints if already present
-                                      sessionStorage.setItem('bookingSelection', JSON.stringify(bs));
-                                    } catch {
-                                      // ignore storage errors
-                                    }
-                                  }}
-                                  disabled={!canStart || slotDisabled}
-                                  className={isActive ? `${styles.timeSlotBtn} ${styles.timeSlotBtnActive}` : slotDisabled ? `${styles.timeSlotBtn} ${styles.timeSlotBtnDisabled ?? ''}` : styles.timeSlotBtn}
-                                >
-                                  {t}
-                                </button>
-                              );
-                            })
-                          )}
+                              <div className={styles.emptyCard}>No available slots for this date</div>
+                            ) : (
+                              // Render duration-sized blocks instead of single 15-min buttons.
+                              (() => {
+                                const blockCount = duration ? Math.ceil(duration / 15) : 1;
+                                const blocks: Array<{ startLabel: string; endLabel: string; startIdx: number; canStart: boolean; disabled: boolean; availabilityId: string | null }> = [];
+                                for (let i = 0; i + blockCount <= generateTimeSlots.labels.length; i++) {
+                                  const startLabel = generateTimeSlots.labels[i];
+                                  const endIdx = i + blockCount - 1;
+                                  const r = computeRange(startLabel, duration || 15);
+                                  const endLabel = r ? r.endLabel : (generateTimeSlots.labels[endIdx] || '');
+                                  const disabledBlock = Array.from({ length: blockCount }, (_, j) => {
+                                    const di = i + j;
+                                    return Array.isArray(generateTimeSlots.disabled) ? Boolean(generateTimeSlots.disabled[di]) : false;
+                                  }).some(Boolean);
+                                  const availabilityId = (generateTimeSlots.ids[i] || null);
+                                  const canStart = !disabledBlock && (i + blockCount <= generateTimeSlots.labels.length);
+                                  blocks.push({ startLabel, endLabel, startIdx: i, canStart, disabled: disabledBlock, availabilityId });
+                                }
+
+                                return blocks.map((b) => {
+                                  const isActive = selectedIndex !== null && selectedIndex === b.startIdx;
+                                  const classList = [styles.timeBlockBtn];
+                                  if (b.disabled) {
+                                    if (styles.timeSlotBtnDisabled) classList.push(styles.timeSlotBtnDisabled);
+                                  }
+                                  if (isActive) {
+                                    if (styles.timeBlockBtnActive) classList.push(styles.timeBlockBtnActive);
+                                  }
+                                  return (
+                                    <button
+                                      key={`${b.startLabel}-${b.startIdx}-${b.availabilityId || ''}`}
+                                      onClick={() => {
+                                        if (!b.canStart) return;
+                                        if (b.disabled) return;
+                                        setSelectedTime(b.startLabel);
+                                        setSelectedIndex(b.startIdx);
+                                        setSelectedDoctorAvailabilityId(b.availabilityId);
+                                        try {
+                                          const raw = sessionStorage.getItem('bookingSelection');
+                                          const bs = raw ? JSON.parse(raw) : {};
+                                          bs.date = date;
+                                          bs.time = b.startLabel;
+                                          bs.doctorAvailabilityId = b.availabilityId || null;
+                                          bs.duration = duration;
+                                          sessionStorage.setItem('bookingSelection', JSON.stringify(bs));
+                                        } catch {}
+                                      }}
+                                      disabled={!b.canStart || b.disabled}
+                                      className={classList.join(' ').trim()}
+                                    >
+                                      <div style={{ fontWeight: 800 }}>{b.startLabel}</div>
+                                      <div style={{ fontSize: 13, marginTop: 6, color: '#6b7280' }}>{b.endLabel}</div>
+                                    </button>
+                                  );
+                                });
+                              })()
+                            )}
                         </div>
 
                         {/* Selected summary removed: use sidebar summary only */}
