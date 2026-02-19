@@ -174,7 +174,7 @@ public class ReferralService {
                 referralId, "ACCEPTED", "COMPLETED"));
     }
 
-    public List<RecommendedDoctorResponse> getRecommendedDoctors(UUID patientId, String specialityCode) {
+    public List<RecommendedDoctorResponse> getRecommendedDoctors(UUID patientId, String specialityCode, UUID referringDoctorId) {
         Patient patient = patientRepository.findById(patientId)
                 .orElseThrow(() -> new RuntimeException("Patient not found"));
 
@@ -193,6 +193,8 @@ public class ReferralService {
         for (DoctorLicense license : licenses) {
             Doctor doctor = doctorRepository.findById(license.getDoctorId()).orElse(null);
             if (doctor == null || !doctor.getIsActive()) continue;
+            // Exclude the referring doctor from recommendations
+            if (referringDoctorId != null && doctor.getId().equals(referringDoctorId)) continue;
 
             RecommendedDoctorResponse rec = new RecommendedDoctorResponse();
             rec.setDoctorId(doctor.getId());

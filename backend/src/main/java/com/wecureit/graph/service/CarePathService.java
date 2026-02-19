@@ -92,9 +92,10 @@ public class CarePathService {
     public List<ReferralPattern> getCommonPatterns() {
         Collection<ReferralPattern> results = neo4jClient.query(
                 "MATCH (from:Doctor)-[r:REFERRED_TO]->(to:Doctor) " +
-                "WITH from.name AS fromName, to.name AS toName, " +
-                "  r.specialityCode AS speciality, count(r) AS frequency " +
+                "WITH from.name AS fromName, to.name AS toName, count(r) AS frequency, " +
+                "  collect(DISTINCT r.specialityCode) AS specialities " +
                 "WHERE frequency > 1 " +
+                "UNWIND specialities AS speciality " +
                 "RETURN fromName, toName, speciality, frequency " +
                 "ORDER BY frequency DESC " +
                 "LIMIT 20")

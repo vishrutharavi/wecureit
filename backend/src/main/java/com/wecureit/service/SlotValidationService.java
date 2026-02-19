@@ -38,14 +38,15 @@ public class SlotValidationService {
             return false;
         }
 
-        // CHECK 1: All consecutive 15-min intervals must be available
-        int slotsNeeded = (int) Math.ceil(durationMinutes / 15.0);
-        for (int i = 0; i < slotsNeeded; i++) {
-            LocalTime required = candidateStart.plusMinutes(i * 15L);
-            if (!unbookedSlotTimes.contains(required)) {
-                logger.trace("Rejected {}: 15-min slot at {} not available", candidateStart, required);
-                return false;
-            }
+        // CHECK 1: The start slot must be in the unbooked set.
+        // PatientBookingService.getAvailabilitySlots() already simulates the full desired duration
+        // when computing each slot's status (BOOKED/UNAVAILABLE/BREAK_ENFORCED), so a slot that
+        // is AVAILABLE as a start time has already passed overlap, break, and room checks for the
+        // full window. Checking sub-slots here would incorrectly reject valid blocks whose later
+        // sub-slots happen to be invalid as independent start times (same bug as frontend fix).
+        if (!unbookedSlotTimes.contains(candidateStart)) {
+            logger.trace("Rejected {}: start slot not available", candidateStart);
+            return false;
         }
 
         // CHECK 2: Full duration must not overlap any active appointment
