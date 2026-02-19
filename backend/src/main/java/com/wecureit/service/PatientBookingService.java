@@ -103,9 +103,7 @@ public class PatientBookingService {
                     for (var a : appts) {
                         if (a.getIsActive() != null && !a.getIsActive()) continue;
                         if (a.getStartTime() == null || a.getEndTime() == null) continue;
-                        // when filtering by speciality, only mark slots as BOOKED for same-speciality appointments
-                        if (specialityCode != null && a.getSpeciality() != null &&
-                            !specialityCode.equals(a.getSpeciality().getSpecialityCode())) continue;
+                        // A doctor's time is blocked by ANY active appointment regardless of speciality.
                         if (a.getStartTime().isBefore(fullEndDt) && a.getEndTime().isAfter(sdt)) { overlapped = true; break; }
                     }
                     if (overlapped) status = "BOOKED";
