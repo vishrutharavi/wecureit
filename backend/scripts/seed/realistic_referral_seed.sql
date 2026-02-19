@@ -1,0 +1,232 @@
+-- Realistic relational seed for referral analytics (users + appointments + referrals)
+-- Safe to re-run: only touches records marked with firebase_uid/email/reason prefix 'SEED-RA:'
+
+BEGIN;
+
+-- 0) Cleanup previously seeded rows (dependency order)
+DELETE FROM referrals WHERE reason LIKE 'SEED-RA:%';
+DELETE FROM appointments WHERE doctor_availability_id IN (
+    '40000000-0000-0000-0000-000000000101',
+    '40000000-0000-0000-0000-000000000102',
+    '40000000-0000-0000-0000-000000000103',
+    '40000000-0000-0000-0000-000000000104',
+    '40000000-0000-0000-0000-000000000105'
+);
+DELETE FROM doctor_license dl
+USING doctor d
+WHERE dl.doctor_id = d.id
+  AND d.firebase_uid LIKE 'seed-ra-doctor-%';
+DELETE FROM doctor_availability WHERE id IN (
+    '40000000-0000-0000-0000-000000000101',
+    '40000000-0000-0000-0000-000000000102',
+    '40000000-0000-0000-0000-000000000103',
+    '40000000-0000-0000-0000-000000000104',
+    '40000000-0000-0000-0000-000000000105'
+);
+DELETE FROM rooms WHERE facility_id IN (
+    '30000000-0000-0000-0000-000000000201',
+    '30000000-0000-0000-0000-000000000202'
+);
+DELETE FROM facilities WHERE id IN (
+    '30000000-0000-0000-0000-000000000201',
+    '30000000-0000-0000-0000-000000000202'
+);
+
+-- 1) Master data
+INSERT INTO state(state_code, state_name)
+VALUES
+    ('CA', 'California'),
+    ('TX', 'Texas'),
+    ('FL', 'Florida')
+ON CONFLICT (state_code) DO UPDATE SET state_name = EXCLUDED.state_name;
+
+INSERT INTO specialities(speciality_code, speciality_name)
+VALUES
+    ('CARD', 'Cardiology'),
+    ('DERM', 'Dermatology'),
+    ('NEUR', 'Neurology'),
+    ('ORTH', 'Orthopedics')
+ON CONFLICT (speciality_code) DO UPDATE SET speciality_name = EXCLUDED.speciality_name;
+
+-- 2) Seed doctors (explicit UUIDs for stable references)
+INSERT INTO doctor(id, firebase_uid, email, name, gender, is_active)
+VALUES
+    ('10000000-0000-0000-0000-000000000001','seed-ra-doctor-from-1','seed.ra.doctor.from1@wecureit.local','From Doctor 1','M',true),
+    ('10000000-0000-0000-0000-000000000002','seed-ra-doctor-from-2','seed.ra.doctor.from2@wecureit.local','From Doctor 2','F',true),
+    ('10000000-0000-0000-0000-000000000003','seed-ra-doctor-from-3','seed.ra.doctor.from3@wecureit.local','From Doctor 3','M',true),
+    ('10000000-0000-0000-0000-000000000004','seed-ra-doctor-from-4','seed.ra.doctor.from4@wecureit.local','From Doctor 4','F',true),
+    ('10000000-0000-0000-0000-000000000005','seed-ra-doctor-from-5','seed.ra.doctor.from5@wecureit.local','From Doctor 5','M',true),
+    ('10000000-0000-0000-0000-000000000006','seed-ra-doctor-from-6','seed.ra.doctor.from6@wecureit.local','From Doctor 6','F',true),
+    ('10000000-0000-0000-0000-000000000007','seed-ra-doctor-from-7','seed.ra.doctor.from7@wecureit.local','From Doctor 7','M',true),
+
+    ('10000000-0000-0000-0000-000000000101','seed-ra-doctor-over-6','seed.ra.doctor.over6@wecureit.local','Overloaded 6 Pending','M',true),
+    ('10000000-0000-0000-0000-000000000102','seed-ra-doctor-over-5','seed.ra.doctor.over5@wecureit.local','Boundary 5 Pending','F',true),
+    ('10000000-0000-0000-0000-000000000103','seed-ra-doctor-over-4','seed.ra.doctor.over4@wecureit.local','Under Threshold 4 Pending','F',true),
+
+    ('10000000-0000-0000-0000-000000000108','seed-ra-doctor-lic-ca','seed.ra.doctor.licca@wecureit.local','Licensed CA Doctor','M',true),
+    ('10000000-0000-0000-0000-000000000109','seed-ra-doctor-miss-tx','seed.ra.doctor.misstx@wecureit.local','Missing TX License Doctor','F',true),
+
+    ('10000000-0000-0000-0000-000000000110','seed-ra-doctor-misc-1','seed.ra.doctor.misc1@wecureit.local','Misc Doctor 1','M',true),
+    ('10000000-0000-0000-0000-000000000111','seed-ra-doctor-misc-2','seed.ra.doctor.misc2@wecureit.local','Misc Doctor 2','F',true),
+
+    ('10000000-0000-0000-0000-000000000112','seed-ra-doctor-net-from','seed.ra.doctor.netfrom@wecureit.local','Network From','M',true),
+    ('10000000-0000-0000-0000-000000000113','seed-ra-doctor-net-to','seed.ra.doctor.netto@wecureit.local','Network To','F',true),
+
+    ('10000000-0000-0000-0000-000000000114','seed-ra-doctor-slot-ca-1','seed.ra.doctor.slotca1@wecureit.local','Slot CA 1','M',true),
+    ('10000000-0000-0000-0000-000000000115','seed-ra-doctor-slot-fl-1','seed.ra.doctor.slotfl1@wecureit.local','Slot FL 1','F',true)
+ON CONFLICT (firebase_uid) DO NOTHING;
+
+-- 3) Seed patients
+INSERT INTO patient(id, firebase_uid, email, name, phone, dob, gender, city, state_code, zip, address, secondary_email)
+VALUES
+    ('20000000-0000-0000-0000-000000000001','seed-ra-patient-ca-1','seed.ra.patient.ca1@wecureit.local','Patient CA 1','5551000001','1992-01-15','F','San Jose','CA','95112','101 CA Street',NULL),
+    ('20000000-0000-0000-0000-000000000002','seed-ra-patient-tx-1','seed.ra.patient.tx1@wecureit.local','Patient TX 1','5551000002','1988-05-09','M','Austin','TX','73301','202 TX Street',NULL),
+    ('20000000-0000-0000-0000-000000000003','seed-ra-patient-fl-1','seed.ra.patient.fl1@wecureit.local','Patient FL 1','5551000003','1995-11-23','F','Miami','FL','33101','303 FL Street',NULL)
+ON CONFLICT (firebase_uid) DO NOTHING;
+
+-- 4) Facility / room / availability so appointments are realistic
+INSERT INTO facilities(id, name, address, city, state_code, zip_code, is_active, created_at, updated_at)
+VALUES
+    ('30000000-0000-0000-0000-000000000201','Seed CA Medical Center','500 CA Health Ave','San Jose','CA','95112',true,now(),now()),
+    ('30000000-0000-0000-0000-000000000202','Seed FL Care Center','700 FL Care Blvd','Miami','FL','33101',true,now(),now())
+ON CONFLICT (id) DO UPDATE
+SET name = EXCLUDED.name,
+    address = EXCLUDED.address,
+    city = EXCLUDED.city,
+    state_code = EXCLUDED.state_code,
+    zip_code = EXCLUDED.zip_code,
+    is_active = EXCLUDED.is_active,
+    updated_at = now();
+
+INSERT INTO rooms(id, facility_id, room_number, speciality_code, is_active)
+VALUES
+    ('30000000-0000-0000-0000-000000000301','30000000-0000-0000-0000-000000000201','CA-101','CARD',true),
+    ('30000000-0000-0000-0000-000000000302','30000000-0000-0000-0000-000000000201','CA-102','NEUR',true),
+    ('30000000-0000-0000-0000-000000000303','30000000-0000-0000-0000-000000000202','FL-201','DERM',true),
+    ('30000000-0000-0000-0000-000000000304','30000000-0000-0000-0000-000000000202','FL-202','ORTH',true)
+ON CONFLICT (id) DO UPDATE
+SET room_number = EXCLUDED.room_number,
+    speciality_code = EXCLUDED.speciality_code,
+    is_active = EXCLUDED.is_active;
+
+INSERT INTO doctor_availability(id, doctor_id, facility_id, work_date, start_time, end_time, speciality_code, is_active, created_at)
+VALUES
+    ('40000000-0000-0000-0000-000000000101','10000000-0000-0000-0000-000000000114','30000000-0000-0000-0000-000000000201',current_date + 1,'09:00','10:00','CARD',true,now()),
+    ('40000000-0000-0000-0000-000000000102','10000000-0000-0000-0000-000000000114','30000000-0000-0000-0000-000000000201',current_date + 1,'10:30','11:30','CARD',true,now()),
+    ('40000000-0000-0000-0000-000000000103','10000000-0000-0000-0000-000000000115','30000000-0000-0000-0000-000000000202',current_date + 2,'09:00','10:00','DERM',true,now()),
+    ('40000000-0000-0000-0000-000000000104','10000000-0000-0000-0000-000000000115','30000000-0000-0000-0000-000000000202',current_date + 2,'10:30','11:30','ORTH',true,now()),
+    ('40000000-0000-0000-0000-000000000105','10000000-0000-0000-0000-000000000114','30000000-0000-0000-0000-000000000201',current_date + 3,'14:00','15:00','NEUR',true,now())
+ON CONFLICT (id) DO UPDATE
+SET doctor_id = EXCLUDED.doctor_id,
+    facility_id = EXCLUDED.facility_id,
+    work_date = EXCLUDED.work_date,
+    start_time = EXCLUDED.start_time,
+    end_time = EXCLUDED.end_time,
+    speciality_code = EXCLUDED.speciality_code,
+    is_active = EXCLUDED.is_active;
+
+-- 5) Appointments
+INSERT INTO appointments(date, duration, patient_id, doctor_availability_id, start_time, end_time, facility_id, speciality_id, room_id, is_active, chief_complaints, uuid)
+VALUES
+    (current_date + 1, 60, '20000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000101', (current_date + 1)::timestamp + time '09:00', (current_date + 1)::timestamp + time '10:00', '30000000-0000-0000-0000-000000000201', 'CARD', '30000000-0000-0000-0000-000000000301', true, 'SEED-RA: appointment card 1', '50000000-0000-0000-0000-000000000001'),
+    (current_date + 1, 60, '20000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000102', (current_date + 1)::timestamp + time '10:30', (current_date + 1)::timestamp + time '11:30', '30000000-0000-0000-0000-000000000201', 'CARD', '30000000-0000-0000-0000-000000000301', true, 'SEED-RA: appointment card 2', '50000000-0000-0000-0000-000000000002'),
+    (current_date + 2, 60, '20000000-0000-0000-0000-000000000003', '40000000-0000-0000-0000-000000000103', (current_date + 2)::timestamp + time '09:00', (current_date + 2)::timestamp + time '10:00', '30000000-0000-0000-0000-000000000202', 'DERM', '30000000-0000-0000-0000-000000000303', true, 'SEED-RA: appointment derm 1', '50000000-0000-0000-0000-000000000003'),
+    (current_date + 2, 60, '20000000-0000-0000-0000-000000000003', '40000000-0000-0000-0000-000000000104', (current_date + 2)::timestamp + time '10:30', (current_date + 2)::timestamp + time '11:30', '30000000-0000-0000-0000-000000000202', 'ORTH', '30000000-0000-0000-0000-000000000304', true, 'SEED-RA: appointment ortho 1', '50000000-0000-0000-0000-000000000004')
+ON CONFLICT (uuid) DO UPDATE
+SET date = EXCLUDED.date,
+    duration = EXCLUDED.duration,
+    patient_id = EXCLUDED.patient_id,
+    doctor_availability_id = EXCLUDED.doctor_availability_id,
+    start_time = EXCLUDED.start_time,
+    end_time = EXCLUDED.end_time,
+    facility_id = EXCLUDED.facility_id,
+    speciality_id = EXCLUDED.speciality_id,
+    room_id = EXCLUDED.room_id,
+    is_active = EXCLUDED.is_active,
+    chief_complaints = EXCLUDED.chief_complaints;
+
+-- 6) Doctor licenses (realistic source of state/speciality coverage)
+INSERT INTO doctor_license(doctor_id, state_code, speciality_code, is_active)
+VALUES
+    ('10000000-0000-0000-0000-000000000108','CA','CARD',true),
+    ('10000000-0000-0000-0000-000000000109','CA','CARD',true),
+    ('10000000-0000-0000-0000-000000000101','CA','CARD',true),
+    ('10000000-0000-0000-0000-000000000102','CA','CARD',true),
+    ('10000000-0000-0000-0000-000000000103','CA','CARD',true),
+    ('10000000-0000-0000-0000-000000000110','FL','DERM',true),
+    ('10000000-0000-0000-0000-000000000111','CA','CARD',true),
+    ('10000000-0000-0000-0000-000000000111','FL','ORTH',true),
+    ('10000000-0000-0000-0000-000000000113','CA','NEUR',true)
+ON CONFLICT (doctor_id, state_code, speciality_code) DO UPDATE
+SET speciality_code = EXCLUDED.speciality_code,
+    is_active = EXCLUDED.is_active;
+
+-- 7) Referrals (35 total): creates realistic data for all 4 analytics patterns
+INSERT INTO referrals(id, from_doctor_id, to_doctor_id, patient_id, appointment_id, speciality_code, reason, status, cancel_reason, created_at, updated_at)
+VALUES
+    -- Overloaded specialist: 6 pending incoming to DOC_OVER_6
+    ('70000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000101','20000000-0000-0000-0000-000000000001',(SELECT id FROM appointments WHERE uuid='50000000-0000-0000-0000-000000000001'),'CARD','SEED-RA: OVER6 #1','PENDING',NULL,now(),now()),
+    ('70000000-0000-0000-0000-000000000002','10000000-0000-0000-0000-000000000002','10000000-0000-0000-0000-000000000101','20000000-0000-0000-0000-000000000001',NULL,'CARD','SEED-RA: OVER6 #2','PENDING',NULL,now(),now()),
+    ('70000000-0000-0000-0000-000000000003','10000000-0000-0000-0000-000000000003','10000000-0000-0000-0000-000000000101','20000000-0000-0000-0000-000000000001',NULL,'CARD','SEED-RA: OVER6 #3','PENDING',NULL,now(),now()),
+    ('70000000-0000-0000-0000-000000000004','10000000-0000-0000-0000-000000000004','10000000-0000-0000-0000-000000000101','20000000-0000-0000-0000-000000000001',NULL,'CARD','SEED-RA: OVER6 #4','PENDING',NULL,now(),now()),
+    ('70000000-0000-0000-0000-000000000005','10000000-0000-0000-0000-000000000005','10000000-0000-0000-0000-000000000101','20000000-0000-0000-0000-000000000001',NULL,'CARD','SEED-RA: OVER6 #5','PENDING',NULL,now(),now()),
+    ('70000000-0000-0000-0000-000000000006','10000000-0000-0000-0000-000000000006','10000000-0000-0000-0000-000000000101','20000000-0000-0000-0000-000000000001',NULL,'CARD','SEED-RA: OVER6 #6','PENDING',NULL,now(),now()),
+
+    -- Boundary: 5 pending incoming to DOC_OVER_5
+    ('70000000-0000-0000-0000-000000000007','10000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000102','20000000-0000-0000-0000-000000000001',NULL,'CARD','SEED-RA: OVER5 #1','PENDING',NULL,now(),now()),
+    ('70000000-0000-0000-0000-000000000008','10000000-0000-0000-0000-000000000002','10000000-0000-0000-0000-000000000102','20000000-0000-0000-0000-000000000001',NULL,'CARD','SEED-RA: OVER5 #2','PENDING',NULL,now(),now()),
+    ('70000000-0000-0000-0000-000000000009','10000000-0000-0000-0000-000000000003','10000000-0000-0000-0000-000000000102','20000000-0000-0000-0000-000000000001',NULL,'CARD','SEED-RA: OVER5 #3','PENDING',NULL,now(),now()),
+    ('70000000-0000-0000-0000-000000000010','10000000-0000-0000-0000-000000000004','10000000-0000-0000-0000-000000000102','20000000-0000-0000-0000-000000000001',NULL,'CARD','SEED-RA: OVER5 #4','PENDING',NULL,now(),now()),
+    ('70000000-0000-0000-0000-000000000011','10000000-0000-0000-0000-000000000005','10000000-0000-0000-0000-000000000102','20000000-0000-0000-0000-000000000001',NULL,'CARD','SEED-RA: OVER5 #5','PENDING',NULL,now(),now()),
+
+    -- Negative: DOC_OVER_4 has 4 pending + 2 completed (still below overload pending threshold)
+    ('70000000-0000-0000-0000-000000000012','10000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000103','20000000-0000-0000-0000-000000000001',NULL,'CARD','SEED-RA: OVER4 P #1','PENDING',NULL,now(),now()),
+    ('70000000-0000-0000-0000-000000000013','10000000-0000-0000-0000-000000000002','10000000-0000-0000-0000-000000000103','20000000-0000-0000-0000-000000000001',NULL,'CARD','SEED-RA: OVER4 P #2','PENDING',NULL,now(),now()),
+    ('70000000-0000-0000-0000-000000000014','10000000-0000-0000-0000-000000000003','10000000-0000-0000-0000-000000000103','20000000-0000-0000-0000-000000000001',NULL,'CARD','SEED-RA: OVER4 P #3','PENDING',NULL,now(),now()),
+    ('70000000-0000-0000-0000-000000000015','10000000-0000-0000-0000-000000000004','10000000-0000-0000-0000-000000000103','20000000-0000-0000-0000-000000000001',NULL,'CARD','SEED-RA: OVER4 P #4','PENDING',NULL,now(),now()),
+    ('70000000-0000-0000-0000-000000000016','10000000-0000-0000-0000-000000000006','10000000-0000-0000-0000-000000000103','20000000-0000-0000-0000-000000000001',NULL,'CARD','SEED-RA: OVER4 C #1','COMPLETED',NULL,now(),now()),
+    ('70000000-0000-0000-0000-000000000017','10000000-0000-0000-0000-000000000007','10000000-0000-0000-0000-000000000103','20000000-0000-0000-0000-000000000001',NULL,'CARD','SEED-RA: OVER4 C #2','COMPLETED',NULL,now(),now()),
+
+    -- Speciality imbalance: DERM total 5, completed 1
+    ('70000000-0000-0000-0000-000000000018','10000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000110','20000000-0000-0000-0000-000000000003',(SELECT id FROM appointments WHERE uuid='50000000-0000-0000-0000-000000000003'),'DERM','SEED-RA: DERM P #1','PENDING',NULL,now(),now()),
+    ('70000000-0000-0000-0000-000000000019','10000000-0000-0000-0000-000000000002','10000000-0000-0000-0000-000000000110','20000000-0000-0000-0000-000000000003',NULL,'DERM','SEED-RA: DERM P #2','PENDING',NULL,now(),now()),
+    ('70000000-0000-0000-0000-000000000020','10000000-0000-0000-0000-000000000003','10000000-0000-0000-0000-000000000110','20000000-0000-0000-0000-000000000003',NULL,'DERM','SEED-RA: DERM P #3','PENDING',NULL,now(),now()),
+    ('70000000-0000-0000-0000-000000000021','10000000-0000-0000-0000-000000000004','10000000-0000-0000-0000-000000000110','20000000-0000-0000-0000-000000000003',NULL,'DERM','SEED-RA: DERM P #4','PENDING',NULL,now(),now()),
+    ('70000000-0000-0000-0000-000000000022','10000000-0000-0000-0000-000000000005','10000000-0000-0000-0000-000000000110','20000000-0000-0000-0000-000000000003',NULL,'DERM','SEED-RA: DERM C #1','COMPLETED',NULL,now(),now()),
+
+    -- Control speciality: CARD total 5, completed 4 (healthy completion)
+    ('70000000-0000-0000-0000-000000000023','10000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000111','20000000-0000-0000-0000-000000000001',(SELECT id FROM appointments WHERE uuid='50000000-0000-0000-0000-000000000002'),'CARD','SEED-RA: CARD C #1','COMPLETED',NULL,now(),now()),
+    ('70000000-0000-0000-0000-000000000024','10000000-0000-0000-0000-000000000002','10000000-0000-0000-0000-000000000111','20000000-0000-0000-0000-000000000001',NULL,'CARD','SEED-RA: CARD C #2','COMPLETED',NULL,now(),now()),
+    ('70000000-0000-0000-0000-000000000025','10000000-0000-0000-0000-000000000003','10000000-0000-0000-0000-000000000111','20000000-0000-0000-0000-000000000001',NULL,'CARD','SEED-RA: CARD C #3','COMPLETED',NULL,now(),now()),
+    ('70000000-0000-0000-0000-000000000026','10000000-0000-0000-0000-000000000004','10000000-0000-0000-0000-000000000111','20000000-0000-0000-0000-000000000001',NULL,'CARD','SEED-RA: CARD C #4','COMPLETED',NULL,now(),now()),
+    ('70000000-0000-0000-0000-000000000027','10000000-0000-0000-0000-000000000005','10000000-0000-0000-0000-000000000111','20000000-0000-0000-0000-000000000001',NULL,'CARD','SEED-RA: CARD P #1','PENDING',NULL,now(),now()),
+
+    -- Boundary speciality: ORTH total 3 (excluded by total > 3)
+    ('70000000-0000-0000-0000-000000000028','10000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000111','20000000-0000-0000-0000-000000000003',(SELECT id FROM appointments WHERE uuid='50000000-0000-0000-0000-000000000004'),'ORTH','SEED-RA: ORTH A #1','ACCEPTED',NULL,now(),now()),
+    ('70000000-0000-0000-0000-000000000029','10000000-0000-0000-0000-000000000002','10000000-0000-0000-0000-000000000111','20000000-0000-0000-0000-000000000003',NULL,'ORTH','SEED-RA: ORTH A #2','ACCEPTED',NULL,now(),now()),
+    ('70000000-0000-0000-0000-000000000030','10000000-0000-0000-0000-000000000003','10000000-0000-0000-0000-000000000111','20000000-0000-0000-0000-000000000003',NULL,'ORTH','SEED-RA: ORTH A #3','ACCEPTED',NULL,now(),now()),
+
+    -- Cross-state warning checks
+    ('70000000-0000-0000-0000-000000000031','10000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000109','20000000-0000-0000-0000-000000000002',NULL,'CARD','SEED-RA: XSTATE WARN #1','PENDING',NULL,now(),now()),
+    ('70000000-0000-0000-0000-000000000032','10000000-0000-0000-0000-000000000002','10000000-0000-0000-0000-000000000108','20000000-0000-0000-0000-000000000001',NULL,'CARD','SEED-RA: XSTATE OK #1','PENDING',NULL,now(),now()),
+
+    -- Network pair frequency > 1
+    ('70000000-0000-0000-0000-000000000033','10000000-0000-0000-0000-000000000112','10000000-0000-0000-0000-000000000113','20000000-0000-0000-0000-000000000001',NULL,'NEUR','SEED-RA: NET DUP #1','PENDING',NULL,now(),now()),
+    ('70000000-0000-0000-0000-000000000034','10000000-0000-0000-0000-000000000112','10000000-0000-0000-0000-000000000113','20000000-0000-0000-0000-000000000001',NULL,'NEUR','SEED-RA: NET DUP #2','PENDING',NULL,now(),now()),
+    ('70000000-0000-0000-0000-000000000035','10000000-0000-0000-0000-000000000112','10000000-0000-0000-0000-000000000111','20000000-0000-0000-0000-000000000001',NULL,'NEUR','SEED-RA: NET SINGLE #1','PENDING',NULL,now(),now())
+ON CONFLICT (id) DO UPDATE
+SET from_doctor_id = EXCLUDED.from_doctor_id,
+    to_doctor_id = EXCLUDED.to_doctor_id,
+    patient_id = EXCLUDED.patient_id,
+    appointment_id = EXCLUDED.appointment_id,
+    speciality_code = EXCLUDED.speciality_code,
+    reason = EXCLUDED.reason,
+    status = EXCLUDED.status,
+    cancel_reason = EXCLUDED.cancel_reason,
+    updated_at = now();
+
+COMMIT;
+
+-- quick sanity
+SELECT COUNT(*) AS seeded_referrals FROM referrals WHERE reason LIKE 'SEED-RA:%';
+SELECT COUNT(*) AS seeded_appointments FROM appointments WHERE chief_complaints LIKE 'SEED-RA:%';
