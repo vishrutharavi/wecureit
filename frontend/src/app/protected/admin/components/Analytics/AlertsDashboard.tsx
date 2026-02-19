@@ -153,8 +153,8 @@ export default function AlertsDashboard() {
           <div style={{ color: "#9ca3af", fontSize: "0.9rem" }}>No imbalances detected.</div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-            {imbalances.map((sp) => (
-              <div key={sp.specialityCode} style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+            {imbalances.map((sp, idx) => (
+              <div key={`${sp.specialityCode}-${idx}`} style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
                 <div style={{ flex: "0 0 150px", fontSize: "0.875rem", fontWeight: 600, color: "#374151" }}>
                   {sp.specialityName}
                 </div>

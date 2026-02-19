@@ -94,7 +94,11 @@ public class PatientBookingService {
                     java.time.LocalDateTime sdt = workDate.atStartOfDay().plusMinutes(t);
                     java.time.LocalDateTime edt = sdt.plusMinutes(SLOT_MIN);
                     String status = "AVAILABLE";
-                    // check appointment overlap
+                    // check appointment overlap — use the full desired duration end time so that slots
+                    // whose full-duration window overlaps an existing appointment are marked BOOKED
+                    // (not just UNAVAILABLE via break simulation).
+                    java.time.LocalDateTime fullEndDt = (desiredDurationMinutes != null && desiredDurationMinutes > SLOT_MIN)
+                            ? sdt.plusMinutes(desiredDurationMinutes) : edt;
                     boolean overlapped = false;
                     for (var a : appts) {
                         if (a.getIsActive() != null && !a.getIsActive()) continue;
@@ -102,7 +106,7 @@ public class PatientBookingService {
                         // when filtering by speciality, only mark slots as BOOKED for same-speciality appointments
                         if (specialityCode != null && a.getSpeciality() != null &&
                             !specialityCode.equals(a.getSpeciality().getSpecialityCode())) continue;
-                        if (a.getStartTime().isBefore(edt) && a.getEndTime().isAfter(sdt)) { overlapped = true; break; }
+                        if (a.getStartTime().isBefore(fullEndDt) && a.getEndTime().isAfter(sdt)) { overlapped = true; break; }
                     }
                     if (overlapped) status = "BOOKED";
                     else {

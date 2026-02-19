@@ -271,6 +271,16 @@ public class AppointmentService {
             DoctorAvailability da = doctorAvailabilityRepository.findById(req.getDoctorAvailabilityId())
                     .orElseThrow(() -> new IllegalArgumentException("Doctor availability not found"));
             appt.setDoctorAvailability(da);
+
+            // Prevent double-booking the same doctor at an overlapping time slot
+            if (da.getDoctorId() != null && req.getStartTime() != null && req.getEndTime() != null) {
+                List<Appointment> overlap = repo.findAppointmentsForDoctor(
+                        da.getDoctorId(), req.getStartTime(), req.getEndTime());
+                if (!overlap.isEmpty()) {
+                    throw new IllegalArgumentException(
+                            "Doctor already has an appointment at this time. Please choose a different time slot.");
+                }
+            }
         }
 
         if (req.getFacilityId() != null) {
@@ -512,7 +522,7 @@ public class AppointmentService {
         if (doctorId == null || day == null) return new ArrayList<>();
         LocalDateTime startOfDay = day.atStartOfDay();
         LocalDateTime endOfDay = day.plusDays(1).atStartOfDay();
-        List<Appointment> appts = repo.findAppointmentsForDoctor(doctorId, startOfDay, endOfDay);
+        List<Appointment> appts = repo.findAllAppointmentsForDoctor(doctorId, startOfDay, endOfDay);
         if (appts == null) return new ArrayList<>();
         appts.sort((a, b) -> {
             if (a.getStartTime() == null) return -1;

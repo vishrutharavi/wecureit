@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { auth } from "@/lib/firebase";
-import { getReferralPatterns } from "@/lib/admin/adminApi";
+import { getReferralPatterns, triggerGraphSync } from "@/lib/admin/adminApi";
 
 type Pattern = { fromDoctorName: string; toDoctorName: string; speciality: string; frequency: number };
 
@@ -26,6 +26,7 @@ function buildLayout(names: string[]): NodePos[] {
 export default function NetworkGraph() {
   const [patterns, setPatterns] = useState<Pattern[]>([]);
   const [loading, setLoading]   = useState(true);
+  const [syncing, setSyncing]   = useState(false);
   const [filter, setFilter]     = useState("");
   const [selected, setSelected] = useState<string | null>(null);
   const [tooltip, setTooltip]   = useState<{ x: number; y: number; text: string } | null>(null);
@@ -44,6 +45,18 @@ export default function NetworkGraph() {
   }, []);
 
   useEffect(() => { fetchPatterns(); }, [fetchPatterns]);
+
+  async function handleSync() {
+    const user = auth.currentUser;
+    if (!user) return;
+    try {
+      setSyncing(true);
+      const token = await user.getIdToken();
+      await triggerGraphSync(token);
+      await fetchPatterns();
+    } catch { /* ignore */ }
+    finally { setSyncing(false); }
+  }
 
   // Derive unique node names, filtered
   const allNames = Array.from(new Set(
@@ -83,6 +96,19 @@ export default function NetworkGraph() {
           </div>
         </div>
         <div style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
+          <button
+            onClick={fetchPatterns}
+            style={{ padding: "0.5rem 1rem", borderRadius: 8, border: "1px solid #fecaca", background: "white", color: "#ef4444", cursor: "pointer", fontWeight: 600, fontSize: "0.875rem" }}
+          >
+            Refresh
+          </button>
+          <button
+            onClick={handleSync}
+            disabled={syncing}
+            style={{ padding: "0.5rem 1rem", borderRadius: 8, border: "none", background: syncing ? "#9ca3af" : "linear-gradient(135deg,#ef4444,#f43f5e)", color: "white", cursor: syncing ? "not-allowed" : "pointer", fontWeight: 600, fontSize: "0.875rem" }}
+          >
+            {syncing ? "Syncing…" : "Sync Graph"}
+          </button>
           <input
             value={filter}
             onChange={(e) => { setFilter(e.target.value); setSelected(null); }}
