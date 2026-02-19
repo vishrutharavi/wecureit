@@ -486,10 +486,9 @@ export default function DateAndTimeSelection() {
                                   const endIdx = i + blockCount - 1;
                                   const r = computeRange(startLabel, duration || 15);
                                   const endLabel = r ? r.endLabel : (generateTimeSlots.labels[endIdx] || '');
-                                  const disabledBlock = Array.from({ length: blockCount }, (_, j) => {
-                                    const di = i + j;
-                                    return Array.isArray(generateTimeSlots.disabled) ? Boolean(generateTimeSlots.disabled[di]) : false;
-                                  }).some(Boolean);
+                                  // The backend already simulates the full duration when computing each slot's status.
+                                  // Only check the START slot — sub-slot statuses mean "invalid start time", not "occupied".
+                                  const disabledBlock = Array.isArray(generateTimeSlots.disabled) ? Boolean(generateTimeSlots.disabled[i]) : false;
                                   const availabilityId = (generateTimeSlots.ids[i] || null);
                                   const canStart = !disabledBlock && (i + blockCount <= generateTimeSlots.labels.length);
                                   blocks.push({ startLabel, endLabel, startIdx: i, canStart, disabled: disabledBlock, availabilityId });

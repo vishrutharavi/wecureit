@@ -1,6 +1,60 @@
 
-# Ignore build products
-/backend/target/
-# Ignore IDE files
+# ---------- IDE / Editor ----------
 /.idea/
 /.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+.env.local
+.env.*.local
+
+# ---------- Backend (Java/Maven) ----------
+/backend/target/
+/backend/.mvn/wrapper/
+/backend/.classpath
+/backend/.project
+/backend/.settings/
+/backend/*.class
+/backend/*.jar
+/backend/*.log
+/backend/build/
+/backend/.gradle/
+
+# ---------- Frontend (Next.js) ----------
+/frontend/node_modules/
+/frontend/.next/
+/frontend/out/
+/frontend/build/
+/frontend/dist/
+/frontend/.env.local
+/frontend/.env.*.local
+/frontend/npm-debug.log*
+/frontend/yarn-debug.log*
+/frontend/yarn-error.log*
+
+# ---------- E2E Tests (Playwright) ----------
+/e2e/node_modules/
+/e2e/test-results/
+/e2e/playwright-report/
+/e2e/.auth/
+/e2e/npm-debug.log*
+/e2e/yarn-debug.log*
+/e2e/yarn-error.log*
+
+# ---------- Root Level ----------
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.env
+.env.local
+.env.*.local
+dist/
+build/
+.DS_Store
+
+# ---------- OS Files ----------
+Thumbs.db
+*.bak
+*.tmp

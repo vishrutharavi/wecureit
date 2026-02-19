@@ -100,7 +100,7 @@ public class ReferralController {
             @PathVariable("doctorId") UUID doctorId,
             @RequestParam("patientId") UUID patientId,
             @RequestParam("specialityCode") String specialityCode) {
-        return ResponseEntity.ok(referralService.getRecommendedDoctors(patientId, specialityCode));
+        return ResponseEntity.ok(referralService.getRecommendedDoctors(patientId, specialityCode, doctorId));
     }
 
     @GetMapping("/search-doctors")
