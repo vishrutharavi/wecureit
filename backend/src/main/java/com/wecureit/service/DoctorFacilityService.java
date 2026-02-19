@@ -1,17 +1,13 @@
 package com.wecureit.service;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
+
+import java.util.*;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import java.time.*;
+
 
 import com.wecureit.dto.response.FacilityResponse;
 import com.wecureit.dto.response.RoomResponse;
@@ -123,38 +119,124 @@ public class DoctorFacilityService {
     }
 
     /**
-     * Compute availability for a facility at a given date/time range.
-     * Only schedules that are tied to an appointment (appointmentId != null) are
-     * considered occupied. Room reservations for availability without an
-     * appointment do not reduce the available room count (they are considered
-     * eligible for walk-in behavior).
+     * Compute availability for a facility at a given date/time range, filtered by speciality.
+     * For General Practice: all rooms are eligible.
+     * For other specialities: only rooms with matching speciality_code are eligible.
+     * A room is occupied if it has an active appointment (with room_id assigned) overlapping the time range.
      */
-    public com.wecureit.dto.response.FacilityAvailabilityResponse getFacilityAvailability(java.util.UUID facilityId, java.time.LocalDate workDate, java.time.LocalTime startTime, java.time.LocalTime endTime) {
-        java.util.List<com.wecureit.entity.Room> rooms = roomRepository.findByFacilityIdAndActiveTrue(facilityId);
-        int total = rooms == null ? 0 : rooms.size();
+    public com.wecureit.dto.response.FacilityAvailabilityResponse getFacilityAvailability(UUID facilityId, LocalDate workDate, LocalTime startTime, LocalTime endTime) {
+        return getFacilityAvailability(facilityId, workDate, startTime, endTime, null);
+    }
+
+    public com.wecureit.dto.response.FacilityAvailabilityResponse getFacilityAvailability(UUID facilityId, LocalDate workDate, LocalTime startTime, LocalTime endTime, String specialityCode) {
+        List<com.wecureit.entity.Room> eligibleRooms = getEligibleRooms(facilityId, specialityCode);
+        int total = eligibleRooms.size();
         int occupied = 0;
 
-        java.time.LocalDateTime startAt = java.time.LocalDateTime.of(workDate, startTime);
-        java.time.LocalDateTime endAt = java.time.LocalDateTime.of(workDate, endTime);
+        LocalDateTime startAt = LocalDateTime.of(workDate, startTime);
+        LocalDateTime endAt = LocalDateTime.of(workDate, endTime);
 
-        if (rooms != null) {
-            // compute occupied rooms by counting overlapping appointments in this facility
-            try {
-                java.util.List<com.wecureit.entity.Appointment> overlapping = appointmentRepository.findAppointmentsForFacility(facilityId, startAt, endAt);
-                int occ = 0;
-                if (overlapping != null) {
-                    for (com.wecureit.entity.Appointment a : overlapping) {
-                        if (a.getIsActive() == null || a.getIsActive()) occ++;
-                    }
-                }
-                // cap occupied by total rooms
-                occupied = Math.min(total, occ);
-            } catch (Exception ex) {
-                // fallback: assume zero occupied on error
-                occupied = 0;
-            }
+        // count how many eligible rooms are occupied at this time range
+        Set<UUID> occupiedRoomIds = getOccupiedRoomIds(facilityId, startAt, endAt);
+        for (com.wecureit.entity.Room r : eligibleRooms) {
+            if (occupiedRoomIds.contains(r.getId())) occupied++;
         }
 
         return new com.wecureit.dto.response.FacilityAvailabilityResponse(facilityId, total, occupied);
+    }
+
+    /**
+     * Get rooms eligible for a given speciality at a facility.
+     * GP → all active rooms. Other speciality → rooms with matching speciality_code.
+     */
+    public List<com.wecureit.entity.Room> getEligibleRooms(UUID facilityId, String specialityCode) {
+        if (specialityCode == null || isGeneralPractice(specialityCode)) {
+            List<com.wecureit.entity.Room> rooms = roomRepository.findByFacilityIdAndActiveTrue(facilityId);
+            return rooms != null ? rooms : Collections.emptyList();
+        }
+        List<com.wecureit.entity.Room> rooms = roomRepository.findByFacilityIdAndSpecialityCodeAndActiveTrue(facilityId, specialityCode);
+        return rooms != null ? rooms : Collections.emptyList();
+    }
+
+    /**
+     * Get the set of room IDs that are occupied (have active appointments with room_id) in a time range.
+     */
+    private Set<UUID> getOccupiedRoomIds(UUID facilityId, LocalDateTime startAt, LocalDateTime endAt) {
+        Set<UUID> occupiedRoomIds = new HashSet<>();
+        try {
+            List<com.wecureit.entity.Appointment> overlapping = appointmentRepository.findActiveAppointmentsWithRoomForFacility(facilityId, startAt, endAt);
+            if (overlapping != null) {
+                for (com.wecureit.entity.Appointment a : overlapping) {
+                    if (a.getRoom() != null) {
+                        occupiedRoomIds.add(a.getRoom().getId());
+                    }
+                }
+            }
+        } catch (Exception ex) {
+            logger.warn("getOccupiedRoomIds: error querying appointments: {}", ex.getMessage());
+        }
+        return occupiedRoomIds;
+    }
+
+    /**
+     * Find an available room for a speciality at a facility during a time range.
+     * For GP: prefer GP-only rooms first, then fallback to any available room.
+     * Returns null if no room is available.
+     */
+    public com.wecureit.entity.Room findAvailableRoom(UUID facilityId, String specialityCode, LocalDateTime startAt, LocalDateTime endAt) {
+        List<com.wecureit.entity.Room> eligibleRooms = getEligibleRooms(facilityId, specialityCode);
+        if (eligibleRooms.isEmpty()) return null;
+
+        Set<UUID> occupiedRoomIds = getOccupiedRoomIds(facilityId, startAt, endAt);
+
+        boolean isGP = isGeneralPractice(specialityCode);
+        if (isGP) {
+            // prefer GP-only rooms first to preserve speciality rooms
+            String gpCode = getGeneralPracticeCode();
+            if (gpCode != null) {
+                for (com.wecureit.entity.Room r : eligibleRooms) {
+                    if (gpCode.equalsIgnoreCase(r.getSpecialityCode()) && !occupiedRoomIds.contains(r.getId())) {
+                        return r;
+                    }
+                }
+            }
+        }
+
+        // pick first available eligible room
+        for (com.wecureit.entity.Room r : eligibleRooms) {
+            if (!occupiedRoomIds.contains(r.getId())) {
+                return r;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Check if a speciality code represents General Practice.
+     */
+    public boolean isGeneralPractice(String specialityCode) {
+        if (specialityCode == null) return false;
+        try {
+            var specOpt = specialityRepository.findById(specialityCode);
+            if (specOpt.isPresent()) {
+                return "general practice".equalsIgnoreCase(specOpt.get().getSpecialityName());
+            }
+        } catch (Exception ex) {
+            // fallback
+        }
+        return false;
+    }
+
+    /**
+     * Get the speciality code for General Practice.
+     */
+    private String getGeneralPracticeCode() {
+        try {
+            var gpOpt = specialityRepository.findBySpecialityNameIgnoreCase("General Practice");
+            if (gpOpt.isPresent()) return gpOpt.get().getSpecialityCode();
+        } catch (Exception ex) {
+            // ignore
+        }
+        return null;
     }
 }

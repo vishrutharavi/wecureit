@@ -6,12 +6,9 @@ import java.util.UUID;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
-
+import org.springframework.web.bind.annotation.*;
+import java.time.LocalDate;
+import org.springframework.security.core.context.SecurityContextHolder;
 import com.wecureit.dto.request.AvailabilityRequest;
 import com.wecureit.dto.response.AvailabilityResponse;
 import com.wecureit.repository.DoctorRepository;
@@ -41,19 +38,19 @@ public class DoctorAvailabilityController {
         return ResponseEntity.ok(out);
     }
 
-    @org.springframework.web.bind.annotation.GetMapping("/{doctorId}/availability")
+    @GetMapping("/{doctorId}/availability")
     public ResponseEntity<List<AvailabilityResponse>> listAvailability(
         @PathVariable("doctorId") UUID doctorId,
-        @org.springframework.web.bind.annotation.RequestParam(value = "from", required = false) String from,
-        @org.springframework.web.bind.annotation.RequestParam(value = "to", required = false) String to
+        @RequestParam(value = "from", required = false) String from,
+        @RequestParam(value = "to", required = false) String to
     ) {
-        java.time.LocalDate fromDate = (from == null || from.isBlank()) ? java.time.LocalDate.now() : java.time.LocalDate.parse(from);
-        java.time.LocalDate toDate = (to == null || to.isBlank()) ? fromDate.plusDays(30) : java.time.LocalDate.parse(to);
+        LocalDate fromDate = (from == null || from.isBlank()) ? LocalDate.now() : LocalDate.parse(from);
+        LocalDate toDate = (to == null || to.isBlank()) ? fromDate.plusDays(30) : LocalDate.parse(to);
         // If caller is authenticated, prefer the backend-resolved doctor id to avoid stale client ids
         UUID effectiveDoctorId = doctorId;
         try {
             // resolve using authentication if available from security context
-            var auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+            var auth = SecurityContextHolder.getContext().getAuthentication();
             if (auth != null && auth.getName() != null) {
                 var maybe = doctorRepository.findByFirebaseUid(auth.getName());
                 if (maybe.isPresent() && maybe.get().getId() != null) effectiveDoctorId = maybe.get().getId();
@@ -67,7 +64,7 @@ public class DoctorAvailabilityController {
 
     // Room assignment and walk-in toggling endpoints removed — rooms are not allocated from the API at this time.
 
-    @org.springframework.web.bind.annotation.DeleteMapping("/{doctorId}/availability/{availabilityId}/delete-availability")
+    @DeleteMapping("/{doctorId}/availability/{availabilityId}/delete-availability")
     public ResponseEntity<?> deleteAvailability(
         @PathVariable("doctorId") UUID doctorId,
         @PathVariable("availabilityId") UUID availabilityId
@@ -75,7 +72,7 @@ public class DoctorAvailabilityController {
         // prefer backend-resolved doctor id when authenticated
         UUID effectiveDoctorId = doctorId;
         try {
-            var auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+            var auth = SecurityContextHolder.getContext().getAuthentication();
             if (auth != null && auth.getName() != null) {
                 var maybe = doctorRepository.findByFirebaseUid(auth.getName());
                 if (maybe.isPresent() && maybe.get().getId() != null) effectiveDoctorId = maybe.get().getId();

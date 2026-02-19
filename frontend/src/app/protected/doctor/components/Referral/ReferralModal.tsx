@@ -1,112 +1,172 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import styles from "../../doctor.module.scss";
+import {
+  getOutgoingReferrals,
+  getIncomingReferrals,
+  cancelReferral,
+  acceptReferral,
+  completeReferral,
+} from "@/lib/doctor/doctorApi";
 
-type Referral = {
+type ReferralItem = {
   id: string;
-  referringDoctor: string;
-  referringDoctorEmail?: string;
-  facility: string;
-  patient: string;
-  speciality: string;
-  date: string;
-  notes?: string;
+  patientName: string;
+  patientId: string;
+  fromDoctorId: string;
+  fromDoctorName: string;
+  fromDoctorEmail: string;
+  toDoctorId: string;
+  toDoctorName: string;
+  toDoctorEmail: string;
+  specialityCode: string;
+  specialityName: string;
+  reason: string;
+  status: string;
+  cancelReason?: string;
+  createdAt: string;
 };
 
 type Props = {
   open: boolean;
   onClose: () => void;
-  items: Referral[];
 };
 
-export default function ReferralModalNew({ open, onClose, items }: Props) {
-  const [localItems, setLocalItems] = React.useState<Array<Referral & { isCancelled?: boolean; cancelReason?: string }>>(() =>
-    items.map((i) => ({ ...i, isCancelled: false, cancelReason: "" }))
-  );
+export default function ReferralModal({ open, onClose }: Props) {
+  const [tab, setTab] = useState<"outgoing" | "incoming">("outgoing");
+  const [outgoing, setOutgoing] = useState<ReferralItem[]>([]);
+  const [incoming, setIncoming] = useState<ReferralItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [globalSearch, setGlobalSearch] = useState("");
+  const [specialtyFilter, setSpecialtyFilter] = useState("");
+  const [cancelReasons, setCancelReasons] = useState<Record<string, string>>({});
 
-  React.useEffect(() => {
-    setLocalItems(items.map((i) => ({ ...i, isCancelled: false, cancelReason: "" })));
-  }, [items]);
+  const getDoctorId = useCallback(() => {
+    try {
+      const raw = localStorage.getItem("doctorProfile");
+      if (raw) return JSON.parse(raw).id;
+    } catch {}
+    return null;
+  }, []);
 
-  const [doctorFilter, setDoctorFilter] = React.useState<string>("");
-  const [facilityFilter, setFacilityFilter] = React.useState<string>("");
-  const [specialtyFilter, setSpecialtyFilter] = React.useState<string>("");
-  const [patientQuery, setPatientQuery] = React.useState<string>("");
-  const [globalSearch, setGlobalSearch] = React.useState<string>("");
-  // (create-referral UI removed) previously merged from Notes/ReferSpecialityModal
+  const fetchReferrals = useCallback(async () => {
+    const doctorId = getDoctorId();
+    if (!doctorId) return;
+    try {
+      setLoading(true);
+      const [out, inc] = await Promise.all([
+        getOutgoingReferrals(doctorId),
+        getIncomingReferrals(doctorId),
+      ]);
+      if (Array.isArray(out)) setOutgoing(out);
+      if (Array.isArray(inc)) setIncoming(inc);
+    } catch {
+      // ignore
+    } finally {
+      setLoading(false);
+    }
+  }, [getDoctorId]);
 
-  const doctors = Array.from(new Set(localItems.map((i) => i.referringDoctor))).filter(Boolean);
-  const facilities = Array.from(new Set(localItems.map((i) => i.facility))).filter(Boolean);
-  const specialities = Array.from(new Set(localItems.map((i) => i.speciality))).filter(Boolean);
+  useEffect(() => {
+    if (open) fetchReferrals();
+  }, [open, fetchReferrals]);
 
-  const filtered = localItems.filter((r) => {
-    if (doctorFilter && r.referringDoctor !== doctorFilter) return false;
-    if (facilityFilter && r.facility !== facilityFilter) return false;
-    if (specialtyFilter && r.speciality !== specialtyFilter) return false;
-    if (patientQuery && !r.patient.toLowerCase().includes(patientQuery.toLowerCase())) return false;
+  const handleCancel = async (referralId: string) => {
+    const doctorId = getDoctorId();
+    if (!doctorId) return;
+    try {
+      await cancelReferral(doctorId, referralId, cancelReasons[referralId] || undefined);
+      fetchReferrals();
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleAccept = async (referralId: string) => {
+    const doctorId = getDoctorId();
+    if (!doctorId) return;
+    try {
+      await acceptReferral(doctorId, referralId);
+      fetchReferrals();
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleComplete = async (referralId: string) => {
+    const doctorId = getDoctorId();
+    if (!doctorId) return;
+    try {
+      await completeReferral(doctorId, referralId);
+      fetchReferrals();
+    } catch {
+      // ignore
+    }
+  };
+
+  const items = tab === "outgoing" ? outgoing : incoming;
+
+  const specialities = Array.from(new Set(items.map((i) => i.specialityName).filter(Boolean)));
+
+  const filtered = items.filter((r) => {
+    if (specialtyFilter && r.specialityName !== specialtyFilter) return false;
     if (globalSearch) {
       const q = globalSearch.toLowerCase();
-      const inPatient = r.patient.toLowerCase().includes(q);
-      const inDoctor = r.referringDoctor.toLowerCase().includes(q);
-      const inFacility = r.facility.toLowerCase().includes(q);
-      const inSpec = r.speciality.toLowerCase().includes(q);
-      if (!(inPatient || inDoctor || inFacility || inSpec)) return false;
+      const inPatient = (r.patientName || "").toLowerCase().includes(q);
+      const inFrom = (r.fromDoctorName || "").toLowerCase().includes(q);
+      const inTo = (r.toDoctorName || "").toLowerCase().includes(q);
+      const inSpec = (r.specialityName || "").toLowerCase().includes(q);
+      if (!(inPatient || inFrom || inTo || inSpec)) return false;
     }
     return true;
   });
 
   if (!open) return null;
 
+  const totalCount = outgoing.length + incoming.length;
+
   return (
     <div className={styles["modal-overlay"]} onClick={onClose}>
       <div className={`${styles["modal-container"]} ${styles.modalWide}`} onClick={(e) => e.stopPropagation()}>
         <div className={styles["modal-header"]}>
-          <h2 className={styles["modal-title"]}>Referrals</h2>
+          <h2 className={styles["modal-title"]}>My Referrals ({totalCount})</h2>
         </div>
 
         <div className={styles["modal-body"]}>
-          {/* create-referral UI removed per request */}
+          {/* Tabs */}
+          <div className={styles.referralTabRow}>
+            <button
+              className={`${styles.tab} ${tab === "outgoing" ? styles.active : ""}`}
+              onClick={() => { setTab("outgoing"); setSpecialtyFilter(""); setGlobalSearch(""); }}
+            >
+              Outgoing ({outgoing.length})
+            </button>
+            <button
+              className={`${styles.tab} ${tab === "incoming" ? styles.active : ""}`}
+              onClick={() => { setTab("incoming"); setSpecialtyFilter(""); setGlobalSearch(""); }}
+            >
+              Incoming ({incoming.length})
+            </button>
+          </div>
+
+          {/* Filters */}
           <div className={styles.referralControls}>
             <div>
               <input
                 className={styles.referralSearchInput}
-                placeholder="Search referrals (patient, doctor, facility, specialty)"
+                placeholder="Search referrals (patient, doctor, specialty)"
                 value={globalSearch}
                 onChange={(e) => setGlobalSearch(e.target.value)}
               />
             </div>
-
             <div className={styles.referralSortBlock}>
-              <div className={styles.referralSortLabel}>Search by</div>
               <div className={styles.referralSelectRow}>
-                <div className={styles.selectFlex}>
-                  <select className={styles.compactSelect} value={doctorFilter} onChange={(e) => setDoctorFilter(e.target.value)}>
-                    <option value="">All doctors</option>
-                    {doctors.map((d) => (
-                      <option key={d} value={d}>
-                        {d}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className={styles.selectWide260}>
-                  <select className={styles.compactSelect} value={facilityFilter} onChange={(e) => setFacilityFilter(e.target.value)}>
-                    <option value="">All facilities</option>
-                    {facilities.map((f) => (
-                      <option key={f} value={f}>
-                        {f}
-                      </option>
-                    ))}
-                  </select>
-                </div>
                 <div className={styles.selectWide240}>
                   <select className={styles.compactSelect} value={specialtyFilter} onChange={(e) => setSpecialtyFilter(e.target.value)}>
                     <option value="">All specialties</option>
                     {specialities.map((s) => (
-                      <option key={s} value={s}>
-                        {s}
-                      </option>
+                      <option key={s} value={s}>{s}</option>
                     ))}
                   </select>
                 </div>
@@ -116,23 +176,19 @@ export default function ReferralModalNew({ open, onClose, items }: Props) {
 
           <div className={styles.referralCountRow}>
             <div className={styles.referralCountLabel}>{filtered.length} referral(s)</div>
-            <div>
-              <button
-                className={styles.secondaryBtn}
-                onClick={() => {
-                  setDoctorFilter("");
-                  setFacilityFilter("");
-                  setSpecialtyFilter("");
-                  setPatientQuery("");
-                }}
-              >
-                Clear
-              </button>
-            </div>
+            <button className={styles.secondaryBtn} onClick={() => { setSpecialtyFilter(""); setGlobalSearch(""); }}>
+              Clear
+            </button>
           </div>
 
-          {filtered.length === 0 ? (
-            <div className={styles.emptyCard}>No referrals match your filters</div>
+          {loading ? (
+            <div className={styles.emptyCard}>Loading referrals...</div>
+          ) : filtered.length === 0 ? (
+            <div className={styles.emptyCard}>
+              {items.length === 0
+                ? `No ${tab} referrals yet`
+                : "No referrals match your filters"}
+            </div>
           ) : (
             <div className={styles.referralGrid}>
               {filtered.map((r) => (
@@ -140,52 +196,76 @@ export default function ReferralModalNew({ open, onClose, items }: Props) {
                   <div className={styles.referralCardRow}>
                     <div className={styles.referralCardLeft}>
                       <div className={styles.referralCardHeader}>
-                        <div className={styles.appointmentPatientName}>{r.patient}</div>
-                        <div className={styles.referralDate}>{r.date}</div>
+                        <div className={styles.appointmentPatientName}>{r.patientName}</div>
+                        <div className={styles.referralDate}>
+                          {r.createdAt ? new Date(r.createdAt).toLocaleDateString() : ""}
+                        </div>
                       </div>
-                      <div className={styles.referralMeta}>{r.speciality} • {r.facility}</div>
-                      {!r.isCancelled ? (
+                      <div className={styles.referralMeta}>
+                        {r.specialityName} &bull;{" "}
+                        <span className={`${styles.smallBadge} ${r.status === "CANCELLED" ? styles.cancelledBadge : ""}`}>
+                          {r.status}
+                        </span>
+                      </div>
+                      {r.reason && (
+                        <div className={styles.referralReasonDisplay}>{r.reason}</div>
+                      )}
+                      {/* Cancel controls — only for outgoing & non-cancelled */}
+                      {tab === "outgoing" && r.status !== "CANCELLED" && (
                         <div className={styles.referralCancelledBlock}>
                           <input
                             className={styles.referralCancelInput}
                             placeholder="Cancellation reason (optional)"
-                            value={r.cancelReason ?? ""}
-                            onChange={(e) => setLocalItems((prev) => prev.map((x) => (x.id === r.id ? { ...x, cancelReason: e.target.value } : x)))}
+                            value={cancelReasons[r.id] ?? ""}
+                            onChange={(e) => setCancelReasons((prev) => ({ ...prev, [r.id]: e.target.value }))}
                           />
                           <button
                             className={`${styles.appointmentActionBtn} ${styles["cancel"]} ${styles.referralCancelBtn}`}
-                            onClick={() => setLocalItems((prev) => prev.map((x) => (x.id === r.id ? { ...x, isCancelled: true } : x)))}
+                            onClick={() => handleCancel(r.id)}
                           >
                             Cancel Referral
                           </button>
                         </div>
-                      ) : (
+                      )}
+                      {/* Accept/Complete controls — only for incoming referrals */}
+                      {tab === "incoming" && r.status === "PENDING" && (
                         <div className={styles.referralCancelledBlock}>
-                          <div className={styles.cardTitle}>Cancelled</div>
-                          {r.cancelReason ? (
-                            <div className={styles.mt6}>{r.cancelReason}</div>
-                          ) : (
-                            <div className={`${styles.mt6} ${styles.referralMeta}`}>No reason provided</div>
-                          )}
                           <button
-                            className={styles.secondaryBtn + " " + styles.mt8}
-                            onClick={() => setLocalItems((prev) => prev.map((x) => (x.id === r.id ? { ...x, isCancelled: false, cancelReason: "" } : x)))}
+                            className={styles.viewAppointmentsBtn}
+                            onClick={() => handleAccept(r.id)}
                           >
-                            Undo
+                            Accept Referral
                           </button>
+                        </div>
+                      )}
+                      {tab === "incoming" && r.status === "ACCEPTED" && (
+                        <div className={styles.referralCancelledBlock}>
+                          <button
+                            className={styles.viewAppointmentsBtn}
+                            onClick={() => handleComplete(r.id)}
+                          >
+                            Mark Completed
+                          </button>
+                        </div>
+                      )}
+                      {r.status === "CANCELLED" && r.cancelReason && (
+                        <div className={styles.referralCancelledBlock}>
+                          <div className={styles.referralMeta}>Cancelled: {r.cancelReason}</div>
                         </div>
                       )}
                     </div>
                     <div className={styles.referralCardRight}>
-                      <div className={styles.cardTitle}>{r.referringDoctor}</div>
-                      {r.referringDoctorEmail ? (
-                        <div className={styles.mt6}>
-                          <a className={styles.referralEmailLink} href={`mailto:${r.referringDoctorEmail}`}>
-                            {r.referringDoctorEmail}
-                          </a>
-                        </div>
-                      ) : null}
-                      {r.notes ? <div className={styles.mt8}>{r.notes}</div> : null}
+                      <div className={styles.cardTitle}>
+                        {tab === "outgoing" ? `To: ${r.toDoctorName}` : `From: ${r.fromDoctorName}`}
+                      </div>
+                      <div className={styles.mt6}>
+                        <a
+                          className={styles.referralEmailLink}
+                          href={`mailto:${tab === "outgoing" ? r.toDoctorEmail : r.fromDoctorEmail}`}
+                        >
+                          {tab === "outgoing" ? r.toDoctorEmail : r.fromDoctorEmail}
+                        </a>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -194,7 +274,7 @@ export default function ReferralModalNew({ open, onClose, items }: Props) {
           )}
         </div>
 
-  <div className={styles["modal-footer"]}>
+        <div className={styles["modal-footer"]}>
           <button className={styles.secondaryBtn} onClick={onClose}>
             Close
           </button>

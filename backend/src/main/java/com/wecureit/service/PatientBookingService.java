@@ -32,6 +32,7 @@ public class PatientBookingService {
     private final com.wecureit.repository.AppointmentRepository appointmentRepository;
     private final com.wecureit.service.DoctorAvailabilityService doctorAvailabilityService;
     private final DoctorFacilityLockRepository doctorFacilityLockRepository;
+    private final DoctorFacilityService doctorFacilityService;
 
     public PatientBookingService(DoctorRepository doctorRepository,
                                  FacilityRepository facilityRepository,
@@ -40,7 +41,8 @@ public class PatientBookingService {
                                  DoctorLicenseRepository doctorLicenseRepository,
                                  com.wecureit.repository.AppointmentRepository appointmentRepository,
                                  com.wecureit.service.DoctorAvailabilityService doctorAvailabilityService,
-                                 DoctorFacilityLockRepository doctorFacilityLockRepository) {
+                                 DoctorFacilityLockRepository doctorFacilityLockRepository,
+                                 DoctorFacilityService doctorFacilityService) {
         this.doctorRepository = doctorRepository;
         this.facilityRepository = facilityRepository;
         this.specialityRepository = specialityRepository;
@@ -49,6 +51,7 @@ public class PatientBookingService {
         this.appointmentRepository = appointmentRepository;
         this.doctorAvailabilityService = doctorAvailabilityService;
         this.doctorFacilityLockRepository = doctorFacilityLockRepository;
+        this.doctorFacilityService = doctorFacilityService;
     }
 
     /**
@@ -56,6 +59,10 @@ public class PatientBookingService {
      * Status values: AVAILABLE | BOOKED | BREAK_ENFORCED | UNAVAILABLE
      */
     public com.wecureit.dto.response.BookingAvailabilityResponse getAvailabilitySlots(java.util.UUID doctorId, java.util.UUID facilityId, java.time.LocalDate workDate, Integer desiredDurationMinutes) {
+        return getAvailabilitySlots(doctorId, facilityId, workDate, desiredDurationMinutes, null);
+    }
+
+    public com.wecureit.dto.response.BookingAvailabilityResponse getAvailabilitySlots(java.util.UUID doctorId, java.util.UUID facilityId, java.time.LocalDate workDate, Integer desiredDurationMinutes, String specialityCode) {
         var out = new com.wecureit.dto.response.BookingAvailabilityResponse();
         out.setDoctorId(doctorId);
         out.setFacilityId(facilityId);
@@ -87,12 +94,19 @@ public class PatientBookingService {
                     java.time.LocalDateTime sdt = workDate.atStartOfDay().plusMinutes(t);
                     java.time.LocalDateTime edt = sdt.plusMinutes(SLOT_MIN);
                     String status = "AVAILABLE";
-                    // check appointment overlap
+                    // check appointment overlap — use the full desired duration end time so that slots
+                    // whose full-duration window overlaps an existing appointment are marked BOOKED
+                    // (not just UNAVAILABLE via break simulation).
+                    java.time.LocalDateTime fullEndDt = (desiredDurationMinutes != null && desiredDurationMinutes > SLOT_MIN)
+                            ? sdt.plusMinutes(desiredDurationMinutes) : edt;
                     boolean overlapped = false;
                     for (var a : appts) {
                         if (a.getIsActive() != null && !a.getIsActive()) continue;
                         if (a.getStartTime() == null || a.getEndTime() == null) continue;
-                        if (a.getStartTime().isBefore(edt) && a.getEndTime().isAfter(sdt)) { overlapped = true; break; }
+                        // when filtering by speciality, only mark slots as BOOKED for same-speciality appointments
+                        if (specialityCode != null && a.getSpeciality() != null &&
+                            !specialityCode.equals(a.getSpeciality().getSpecialityCode())) continue;
+                        if (a.getStartTime().isBefore(fullEndDt) && a.getEndTime().isAfter(sdt)) { overlapped = true; break; }
                     }
                     if (overlapped) status = "BOOKED";
                     else {
@@ -155,9 +169,15 @@ public class PatientBookingService {
                         }
                     }
 
-                    // if facility capacity reported as no available rooms, mark UNAVAILABLE (best-effort)
-                    if (w.getAvailableRooms() != null && w.getAvailableRooms() <= 0) {
-                        status = "UNAVAILABLE";
+                    // per-slot room availability check: if no rooms available for the speciality at this slot, mark UNAVAILABLE
+                    if (facilityId != null && "AVAILABLE".equals(status)) {
+                        String slotSpecCode = specialityCode != null ? specialityCode : w.getSpecialityCode();
+                        if (slotSpecCode != null) {
+                            com.wecureit.entity.Room availRoom = doctorFacilityService.findAvailableRoom(facilityId, slotSpecCode, sdt, edt);
+                            if (availRoom == null) {
+                                status = "UNAVAILABLE";
+                            }
+                        }
                     }
 
                     // include the originating availability window id when available so frontend can persist it
@@ -170,7 +190,28 @@ public class PatientBookingService {
             }
         }
 
-        out.setSlots(slots);
+        // Deduplicate slots by startAt time - keep first occurrence but prefer more restrictive status
+        java.util.Map<String, com.wecureit.dto.response.BookingAvailabilitySlot> uniqueSlots = new java.util.LinkedHashMap<>();
+        for (var slot : slots) {
+            String key = slot.getStartAt();
+            if (!uniqueSlots.containsKey(key)) {
+                uniqueSlots.put(key, slot);
+            } else {
+                // If duplicate exists, prefer BOOKED/UNAVAILABLE over AVAILABLE (more restrictive wins)
+                var existing = uniqueSlots.get(key);
+                if ("AVAILABLE".equals(existing.getStatus()) && 
+                    ("BOOKED".equals(slot.getStatus()) || "UNAVAILABLE".equals(slot.getStatus()) || "BREAK_ENFORCED".equals(slot.getStatus()))) {
+                    uniqueSlots.put(key, slot);
+                }
+            }
+        }
+        
+        // Convert back to list and sort by time
+        java.util.List<com.wecureit.dto.response.BookingAvailabilitySlot> dedupedSlots = 
+            new java.util.ArrayList<>(uniqueSlots.values());
+        dedupedSlots.sort((a, b) -> a.getStartAt().compareTo(b.getStartAt()));
+
+        out.setSlots(dedupedSlots);
         return out;
     }
 
@@ -183,8 +224,8 @@ public class PatientBookingService {
         out.setSpecialties(specDtos);
 
         // facilities (active)
-    List<Facility> facilities = facilityRepository.findAllByIsActive(Boolean.TRUE);
-    List<com.wecureit.dto.response.FacilityResponse> facDtos = new ArrayList<>();
+        List<Facility> facilities = facilityRepository.findAllByIsActive(Boolean.TRUE);
+        List<com.wecureit.dto.response.FacilityResponse> facDtos = new ArrayList<>();
         for (Facility f : facilities) {
             // if speciality filter is provided, ensure facility has at least one active room for that speciality
             if (specialityCode != null && !specialityCode.isBlank()) {
@@ -324,7 +365,7 @@ public class PatientBookingService {
         out.setDoctors(docDtos);
 
         // Final cross-filtering: compute authoritative lists depending on provided params
-    List<com.wecureit.dto.response.FacilityResponse> finalFacs = new ArrayList<>(facDtos);
+        List<com.wecureit.dto.response.FacilityResponse> finalFacs = new ArrayList<>(facDtos);
         List<DoctorDropdownDto> finalDocs = new ArrayList<>(docDtos);
         List<SpecialityResponse> finalSpecs = new ArrayList<>(specDtos);
 

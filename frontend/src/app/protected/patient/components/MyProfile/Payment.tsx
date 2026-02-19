@@ -3,7 +3,9 @@
 import React, { useState, useEffect } from "react";
 import styles from "../../patient.module.scss";
 import { FiCreditCard } from "react-icons/fi";
-import { apiFetch, showInlineToast } from "@/lib/api";
+import { showInlineToast } from "@/lib/api";
+import { getPatientMe } from "@/lib/auth/authApi";
+import { getCards, addCard, deleteCard as deleteCardApi } from "@/lib/payment/paymentApi";
 import { auth } from '@/lib/firebase';
 
 // Inline SectionCard and ReadField so this file is self-contained (Card.tsx may be removed)
@@ -80,7 +82,7 @@ export default function Payment() {
           // call backend to resolve patient DB id (apiFetch will attach token)
           try {
             const token = await getFreshToken();
-            const me = await apiFetch("/api/patient/me", token);
+            const me = await getPatientMe(token);
             if (me && me.id) {
               id = String(me.id);
               profile = { ...profile, id, name: profile.name ?? me.name ?? profile.name };
@@ -111,7 +113,7 @@ export default function Payment() {
       console.debug('[Payment] fetchCards: fetching cards for patientId=', id);
       // obtain a fresh token if possible to avoid sending an expired token
       const token = await getFreshToken();
-      const res = await apiFetch(`/cards/getcards?patientId=${id}`, token);
+      const res = await getCards(id, token);
       if (Array.isArray(res)) {
           const next: SavedCard[] = res.map((r: unknown) => {
             const rec = r as { id?: unknown; last4?: unknown };
@@ -186,7 +188,7 @@ export default function Payment() {
       // try to resolve patient id one more time
       try {
         const token = await getFreshToken();
-        const me = await apiFetch('/api/patient/me', token);
+        const me = await getPatientMe(token);
         if (me && me.id) {
           setPatientId(String(me.id));
         } else {
@@ -218,7 +220,7 @@ export default function Payment() {
         };
 
   const token = await getFreshToken();
-  const created = await apiFetch('/cards/add', token, { method: 'POST', body: JSON.stringify(body) });
+  const created = await addCard(body, token);
       // created should be { id, last4 }
       if (created && created.id) {
         const added: SavedCard = { id: String(created.id), last4: String(created.last4), expiry: `${String(mm).padStart(2,'0')}/${String(yyyy)}` };
@@ -247,7 +249,7 @@ export default function Payment() {
     if (!patientId) return;
     try {
       const token = await getFreshToken();
-      await apiFetch(`/cards/${id}?patientId=${patientId}`, token, { method: 'DELETE' });
+      await deleteCardApi(id, patientId, token);
       const next = cards.filter((c) => c.id !== id);
       setCards(next);
       try {

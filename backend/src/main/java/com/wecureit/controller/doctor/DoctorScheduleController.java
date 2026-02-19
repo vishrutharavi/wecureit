@@ -1,15 +1,12 @@
 package com.wecureit.controller.doctor;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.UUID;
 
+import java.util.*;
+import java.time.LocalDate;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+
+
 
 import com.wecureit.dto.response.AppointmentResponse;
 import com.wecureit.dto.response.DoctorScheduleResponse;
@@ -37,15 +34,15 @@ public class DoctorScheduleController {
     }
 
     @GetMapping("/{doctorId}/completed-appointments")
-    public ResponseEntity<java.util.List<AppointmentResponse>> getCompletedAppointments(
+    public ResponseEntity<List<AppointmentResponse>> getCompletedAppointments(
             @PathVariable("doctorId") UUID doctorId,
             @RequestParam(value = "startDate", required = false) String startDateStr,
             @RequestParam(value = "endDate", required = false) String endDateStr
     ) {
-        java.time.LocalDate start = (startDateStr == null || startDateStr.isBlank()) ? java.time.LocalDate.now().minusDays(14) : java.time.LocalDate.parse(startDateStr);
-        java.time.LocalDate end = (endDateStr == null || endDateStr.isBlank()) ? java.time.LocalDate.now() : java.time.LocalDate.parse(endDateStr);
+        LocalDate start = (startDateStr == null || startDateStr.isBlank()) ? LocalDate.now().minusDays(14) : LocalDate.parse(startDateStr);
+        LocalDate end = (endDateStr == null || endDateStr.isBlank()) ? LocalDate.now() : LocalDate.parse(endDateStr);
 
-        java.util.List<AppointmentResponse> out = new java.util.ArrayList<>();
+        List<AppointmentResponse> out = new ArrayList<>();
         try {
             var histories = appointmentHistoryRepository.findByStatusIgnoreCase("completed");
             if (histories != null) {
@@ -71,7 +68,7 @@ public class DoctorScheduleController {
                                 } catch (Exception e) { /* ignore */ }
                             }
                             if (!matchesDoctor) continue;
-                            java.time.LocalDate d = a.getDate();
+                            LocalDate d = a.getDate();
                             if (d == null) continue;
                             if ((d.isBefore(start)) || (d.isAfter(end))) continue;
                             var resp = toResponse(a);
@@ -84,23 +81,23 @@ public class DoctorScheduleController {
                 }
             }
         } catch (Exception ex) {
-            return ResponseEntity.status(500).body(java.util.Collections.emptyList());
+            return ResponseEntity.status(500).body(Collections.emptyList());
         }
 
         return ResponseEntity.ok(out);
     }
 
-    @org.springframework.web.bind.annotation.PostMapping("/{doctorId}/appointments/{id}/complete")
-    public org.springframework.http.ResponseEntity<?> completeAppointment(
-            @org.springframework.web.bind.annotation.PathVariable("doctorId") java.util.UUID doctorId,
-            @org.springframework.web.bind.annotation.PathVariable("id") Long appointmentId) {
+    @PostMapping("/{doctorId}/appointments/{id}/complete")
+    public ResponseEntity<?> completeAppointment(
+            @PathVariable("doctorId") UUID doctorId,
+            @PathVariable("id") Long appointmentId) {
         try {
             Appointment a = appointmentService.markAppointmentCompleted(appointmentId, doctorId);
-            return org.springframework.http.ResponseEntity.ok(java.util.Map.of("ok", true, "appointmentId", a.getId()));
+            return ResponseEntity.ok(Map.of("ok", true, "appointmentId", a.getId()));
         } catch (IllegalArgumentException iae) {
-            return org.springframework.http.ResponseEntity.status(403).body(java.util.Map.of("error", iae.getMessage()));
+            return ResponseEntity.status(403).body(Map.of("error", iae.getMessage()));
         } catch (Exception ex) {
-            return org.springframework.http.ResponseEntity.status(500).body(java.util.Map.of("error", ex.getMessage()));
+            return ResponseEntity.status(500).body(Map.of("error", ex.getMessage()));
         }
     }
 
@@ -109,13 +106,13 @@ public class DoctorScheduleController {
             @PathVariable("doctorId") UUID doctorId,
             @RequestParam(value = "date", required = false) String dateStr
     ) {
-        java.time.LocalDate date = (dateStr == null || dateStr.isBlank()) ? java.time.LocalDate.now() : java.time.LocalDate.parse(dateStr);
+        LocalDate date = (dateStr == null || dateStr.isBlank()) ? LocalDate.now() : LocalDate.parse(dateStr);
         // include cancelled appointments so doctors can view both upcoming and cancelled
         List<Appointment> appts = appointmentService.getAppointmentsForDoctorAndDayIncludeCancelled(doctorId, date);
         // Determine explicit status for each appointment using appointment_history when available.
-        java.util.Set<Long> completedIds = new java.util.HashSet<>();
+        Set<Long> completedIds = new HashSet<>();
         // track cancelled actor for appointments (patient/doctor/unknown)
-        java.util.Map<Long, String> cancelledByMap = new java.util.HashMap<>();
+        Map<Long, String> cancelledByMap = new HashMap<>();
         try {
             for (Appointment a : appts) {
                 try {
@@ -207,6 +204,10 @@ public class DoctorScheduleController {
             }
         } catch (Exception e) {
             // ignore
+        }
+        if (a.getRoom() != null) {
+            resp.setRoomId(a.getRoom().getId());
+            resp.setRoomNumber(a.getRoom().getRoomNumber());
         }
         // status will be set by caller where we have access to computed completedIds map
         return resp;

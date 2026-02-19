@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-import { apiFetch } from "../../../../../lib/api";
+import { getDoctorSchedule } from "@/lib/doctor/doctorApi";
+import { toLocalIso } from "../../../../../lib/dateUtils";
 
 type ApiAppointment = {
   id: number | string;
@@ -33,7 +34,7 @@ export type Appointment = {
 };
 
 export function useSchedule() {
-  const [date, setDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState<string>(() => toLocalIso(new Date()));
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [breaks, setBreaks] = useState<Array<{ id: string; start: string; end: string; appointmentId?: string;}>>([]);
   const [loading, setLoading] = useState<boolean>(false);
@@ -49,7 +50,7 @@ export function useSchedule() {
       const doctorId = doc.id;
       const token = localStorage.getItem('doctorToken') ?? undefined;
       const q = dt ?? date;
-      const resp = await apiFetch(`/api/doctors/${doctorId}/schedule?date=${q}`, token);
+      const resp = await getDoctorSchedule(doctorId, q, token);
 
       // Response might be legacy array of appointments (old) or an object { appointments, breaks }
       let appts: ApiAppointment[] = [];

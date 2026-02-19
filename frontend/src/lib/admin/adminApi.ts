@@ -119,3 +119,70 @@ export async function deactivateDoctor(token: string, doctorId: string) {
     method: "PATCH",
   });
 }
+
+/* ---------- Meta (States & Specialities) ---------- */
+
+export async function getStates(token: string) {
+  return apiFetch("/api/admin/states", token);
+}
+
+export async function getSpecialities(token: string) {
+  return apiFetch("/api/admin/specialities", token);
+}
+
+/* ---------- Doctor Update ---------- */
+
+export async function updateDoctor(
+  token: string,
+  doctorId: string,
+  payload: { name?: string; gender?: string }
+) {
+  return apiFetch(`/api/admin/doctors/${doctorId}/update`, token, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
+/* ---------- Doctor License Deactivation ---------- */
+
+export async function deactivateDoctorLicense(token: string, licenseId: string) {
+  return apiFetch(`/api/admin/doctor-licenses/${licenseId}/deactivate`, token, {
+    method: "PATCH",
+  });
+}
+
+/* ---------- Referral Analytics ---------- */
+
+export async function getReferralOverview(token: string) {
+  return apiFetch("/api/admin/referrals/stats/overview", token);
+}
+
+export async function getReferralTrends(token: string, days = 30) {
+  return apiFetch(`/api/admin/referrals/stats/trends?days=${days}`, token);
+}
+
+export async function getReferralsByDoctor(token: string) {
+  return apiFetch("/api/admin/referrals/stats/by-doctor", token);
+}
+
+export async function getReferralsBySpeciality(token: string) {
+  return apiFetch("/api/admin/referrals/stats/by-speciality", token);
+}
+
+/* ---------- Intelligence (Neo4j) ---------- */
+
+export async function getBottleneckReport(token: string) {
+  return apiFetch("/api/admin/intelligence/bottlenecks", token);
+}
+
+export async function getOverloadedSpecialists(token: string, threshold = 1) {
+  return apiFetch(`/api/admin/intelligence/bottlenecks/overloaded?threshold=${threshold}`, token);
+}
+
+export async function getReferralPatterns(token: string) {
+  return apiFetch("/api/admin/intelligence/care-path/patterns", token);
+}
+
+export async function triggerGraphSync(token: string) {
+  return apiFetch("/api/admin/intelligence/graph/sync", token, { method: "POST" });
+}

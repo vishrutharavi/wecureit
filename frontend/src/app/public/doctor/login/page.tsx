@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { login } from "@/lib/auth";
-import { apiFetch, showInlineToast } from "@/lib/api";
+import { showInlineToast } from "@/lib/api";
+import { linkIdentity, getDoctorMe } from "@/lib/auth/authApi";
 import styles from "./login.module.scss";
 import { Stethoscope, Eye, EyeOff } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -24,7 +25,7 @@ export default function DoctorLogin() {
 
       // Try to link this Firebase identity to a doctor record so server can set role claim.
       try {
-        await apiFetch('/api/auth/link', idToken, { method: 'POST', body: JSON.stringify({ portal: 'DOCTOR' }) });
+        await linkIdentity(idToken, 'DOCTOR');
         // after linking, force-refresh token to pick up custom claims (best-effort)
         try {
           const fresh = await (user as FirebaseUser).getIdToken(true);
@@ -40,7 +41,7 @@ export default function DoctorLogin() {
       }
 
       // Fetch profile; retry briefly if backend hasn't yet associated the firebase UID with a DB doctor record.
-      let me = await apiFetch("/api/doctor/me");
+      let me = await getDoctorMe();
       console.log('doctor me', me);
       if (!me || !me.id) {
         // try up to 3 times with a forced token refresh between attempts (best-effort to wait for backend claim/write)
@@ -50,7 +51,7 @@ export default function DoctorLogin() {
             try { localStorage.setItem('doctorToken', fresh); } catch {}
             try { localStorage.setItem('idToken', fresh); } catch {}
           } catch {}
-          try { me = await apiFetch('/api/doctor/me'); } catch (e) { console.warn('Retrying /api/doctor/me failed', e); }
+          try { me = await getDoctorMe(); } catch (e) { console.warn('Retrying /api/doctor/me failed', e); }
         }
       }
 

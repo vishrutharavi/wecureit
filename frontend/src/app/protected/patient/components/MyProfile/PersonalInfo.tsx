@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { apiFetch } from '@/lib/api';
+import { getPatientMe, updatePatientProfile } from '@/lib/auth/authApi';
 import styles from "../../patient.module.scss";
 
 // Inline SectionCard and ReadField so PersonalInfo remains usable if Card.tsx is removed
@@ -74,7 +74,7 @@ export default function PersonalInfo({
 					const raw2 = localStorage.getItem('patientProfile');
 					const p2 = raw2 ? JSON.parse(raw2) : {};
 					if (!p2 || !p2.phone || !p2.dob || !p2.sex) {
-						const me = await apiFetch('/api/patient/me');
+						const me = await getPatientMe();
 						if (me) {
 								try {
 									const merged = { ...(p2 || {}), ...(me || {}) };
@@ -105,9 +105,8 @@ export default function PersonalInfo({
 				// call backend to persist profile changes; edited email goes to secondaryEmail
 				try {
 					const payload: { email?: string; name?: string; phone?: string } = { email, name, phone };
-					const res = await fetch('/api/patient/profile', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-					if (res.ok) {
-						const updated = await res.json();
+					const updated = await updatePatientProfile(payload);
+					if (updated) {
 						try {
 							const raw = localStorage.getItem('patientProfile');
 							const p = raw ? JSON.parse(raw) : {};
@@ -122,14 +121,6 @@ export default function PersonalInfo({
 							p.address = updated.address ?? p.address;
 							localStorage.setItem('patientProfile', JSON.stringify(p));
 						} catch {}
-					} else {
-						// fallback: store locally if backend update fails
-						const raw = localStorage.getItem('patientProfile');
-						const p = raw ? JSON.parse(raw) : {};
-						p.secondaryEmail = email;
-						p.name = name;
-						p.phone = phone;
-						localStorage.setItem('patientProfile', JSON.stringify(p));
 					}
 				} catch {
 					// network error: persist locally

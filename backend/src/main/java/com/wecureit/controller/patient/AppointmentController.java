@@ -1,18 +1,12 @@
 package com.wecureit.controller.patient;
 
 import java.net.URI;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.UUID;
+
+import java.util.*;
 
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+
+import org.springframework.web.bind.annotation.*;
 
 import com.wecureit.dto.request.AppointmentRequest;
 import com.wecureit.dto.response.AppointmentResponse;
@@ -43,16 +37,16 @@ public class AppointmentController {
         this.clinicalNoteRepository = clinicalNoteRepository;
     }
 
-    @org.springframework.web.bind.annotation.GetMapping("/history/byPatient")
-    public ResponseEntity<java.util.List<java.util.Map<String, Object>>> historyByPatient(@RequestParam(name = "patientId") java.util.UUID patientId) {
-        java.util.List<java.util.Map<String, Object>> out = new java.util.ArrayList<>();
+    @GetMapping("/history/byPatient")
+    public ResponseEntity<List<Map<String, Object>>> historyByPatient(@RequestParam(name = "patientId") UUID patientId) {
+        List<Map<String, Object>> out = new ArrayList<>();
         try {
-            java.util.List<com.wecureit.entity.AppointmentHistory> hist = appointmentService.getAppointmentHistoryForPatient(patientId);
+            List<com.wecureit.entity.AppointmentHistory> hist = appointmentService.getAppointmentHistoryForPatient(patientId);
             if (hist != null) {
                 java.time.format.DateTimeFormatter dateFmt = java.time.format.DateTimeFormatter.ofPattern("EEE, MMM d, uuuu");
                 java.time.format.DateTimeFormatter timeFmt = java.time.format.DateTimeFormatter.ofPattern("h:mm a");
                 for (com.wecureit.entity.AppointmentHistory h : hist) {
-                    java.util.Map<String, Object> m = new java.util.HashMap<>();
+                    Map<String, Object> m = new HashMap<>();
                     m.put("id", h.getId() == null ? null : h.getId().toString());
                     m.put("status", h.getStatus());
                     m.put("appointmentUuid", h.getAppointmentId() == null ? null : h.getAppointmentId().toString());
@@ -225,7 +219,10 @@ public class AppointmentController {
                 // don't fail response on doctor lookup issues
             }
         }
-        // Room assignment/reservation is disabled; do not include room info in responses
+        if (a.getRoom() != null) {
+            resp.setRoomId(a.getRoom().getId());
+            resp.setRoomNumber(a.getRoom().getRoomNumber());
+        }
         return resp;
     }
 }

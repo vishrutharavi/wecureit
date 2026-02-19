@@ -75,6 +75,7 @@ public class AdminDoctorController {
         return ResponseEntity.ok(Map.of("message", "Doctor deactivated"));
     }
     
+    // Added a second PATCH endpoint (can be removed later) to help diagnose whether the original PATCH endpoint is being hit at all, or if the issue is with doctorRepo.findById not finding the doctor
     @PatchMapping("/{doctorId}/delete")
     public ResponseEntity<?> patchDeleteDoctor(@PathVariable UUID doctorId) {
         try {

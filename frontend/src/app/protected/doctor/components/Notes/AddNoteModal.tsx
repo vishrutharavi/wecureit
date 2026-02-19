@@ -2,7 +2,7 @@
 
 import React from "react";
 import styles from "../../doctor.module.scss";
-import { apiFetch } from "../../../../../lib/api";
+import { createClinicalNote } from "@/lib/doctor/doctorApi";
 import { FiX } from "react-icons/fi";
 
 type Props = {
@@ -35,10 +35,7 @@ export default function AddNoteModal({ open, onClose, patientName = "Patient", d
       if (createdBy) payload.createdBy = createdBy;
 
       try {
-        const saved = await apiFetch('/api/clinical-notes', localStorage.getItem('doctorToken') ?? undefined, {
-          method: 'POST',
-          body: JSON.stringify(payload),
-        });
+        const saved = await createClinicalNote(payload, localStorage.getItem('doctorToken') ?? undefined);
         console.log('Clinical note saved', saved);
       } catch (e) {
         console.error('Save note failed', e);

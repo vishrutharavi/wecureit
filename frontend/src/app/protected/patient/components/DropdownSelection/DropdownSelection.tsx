@@ -3,11 +3,13 @@
 import React, { useEffect, useState } from "react";
 import styles from "../../patient.module.scss";
 import { FiActivity } from "react-icons/fi";
-import { apiFetch, showInlineToast } from '@/lib/api';
+import { showInlineToast } from '@/lib/api';
+import { getBookingDropdownData } from '@/lib/patient/patientApi';
+import { toLocalIso } from '@/lib/dateUtils';
 import type { Doctor, Facility, Specialty, BookingResponse } from '@/app/protected/patient/types';
 
 type Props = {
-  onChange: (selection: { doctor?: Doctor | null; facility?: Facility | null; specialty?: Specialty | null }) => void;
+  onChange: (selection: { doctor?: Doctor | null; facility?: Facility | null; specialty?: Specialty | null; duration?: number | null }) => void;
 };
 
 // BookingResponse type is imported from shared types
@@ -21,6 +23,7 @@ export default function DropdownSelection({ onChange }: Props) {
   const [selectedSpecialty, setSelectedSpecialty] = useState<string | "">("");
   const [selectedFacility, setSelectedFacility] = useState<string | "">("");
   const [selectedDoctor, setSelectedDoctor] = useState<string | "">("");
+  const [selectedDuration, setSelectedDuration] = useState<number>(30); // default to 30 minutes
 
   const [specialties, setSpecialties] = useState<Specialty[]>(EMPTY_SPECIALTIES);
   const [facilities, setFacilities] = useState<Facility[]>(EMPTY_FACILITIES);
@@ -31,27 +34,16 @@ export default function DropdownSelection({ onChange }: Props) {
   useEffect(() => {
     (async () => {
       try {
-        // include workDate from any existing bookingSelection in sessionStorage so server can apply facility locks
-        let url = '/api/patients/booking/dropdown-data';
-        try {
-          const raw = sessionStorage.getItem('bookingSelection');
-          if (raw) {
-            const parsed = JSON.parse(raw || '{}');
-            if (parsed && parsed.date) {
-              const params = new URLSearchParams();
-              params.set('workDate', parsed.date);
-              url = url + `?${params.toString()}`;
-            }
-          }
-        } catch {
-          // ignore session read errors
-        }
-        const resp = await apiFetch(url) as BookingResponse;
+        // Use today's date to get current availability
+        const today = toLocalIso(new Date());
+        const params = new URLSearchParams();
+        params.set('workDate', today);
+        const resp = await getBookingDropdownData(params) as BookingResponse;
         if (resp) {
           // map specialties
           const specs = Array.isArray(resp.specialties) ? resp.specialties.map((s) => ({ id: s.code, name: s.name })) : [];
           setSpecialties(specs);
-    // map facilities (include specialties offered at facility)
+          // map facilities (include specialties offered at facility)
           const facs = Array.isArray(resp.facilities) ? resp.facilities.map((f) => ({ id: f.id, name: f.name, specialties: Array.isArray(f.specialties) ? f.specialties.map((s: { code?: string; name?: string }) => ({ code: s.code, name: s.name ?? s.code ?? '' })) : [] })) : [];
           setFacilities(facs);
           // map doctors
@@ -75,18 +67,12 @@ export default function DropdownSelection({ onChange }: Props) {
         if (selectedFacility) params.set('facilityId', selectedFacility);
         if (selectedSpecialty) params.set('specialityCode', selectedSpecialty);
         if (selectedDoctor) params.set('doctorId', selectedDoctor);
-        // include workDate from any existing bookingSelection in sessionStorage so server can apply facility locks
-        try {
-          const raw = sessionStorage.getItem('bookingSelection');
-          if (raw) {
-            const parsed = JSON.parse(raw || '{}');
-            if (parsed && parsed.date) params.set('workDate', parsed.date);
-          }
-        } catch {
-          // ignore
-        }
-        const url = '/api/patients/booking/dropdown-data' + (params.toString() ? `?${params.toString()}` : '');
-        const resp = await apiFetch(url) as BookingResponse;
+
+        // Always use today's date for filtering
+        const today = toLocalIso(new Date());
+        params.set('workDate', today);
+        
+        const resp = await getBookingDropdownData(params) as BookingResponse;
         if (!mounted) return;
         if (resp) {
           const specs = Array.isArray(resp.specialties) ? resp.specialties.map((s) => ({ id: s.code, name: s.name })) : [];
@@ -97,9 +83,6 @@ export default function DropdownSelection({ onChange }: Props) {
           setDoctors(docs);
 
           // if current selections are no longer present in server response, clear them
-          // Preserve selections when the server returned NO facilities (user wants selections kept and counts shown as 0)
-          // Only clear a selection when the server returned a non-empty list for that type and the selected value is not included.
-          // Additionally, we avoid clearing doctor/specialty when there are zero facilities in the response.
           if (selectedDoctor && docs.length > 0 && facs.length > 0 && !docs.some(dd => dd.id === selectedDoctor)) setSelectedDoctor("");
           if (selectedFacility && facs.length > 0 && !facs.some(ff => ff.id === selectedFacility)) setSelectedFacility("");
           if (selectedSpecialty && specs.length > 0 && facs.length > 0 && !specs.some(ss => (ss.id ?? ss.name) === selectedSpecialty)) setSelectedSpecialty("");
@@ -123,7 +106,8 @@ export default function DropdownSelection({ onChange }: Props) {
     setSelectedDoctor("");
     setSelectedFacility("");
     setSelectedSpecialty("");
-    onChange({ doctor: null, facility: null, specialty: null });
+    setSelectedDuration(30); // reset to default
+    onChange({ doctor: null, facility: null, specialty: null, duration: 30 });
   }
 
   useEffect(() => {
@@ -131,8 +115,8 @@ export default function DropdownSelection({ onChange }: Props) {
     const doctor = doctors.find((d) => d.id === selectedDoctor) || null;
     const facility = facilities.find((f) => f.id === selectedFacility) || null;
     const specialty = specialties.find((s) => (s.id ?? s.name) === selectedSpecialty) || null;
-    onChange({ doctor, facility, specialty });
-  }, [selectedDoctor, selectedFacility, selectedSpecialty, onChange, doctors, facilities, specialties]);
+    onChange({ doctor, facility, specialty, duration: selectedDuration });
+  }, [selectedDoctor, selectedFacility, selectedSpecialty, selectedDuration, onChange, doctors, facilities, specialties]);
 
   return (
     <div>
@@ -219,6 +203,26 @@ export default function DropdownSelection({ onChange }: Props) {
             </select>
           </div>
           <div className={styles.profileSubtitle}>{specialties.length} specialties available</div>
+
+          <div style={{ height: 12 }} />
+
+          <div className={styles.fieldLabel}>Appointment Duration</div>
+          <div className={styles.searchInputWrap}>
+            <select
+              className={styles.inputField}
+              value={selectedDuration}
+              onChange={(e) => {
+                const val = parseInt(e.target.value, 10);
+                setSelectedDuration(val);
+              }}
+              disabled={loading}
+            >
+              <option value="15">15 minutes</option>
+              <option value="30">30 minutes</option>
+              <option value="60">60 minutes</option>
+            </select>
+          </div>
+          <div className={styles.profileSubtitle}>Select your preferred appointment length</div>
         </div>
       </div>
     </div>

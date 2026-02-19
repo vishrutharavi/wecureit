@@ -2,9 +2,8 @@ package com.wecureit.service;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.UUID;
+
+import java.util.*;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -81,11 +80,6 @@ public class DoctorAvailabilityService {
                 }
             }
 
-            // prevent duplicate availability for the same doctor/facility/date/start/end
-            if (availabilityRepo.existsByDoctorIdAndFacilityIdAndWorkDateAndStartTimeAndEndTime(doctorId, facId, workDate, LocalTime.parse(it.getStartTime()), LocalTime.parse(it.getEndTime()))) {
-                throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.CONFLICT, "Duplicate availability for same facility and time");
-            }
-
             // check doctor license for speciality in facility's state
             if (it.getSpecialityCode() != null && !it.getSpecialityCode().isEmpty()) {
                 Facility fac = facilityRepo.findById(facId).orElse(null);
@@ -99,54 +93,121 @@ public class DoctorAvailabilityService {
                 }
             }
 
-            DoctorAvailability da = new DoctorAvailability();
-            da.setDoctorId(doctorId);
-            da.setFacilityId(UUID.fromString(it.getFacilityId()));
-            da.setWorkDate(workDate);
-            da.setStartTime(LocalTime.parse(it.getStartTime()));
-            da.setEndTime(LocalTime.parse(it.getEndTime()));
-            da.setSpecialityCode(it.getSpecialityCode());
-            try {
-                availabilityRepo.save(da);
-            } catch (DataIntegrityViolationException dive) {
-                throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.CONFLICT, "Conflict: uniqueness constraint violated");
-            }
-
-            AvailabilityResponse resp = new AvailabilityResponse();
-            resp.setId(da.getId());
-            resp.setWorkDate(da.getWorkDate().toString());
-            resp.setFacilityId(da.getFacilityId() == null ? null : da.getFacilityId().toString());
-            resp.setStartTime(da.getStartTime().toString());
-            resp.setEndTime(da.getEndTime().toString());
-            resp.setSpecialityCode(da.getSpecialityCode());
-            // booking flag is not persisted server-side anymore; treat availability as bookable by default
-            resp.setBookable(true);
-            // attach facility display info
-            try {
-                Facility fac = facilityRepo.findById(da.getFacilityId()).orElse(null);
-                if (fac != null) {
-                    resp.setFacilityName(fac.getName());
-                    resp.setFacilityAddress(fac.getAddress());
-                    resp.setFacilityState(fac.getState() == null ? null : fac.getState().getStateCode());
+            LocalTime newStart = LocalTime.parse(it.getStartTime());
+            LocalTime newEnd = LocalTime.parse(it.getEndTime());
+            
+            // Get all existing availabilities for this doctor, facility, and date
+            List<DoctorAvailability> existingAvails = availabilityRepo.findByDoctorIdAndFacilityIdAndWorkDate(doctorId, facId, workDate);
+            
+            // Find overlapping availabilities
+            List<DoctorAvailability> overlappingAvails = new ArrayList<>();
+            if (existingAvails != null && !existingAvails.isEmpty()) {
+                for (DoctorAvailability existing : existingAvails) {
+                    boolean overlaps = newStart.isBefore(existing.getEndTime()) && newEnd.isAfter(existing.getStartTime());
+                    if (overlaps) {
+                        overlappingAvails.add(existing);
+                    }
                 }
-            } catch (Exception ex) {
-                // ignore
             }
-            try {
-                com.wecureit.dto.response.FacilityAvailabilityResponse far = doctorFacilityService.getFacilityAvailability(da.getFacilityId(), da.getWorkDate(), da.getStartTime(), da.getEndTime());
-                if (far != null) {
-                    resp.setRoomsTotal(far.roomsTotal);
-                    resp.setOccupiedRooms(far.occupiedRooms);
-                    resp.setAvailableRooms(far.availableRooms);
+            
+            // Merge overlapping availabilities
+            if (!overlappingAvails.isEmpty()) {
+                // Find the earliest start time and latest end time
+                LocalTime mergedStart = newStart;
+                LocalTime mergedEnd = newEnd;
+                
+                for (DoctorAvailability existing : overlappingAvails) {
+                    if (existing.getStartTime().isBefore(mergedStart)) {
+                        mergedStart = existing.getStartTime();
+                    }
+                    if (existing.getEndTime().isAfter(mergedEnd)) {
+                        mergedEnd = existing.getEndTime();
+                    }
                 }
-            } catch (Exception ex) {
-                // best-effort: if availability calculation fails, leave counts null
+                
+                // Delete overlapping availabilities from database
+                for (DoctorAvailability existing : overlappingAvails) {
+                    availabilityRepo.delete(existing);
+                }
+                
+                // Create new merged availability
+                DoctorAvailability da = new DoctorAvailability();
+                da.setDoctorId(doctorId);
+                da.setFacilityId(facId);
+                da.setWorkDate(workDate);
+                da.setStartTime(mergedStart);
+                da.setEndTime(mergedEnd);
+                da.setSpecialityCode(it.getSpecialityCode());
+                
+                try {
+                    availabilityRepo.save(da);
+                } catch (DataIntegrityViolationException dive) {
+                    throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.CONFLICT, "Conflict: uniqueness constraint violated");
+                }
+                
+                // Create response for merged availability
+                AvailabilityResponse resp = createAvailabilityResponse(da, facId);
+                results.add(resp);
+            } else {
+                // No overlaps, create new availability as usual
+                DoctorAvailability da = new DoctorAvailability();
+                da.setDoctorId(doctorId);
+                da.setFacilityId(facId);
+                da.setWorkDate(workDate);
+                da.setStartTime(newStart);
+                da.setEndTime(newEnd);
+                da.setSpecialityCode(it.getSpecialityCode());
+                
+                try {
+                    availabilityRepo.save(da);
+                } catch (DataIntegrityViolationException dive) {
+                    throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.CONFLICT, "Conflict: uniqueness constraint violated");
+                }
+                
+                AvailabilityResponse resp = createAvailabilityResponse(da, facId);
+                results.add(resp);
             }
-
-            results.add(resp);
         }
 
         return results;
+    }
+
+    // Helper method to create AvailabilityResponse
+    private AvailabilityResponse createAvailabilityResponse(DoctorAvailability da, UUID facId) {
+        AvailabilityResponse resp = new AvailabilityResponse();
+        resp.setId(da.getId());
+        resp.setWorkDate(da.getWorkDate().toString());
+        resp.setFacilityId(da.getFacilityId() == null ? null : da.getFacilityId().toString());
+        resp.setStartTime(da.getStartTime().toString());
+        resp.setEndTime(da.getEndTime().toString());
+        resp.setSpecialityCode(da.getSpecialityCode());
+        // booking flag is not persisted server-side anymore; treat availability as bookable by default
+        resp.setBookable(true);
+        
+        // attach facility display info
+        try {
+            Facility fac = facilityRepo.findById(facId).orElse(null);
+            if (fac != null) {
+                resp.setFacilityName(fac.getName());
+                resp.setFacilityAddress(fac.getAddress());
+                resp.setFacilityState(fac.getState() == null ? null : fac.getState().getStateCode());
+            }
+        } catch (Exception ex) {
+            // ignore
+        }
+        
+        try {
+            com.wecureit.dto.response.FacilityAvailabilityResponse far = doctorFacilityService.getFacilityAvailability(da.getFacilityId(), da.getWorkDate(), da.getStartTime(), da.getEndTime(), da.getSpecialityCode());
+            if (far != null) {
+                resp.setRoomsTotal(far.roomsTotal);
+                resp.setOccupiedRooms(far.occupiedRooms);
+                resp.setAvailableRooms(far.availableRooms);
+            }
+        } catch (Exception ex) {
+            // best-effort: if availability calculation fails, leave counts null
+        }
+        
+        return resp;
     }
 
     public List<AvailabilityResponse> listAvailabilities(UUID doctorId, LocalDate from, LocalDate to) {
@@ -177,7 +238,7 @@ public class DoctorAvailabilityService {
             // booking flag not stored; default to true for display
             resp.setBookable(true);
             try {
-                com.wecureit.dto.response.FacilityAvailabilityResponse far = doctorFacilityService.getFacilityAvailability(da.getFacilityId(), da.getWorkDate(), da.getStartTime(), da.getEndTime());
+                com.wecureit.dto.response.FacilityAvailabilityResponse far = doctorFacilityService.getFacilityAvailability(da.getFacilityId(), da.getWorkDate(), da.getStartTime(), da.getEndTime(), da.getSpecialityCode());
                 if (far != null) {
                     resp.setRoomsTotal(far.roomsTotal);
                     resp.setOccupiedRooms(far.occupiedRooms);
