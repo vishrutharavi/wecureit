@@ -7,13 +7,18 @@ import com.wecureit.dto.response.SlotSuggestion;
 import com.wecureit.service.BookingCopilotService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/agent/booking")
 public class BookingCopilotController {
     
+    private static final Logger logger = LoggerFactory.getLogger(BookingCopilotController.class);
     private final BookingCopilotService bookingCopilotService;
     
     public BookingCopilotController(BookingCopilotService bookingCopilotService) {
@@ -21,20 +26,26 @@ public class BookingCopilotController {
     }
     
     @PostMapping("/interpret")
-    public ResponseEntity<BookingIntent> interpretBookingIntent(
+    public ResponseEntity<?> interpretBookingIntent(
             @RequestBody BookingCopilotRequest request) {
         try {
+            logger.info("Interpreting booking utterance: {}", request.getUtterance());
             BookingIntent intent = bookingCopilotService.interpretUtterance(request.getUtterance());
             return ResponseEntity.ok(intent);
         } catch (Exception e) {
-            return ResponseEntity.internalServerError().build();
+            logger.error("Error interpreting booking intent", e);
+            Map<String, String> error = new HashMap<>();
+            error.put("error", e.getMessage());
+            error.put("type", e.getClass().getSimpleName());
+            return ResponseEntity.internalServerError().body(error);
         }
     }
     
     @PostMapping("/suggest")
-    public ResponseEntity<BookingSuggestionsResponse> suggestSlots(
+    public ResponseEntity<?> suggestSlots(
             @RequestBody BookingIntent intent) {
         try {
+            logger.info("Suggesting slots for intent: {}", intent);
             List<SlotSuggestion> suggestions = bookingCopilotService.suggestSlots(intent);
             List<SlotSuggestion> alternatives = suggestions.isEmpty() 
                     ? bookingCopilotService.suggestAlternatives(intent) 
@@ -49,14 +60,19 @@ public class BookingCopilotController {
             
             return ResponseEntity.ok(response);
         } catch (Exception e) {
-            return ResponseEntity.internalServerError().build();
+            logger.error("Error suggesting slots", e);
+            Map<String, String> error = new HashMap<>();
+            error.put("error", e.getMessage());
+            error.put("type", e.getClass().getSimpleName());
+            return ResponseEntity.internalServerError().body(error);
         }
     }
     
     @PostMapping("/copilot")
-    public ResponseEntity<BookingSuggestionsResponse> bookingCopilot(
+    public ResponseEntity<?> bookingCopilot(
             @RequestBody BookingCopilotRequest request) {
         try {
+            logger.info("Running booking copilot for utterance: {}", request.getUtterance());
             BookingIntent intent = bookingCopilotService.interpretUtterance(request.getUtterance());
             
             List<SlotSuggestion> suggestions = bookingCopilotService.suggestSlots(intent);
@@ -73,7 +89,11 @@ public class BookingCopilotController {
             
             return ResponseEntity.ok(response);
         } catch (Exception e) {
-            return ResponseEntity.internalServerError().build();
+            logger.error("Error in booking copilot", e);
+            Map<String, String> error = new HashMap<>();
+            error.put("error", e.getMessage());
+            error.put("type", e.getClass().getSimpleName());
+            return ResponseEntity.internalServerError().body(error);
         }
     }
 }

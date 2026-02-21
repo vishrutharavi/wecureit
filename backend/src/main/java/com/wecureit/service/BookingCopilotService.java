@@ -47,12 +47,25 @@ public class BookingCopilotService {
             - All dates must be 2026 or later. If a parsed date would be before 2026-01-01, set it to null unless it can be rolled forward to 2026+ using the rules below.
 
             SPECIALTY
-            - If user indicates a specialty, normalize to common terms:
-            - "skin doctor" -> "Dermatology"
-            - "heart" / "cardio" -> "Cardiology"
-            - "children" -> "Pediatrics"
-            - "bones" -> "Orthopedics"
-            - If unclear, set specialty = null.
+            - If user indicates a specialty, ALWAYS normalize to EXACT full names from this list ONLY:
+            - Mapping (keywords on left -> ALWAYS output the right side):
+            - "Dermatology": recognizes "skin", "derma", "acne", "rash", "eczema", "psoriasis", "mole", "wart"
+            - "Cardiology": recognizes "heart", "cardio", "chest pain", "arrhythmia", "hypertension", "cardiac"
+            - "Pediatrics": recognizes "children", "baby", "infant", "kid", "toddler", "child"
+            - "Orthopedics": recognizes "bones", "joint", "fracture", "bone", "sprain", "orthopedic", "knee", "shoulder", "wrist", "ankle"
+            - "Neurology": recognizes "brain", "neuro", "nervous", "migraine", "headache", "dizzy", "dizziness", "seizure", "nerve", "neurological"
+            - "Surgery": recognizes "surgery", "surgical", "operate", "operation", "surgeon", "surgical procedure"
+            - "General Practice": recognizes "general", "checkup", "check-up", "physical", "general health", "routine"
+            - "Psychiatry": recognizes "mental health", "psychology", "therapy", "counseling", "depression", "anxiety", "psychiatric"
+            - "Otolaryngology": recognizes "ear", "nose", "throat", "ent", "hearing", "rhinology", "otolaryngology"
+            - "Gynecology": recognizes "gynecology", "gynae", "women", "reproductive", "women's health"
+            - "Gastroenterology": recognizes "stomach", "digestive", "gastro", "gastrointestinal", "digestive system"
+            - "Urology": recognizes "urinary", "kidney", "urology", "urological"
+            - "Oncology": recognizes "cancer", "oncology", "tumor", "chemotherapy"
+            - "Pulmonology": recognizes "lungs", "respiratory", "chest", "breathing", "asthma", "copd"
+            - IMPORTANT: Always output the FULL specialty name from the list above (the right side), never abbreviations!
+            - If user mentions "need surgery" -> specialty = "Surgery" (NOT null, NOT "neuro" or shortened)
+            - If unclear/ambiguous, set specialty = null.
 
             FACILITY / DOCTOR
             - facilityName: only if user names a facility explicitly (exact name or clear partial). Else null.
@@ -166,8 +179,19 @@ public class BookingCopilotService {
             }
             
             String cleaned = response.trim();
+            
+            // Remove markdown code block wrapper if present
             if (cleaned.startsWith("```")) {
                 cleaned = cleaned.replaceAll("```json\n|```\n|```", "").trim();
+            }
+            
+            // Extract JSON from response if it contains extra text
+            // Look for { at the beginning and } at the end
+            int jsonStart = cleaned.indexOf('{');
+            int jsonEnd = cleaned.lastIndexOf('}');
+            
+            if (jsonStart >= 0 && jsonEnd > jsonStart) {
+                cleaned = cleaned.substring(jsonStart, jsonEnd + 1).trim();
             }
             
             return objectMapper.readValue(cleaned, BookingIntent.class);
@@ -250,6 +274,26 @@ public class BookingCopilotService {
         String normalized = userSpecialty.trim().toLowerCase();
         List<Speciality> all = specialityRepository.findAll();
         
+        // Try exact match first (case-insensitive)
+        for (Speciality s : all) {
+            String specName = s.getSpecialityName().toLowerCase();
+            if (specName.equals(normalized)) {
+                return s.getSpecialityCode();
+            }
+        }
+        
+        // Try common abbreviation/keyword mappings
+        String mapped = mapCommonSpecialtyNames(normalized);
+        if (mapped != null) {
+            for (Speciality s : all) {
+                String specName = s.getSpecialityName().toLowerCase();
+                if (specName.equals(mapped)) {
+                    return s.getSpecialityCode();
+                }
+            }
+        }
+        
+        // Try substring match (user input contained in or contains specialty name)
         for (Speciality s : all) {
             String specName = s.getSpecialityName().toLowerCase();
             if (specName.contains(normalized) || normalized.contains(specName)) {
@@ -258,6 +302,84 @@ public class BookingCopilotService {
         }
         
         return null;
+    }
+    
+    /**
+     * Maps common AI-generated specialty names and abbreviations to full specialty names
+     * Handles variations like "neuro" -> "neurology", "cardiac" -> "cardiology", etc.
+     * This provides fallback matching in case the AI doesn't return exact names.
+     */
+    private String mapCommonSpecialtyNames(String input) {
+        Map<String, String> specialtyMap = new HashMap<>();
+        
+        // Neurology variants
+        specialtyMap.put("neuro", "neurology");
+        specialtyMap.put("neurological", "neurology");
+        specialtyMap.put("brain", "neurology");
+        
+        // Surgery variants
+        specialtyMap.put("surgery", "surgery");
+        specialtyMap.put("surgical", "surgery");
+        specialtyMap.put("surgeon", "surgery");
+        
+        // Cardiology variants
+        specialtyMap.put("cardiac", "cardiology");
+        specialtyMap.put("cardio", "cardiology");
+        specialtyMap.put("heart", "cardiology");
+        
+        // Orthopedics variants
+        specialtyMap.put("ortho", "orthopedics");
+        specialtyMap.put("orthopedic", "orthopedics");
+        specialtyMap.put("bones", "orthopedics");
+        specialtyMap.put("joint", "orthopedics");
+        
+        // Dermatology variants
+        specialtyMap.put("derma", "dermatology");
+        specialtyMap.put("skin", "dermatology");
+        
+        // Pediatrics variants
+        specialtyMap.put("pediatric", "pediatrics");
+        specialtyMap.put("peds", "pediatrics");
+        specialtyMap.put("children", "pediatrics");
+        
+        // Psychiatry variants
+        specialtyMap.put("psych", "psychiatry");
+        specialtyMap.put("mental health", "psychiatry");
+        
+        // Otolaryngology (ENT) variants
+        specialtyMap.put("ent", "otolaryngology");
+        specialtyMap.put("ear nose throat", "otolaryngology");
+        specialtyMap.put("otorhino", "otolaryngology");
+        
+        // Gynecology variants
+        specialtyMap.put("gynae", "gynecology");
+        specialtyMap.put("gynec", "gynecology");
+        specialtyMap.put("women", "gynecology");
+        
+        // Gastroenterology variants
+        specialtyMap.put("gastro", "gastroenterology");
+        specialtyMap.put("gi", "gastroenterology");
+        specialtyMap.put("digestive", "gastroenterology");
+        
+        // Urology variants
+        specialtyMap.put("uro", "urology");
+        specialtyMap.put("urinary", "urology");
+        
+        // Oncology variants
+        specialtyMap.put("onco", "oncology");
+        specialtyMap.put("cancer", "oncology");
+        
+        // Pulmonology variants
+        specialtyMap.put("pulmo", "pulmonology");
+        specialtyMap.put("respiratory", "pulmonology");
+        specialtyMap.put("lungs", "pulmonology");
+        
+        // General Practice variants
+        specialtyMap.put("gp", "general practice");
+        specialtyMap.put("general", "general practice");
+        specialtyMap.put("family medicine", "general practice");
+        
+        return specialtyMap.get(input);
     }
     
     private Facility resolveFacility(String userFacility) {
