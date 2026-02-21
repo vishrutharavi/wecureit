@@ -2,9 +2,8 @@ package com.wecureit.service;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.UUID;
+
+import java.util.*;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -198,7 +197,7 @@ public class DoctorAvailabilityService {
         }
         
         try {
-            com.wecureit.dto.response.FacilityAvailabilityResponse far = doctorFacilityService.getFacilityAvailability(da.getFacilityId(), da.getWorkDate(), da.getStartTime(), da.getEndTime());
+            com.wecureit.dto.response.FacilityAvailabilityResponse far = doctorFacilityService.getFacilityAvailability(da.getFacilityId(), da.getWorkDate(), da.getStartTime(), da.getEndTime(), da.getSpecialityCode());
             if (far != null) {
                 resp.setRoomsTotal(far.roomsTotal);
                 resp.setOccupiedRooms(far.occupiedRooms);
@@ -239,7 +238,7 @@ public class DoctorAvailabilityService {
             // booking flag not stored; default to true for display
             resp.setBookable(true);
             try {
-                com.wecureit.dto.response.FacilityAvailabilityResponse far = doctorFacilityService.getFacilityAvailability(da.getFacilityId(), da.getWorkDate(), da.getStartTime(), da.getEndTime());
+                com.wecureit.dto.response.FacilityAvailabilityResponse far = doctorFacilityService.getFacilityAvailability(da.getFacilityId(), da.getWorkDate(), da.getStartTime(), da.getEndTime(), da.getSpecialityCode());
                 if (far != null) {
                     resp.setRoomsTotal(far.roomsTotal);
                     resp.setOccupiedRooms(far.occupiedRooms);

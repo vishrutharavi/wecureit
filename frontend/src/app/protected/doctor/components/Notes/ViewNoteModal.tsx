@@ -2,7 +2,7 @@
 
 import React from "react";
 import styles from "../../doctor.module.scss";
-import { apiFetch } from "../../../../../lib/api";
+import { getClinicalNotes } from "@/lib/doctor/doctorApi";
 import { FiX } from "react-icons/fi";
 
 type Note = {
@@ -41,16 +41,8 @@ export default function ViewNoteModal({ open, onClose, patientName = "Patient", 
       setLoading(true);
       setError(null);
       try {
-        let url = '/api/clinical-notes';
-        // prefer appointmentDbId (numeric) when available
-        if (appointmentDbId) {
-          url += `?appointmentDbId=${encodeURIComponent(appointmentDbId)}`;
-        } else if (patientId) {
-          url += `?patientId=${encodeURIComponent(patientId)}`;
-        }
-        // Use centralized apiFetch so the request goes to the backend server
-        // (apiFetch prepends API_BASE and includes auth tokens when present).
-        const data = await apiFetch(url, typeof window !== 'undefined' ? (localStorage.getItem('doctorToken') ?? undefined) : undefined);
+        const token = typeof window !== 'undefined' ? (localStorage.getItem('doctorToken') ?? undefined) : undefined;
+        const data = await getClinicalNotes({ appointmentDbId, patientId }, token);
         // Map backend ClinicalNote to Note for UI
         const mapped: Note[] = (data || []).map((n: Record<string, unknown>) => {
           const rawAuthor = (n['createdBy'] as string) ?? (n['doctorId'] ? `Doctor ${String(n['doctorId'])}` : 'Unknown');

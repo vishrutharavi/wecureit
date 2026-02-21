@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { login } from "@/lib/auth";
-import { apiFetch } from "@/lib/api";
+import { linkIdentity, getAdminMe } from "@/lib/auth/authApi";
 import type { User as FirebaseUser } from "firebase/auth";
 import { getIdTokenResult } from "firebase/auth";
 import styles from "./login.module.scss";
@@ -28,7 +28,7 @@ export default function AdminLogin() {
 
       // Best-effort: link Firebase identity to admin record, then refresh token to pick up claims
       try {
-        await apiFetch('/api/auth/link', token, { method: 'POST', body: JSON.stringify({ portal: 'ADMIN' }) });
+        await linkIdentity(token, 'ADMIN');
         try {
           const fresh = await (user as FirebaseUser).getIdToken(true);
           if (typeof window !== "undefined") {
@@ -49,7 +49,7 @@ export default function AdminLogin() {
         console.warn("Could not read token result", e);
       }
 
-      const me = await apiFetch("/api/admin/me", token);
+      const me = await getAdminMe(token);
       console.log(me);
 
       router.push("/protected/admin");

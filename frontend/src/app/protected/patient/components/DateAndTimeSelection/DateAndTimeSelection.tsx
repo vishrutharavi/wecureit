@@ -1,8 +1,11 @@
 "use client";
 
 import React from "react";
-import { apiFetch, showInlineToast } from '@/lib/api';
+import { showInlineToast } from '@/lib/api';
+import { getDoctorAvailability, getLockedAvailabilities } from '@/lib/doctor/doctorApi';
+import { getBookingAvailability, suggestOptimalSlots } from '@/lib/patient/patientApi';
 import { useRouter } from "next/navigation";
+import { toLocalIso } from '@/lib/dateUtils';
 import styles from "../../patient.module.scss";
 import DatePickerGrid from "./DatePickerGrid";
 
@@ -10,6 +13,21 @@ type Selection = {
   doctor?: { id: string; name: string } | null;
   facility?: { id: string; name: string } | null;
   specialty?: { id: string; name: string } | null;
+};
+
+type SlotSuggestion = {
+  doctorId: string;
+  doctorName: string;
+  specialty: string;
+  specialtyId: string;
+  facilityId: string;
+  facilityName: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  durationMinutes: number;
+  reason: string;
+  doctorAvailabilityId: string;
 };
 
 // saved card shape used by the payment UI
@@ -46,6 +64,10 @@ export default function DateAndTimeSelection() {
   const [selectedDoctorAvailabilityId, setSelectedDoctorAvailabilityId] = React.useState<string | null>(null);
   const [chiefComplaints, setChiefComplaints] = React.useState<string>("");
   const [chiefError, setChiefError] = React.useState<string | null>(null);
+  const [suggestedSlots, setSuggestedSlots] = React.useState<SlotSuggestion[] | null>(null);
+  const [quickBookSlot, setQuickBookSlot] = React.useState<SlotSuggestion | null>(null);
+  const [quickBookComplaints, setQuickBookComplaints] = React.useState<string>("");
+  const [quickBookError, setQuickBookError] = React.useState<string | null>(null);
 
   const computeRange = (timeLabel: string | null, durationMin: number | null) => {
     if (!timeLabel || !date || !durationMin) return null;
@@ -84,9 +106,19 @@ export default function DateAndTimeSelection() {
         setSelection(parsed);
         if (parsed.chiefComplaints) setChiefComplaints(String(parsed.chiefComplaints));
         if (parsed.doctorAvailabilityId) setSelectedDoctorAvailabilityId(String(parsed.doctorAvailabilityId));
+        // restore duration if it was previously selected, otherwise use 30 as default
+        if (parsed.duration) {
+          setDuration(parsed.duration);
+        } else {
+          setDuration(30);
+        }
+      } else {
+        // If no booking selection exists, default to 30 minutes
+        setDuration(30);
       }
     } catch {
-      // ignore
+      // On error, default to 30 minutes
+      setDuration(30);
     }
   }, []);
 
@@ -111,10 +143,9 @@ export default function DateAndTimeSelection() {
         const doctorId = selection.doctor.id;
         const from = new Date();
         const to = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-        const fromIso = from.toISOString().slice(0, 10);
-        const toIso = to.toISOString().slice(0, 10);
-        const url = `/api/doctors/${doctorId}/availability?from=${fromIso}&to=${toIso}`;
-        const resp = await apiFetch(url) as AvailabilityResp[];
+        const fromIso = toLocalIso(from);
+        const toIso = toLocalIso(to);
+        const resp = await getDoctorAvailability(doctorId, { from: fromIso, to: toIso }) as AvailabilityResp[];
         if (canceled) return;
 
         if (!Array.isArray(resp)) {
@@ -154,7 +185,7 @@ export default function DateAndTimeSelection() {
             const facId = selection.facility.id;
             const checks = await Promise.all(dates.map(async (d) => {
               try {
-                const resp = await apiFetch(`/api/doctors/${doctorId}/locked-availabilities?workDate=${d}`) as AvailabilityResp[];
+                const resp = await getLockedAvailabilities(doctorId, d) as AvailabilityResp[];
                 if (Array.isArray(resp) && resp.length > 0) {
                   // keep the date only if any returned availability belongs to the selected facility
                   return resp.some((a: AvailabilityResp) => String(a.facilityId || '').trim() === String(facId).trim());
@@ -191,6 +222,39 @@ export default function DateAndTimeSelection() {
     return () => { canceled = true; };
   }, [selection]);
 
+  // fetch optimal slot suggestions when selection and duration are ready
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!selection || !selection.doctor?.id || !selection.facility?.id) {
+        setSuggestedSlots(null);
+        return;
+      }
+
+      try {
+        const response = await suggestOptimalSlots({
+          doctorId: selection.doctor.id,
+          facilityId: selection.facility.id,
+          specialtyCode: selection.specialty?.id || null,
+          duration: duration || 30
+        });
+
+        if (cancelled) return;
+
+        if (Array.isArray(response)) {
+          setSuggestedSlots(response);
+        } else {
+          setSuggestedSlots(null);
+        }
+      } catch (err) {
+        console.error('Failed to fetch optimal slot suggestions', err);
+        setSuggestedSlots(null);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [selection, duration]);
+
   // fetch slot-level availability for selected date (15-min slots with status)
   React.useEffect(() => {
     let cancelled = false;
@@ -207,8 +271,8 @@ export default function DateAndTimeSelection() {
         if (facilityId) params.set('facilityId', facilityId);
         params.set('date', date);
         if (duration) params.set('duration', String(duration));
-        const url = `/api/patients/booking/availability?${params.toString()}`;
-        const resp = await apiFetch(url) as { slots?: ServerSlot[] } | null;
+        if (selection.specialty?.id) params.set('specialityCode', selection.specialty.id);
+        const resp = await getBookingAvailability(params) as { slots?: ServerSlot[] } | null;
         if (cancelled) return;
         if (resp && Array.isArray(resp.slots)) {
           setBookingSlots(resp.slots.map((s) => ({ startAt: s.startAt, endAt: s.endAt, status: s.status, availabilityId: s.availabilityId || null })));
@@ -330,6 +394,45 @@ export default function DateAndTimeSelection() {
         <div className={styles.subtitle}>Choose your preferred appointment date and time</div>
       </div>
 
+      {/* Optimal Slot Suggestions */}
+      {suggestedSlots && suggestedSlots.length > 0 && (
+        <div className={styles.suggestionsPanel}>
+          <div className={styles.sectionTitle}>Recommended Time Slots</div>
+          {/* <div className={styles.sectionSubtitle}>
+            These slots optimize schedule efficiency and minimize doctor idle time
+          </div> */}
+
+          <div className={styles.suggestionGrid}>
+            {suggestedSlots.map((slot, idx) => (
+              <div
+                key={idx}
+                className={styles.suggestionCard}
+                onClick={() => {
+                  setQuickBookSlot(slot);
+                  setQuickBookComplaints(chiefComplaints);
+                  setQuickBookError(null);
+                }}
+              >
+                <div className={styles.suggestionBadge}>#{idx + 1}</div>
+                <div className={styles.suggestionDate}>
+                  {new Date(slot.date + 'T00:00:00').toLocaleDateString('en-US', {
+                    weekday: 'short',
+                    month: 'short',
+                    day: 'numeric'
+                  })}
+                </div>
+                <div className={styles.suggestionTime}>
+                  {slot.startTime} - {slot.endTime}
+                </div>
+                <div className={styles.suggestionReason}>
+                  {slot.reason}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className={styles.bookingGrid}>
         <div>
           <div className={styles.panelWhite}>
@@ -340,7 +443,6 @@ export default function DateAndTimeSelection() {
               <DatePickerGrid value={date} onChange={(iso) => setDate(iso)} availableDates={availableDates} />
             </div>
 
-            {/* debug UI removed */}
 
             {/* Duration only visible after a date is chosen */}
             {date ? (
@@ -373,52 +475,63 @@ export default function DateAndTimeSelection() {
                         <div className={styles.sectionSubtitle}>Available Time Slots</div>
                         <div className={styles.timeSlotsGrid}>
                             {generateTimeSlots.labels.length === 0 ? (
-                            <div className={styles.emptyCard}>No available slots for this date</div>
-                          ) : (
-                            generateTimeSlots.labels.map((t, idx) => {
-                              // compute whether this slot falls within the selected time block
-                              let inBlock = false;
-                              if (selectedIndex !== null && duration) {
-                                const blockCount = Math.ceil(duration / 15);
-                                if (selectedIndex >= 0 && idx >= selectedIndex && idx < selectedIndex + blockCount) inBlock = true;
-                              }
-                              // determine if this slot is a valid start (enough slots remain for the duration)
-                              const blockCount = duration ? Math.ceil(duration / 15) : 1;
-                              const canStart = idx + blockCount <= generateTimeSlots.labels.length;
-                              const isActive = (selectedIndex !== null && idx === selectedIndex) || inBlock;
-                              const availabilityId = generateTimeSlots.ids[idx] || null;
-                              const slotDisabled = Array.isArray(generateTimeSlots.disabled) ? Boolean(generateTimeSlots.disabled[idx]) : false;
-                              return (
-                                <button
-                                  key={`${t}-${idx}-${availabilityId || ''}`}
-                                  onClick={() => {
-                                    if (!canStart) return;
-                                    if (slotDisabled) return;
-                                    setSelectedTime(t);
-                                    setSelectedIndex(idx);
-                                    setSelectedDoctorAvailabilityId(availabilityId);
-                                    // persist selection so the confirmation step has doctorAvailabilityId
-                                    try {
-                                      const raw = sessionStorage.getItem('bookingSelection');
-                                      const bs = raw ? JSON.parse(raw) : {};
-                                      bs.date = date;
-                                      bs.time = t;
-                                      bs.doctorAvailabilityId = availabilityId || null;
-                                      bs.duration = duration;
-                                      // keep chiefComplaints if already present
-                                      sessionStorage.setItem('bookingSelection', JSON.stringify(bs));
-                                    } catch {
-                                      // ignore storage errors
-                                    }
-                                  }}
-                                  disabled={!canStart || slotDisabled}
-                                  className={isActive ? `${styles.timeSlotBtn} ${styles.timeSlotBtnActive}` : slotDisabled ? `${styles.timeSlotBtn} ${styles.timeSlotBtnDisabled ?? ''}` : styles.timeSlotBtn}
-                                >
-                                  {t}
-                                </button>
-                              );
-                            })
-                          )}
+                              <div className={styles.emptyCard}>No available slots for this date</div>
+                            ) : (
+                              // Render duration-sized blocks instead of single 15-min buttons.
+                              (() => {
+                                const blockCount = duration ? Math.ceil(duration / 15) : 1;
+                                const blocks: Array<{ startLabel: string; endLabel: string; startIdx: number; canStart: boolean; disabled: boolean; availabilityId: string | null }> = [];
+                                for (let i = 0; i + blockCount <= generateTimeSlots.labels.length; i++) {
+                                  const startLabel = generateTimeSlots.labels[i];
+                                  const endIdx = i + blockCount - 1;
+                                  const r = computeRange(startLabel, duration || 15);
+                                  const endLabel = r ? r.endLabel : (generateTimeSlots.labels[endIdx] || '');
+                                  // The backend already simulates the full duration when computing each slot's status.
+                                  // Only check the START slot — sub-slot statuses mean "invalid start time", not "occupied".
+                                  const disabledBlock = Array.isArray(generateTimeSlots.disabled) ? Boolean(generateTimeSlots.disabled[i]) : false;
+                                  const availabilityId = (generateTimeSlots.ids[i] || null);
+                                  const canStart = !disabledBlock && (i + blockCount <= generateTimeSlots.labels.length);
+                                  blocks.push({ startLabel, endLabel, startIdx: i, canStart, disabled: disabledBlock, availabilityId });
+                                }
+
+                                return blocks.map((b) => {
+                                  const isActive = selectedIndex !== null && selectedIndex === b.startIdx;
+                                  const classList = [styles.timeBlockBtn];
+                                  if (b.disabled) {
+                                    if (styles.timeSlotBtnDisabled) classList.push(styles.timeSlotBtnDisabled);
+                                  }
+                                  if (isActive) {
+                                    if (styles.timeBlockBtnActive) classList.push(styles.timeBlockBtnActive);
+                                  }
+                                  return (
+                                    <button
+                                      key={`${b.startLabel}-${b.startIdx}-${b.availabilityId || ''}`}
+                                      onClick={() => {
+                                        if (!b.canStart) return;
+                                        if (b.disabled) return;
+                                        setSelectedTime(b.startLabel);
+                                        setSelectedIndex(b.startIdx);
+                                        setSelectedDoctorAvailabilityId(b.availabilityId);
+                                        try {
+                                          const raw = sessionStorage.getItem('bookingSelection');
+                                          const bs = raw ? JSON.parse(raw) : {};
+                                          bs.date = date;
+                                          bs.time = b.startLabel;
+                                          bs.doctorAvailabilityId = b.availabilityId || null;
+                                          bs.duration = duration;
+                                          sessionStorage.setItem('bookingSelection', JSON.stringify(bs));
+                                        } catch {}
+                                      }}
+                                      disabled={!b.canStart || b.disabled}
+                                      className={classList.join(' ').trim()}
+                                    >
+                                      <div style={{ fontWeight: 800 }}>{b.startLabel}</div>
+                                      <div style={{ fontSize: 13, marginTop: 6, color: '#6b7280' }}>{b.endLabel}</div>
+                                    </button>
+                                  );
+                                });
+                              })()
+                            )}
                         </div>
 
                         {/* Selected summary removed: use sidebar summary only */}
@@ -517,6 +630,108 @@ export default function DateAndTimeSelection() {
           </div>
         </div>
       </div>
+
+      {/* Quick-book modal for recommended slot cards */}
+      {quickBookSlot && (
+        <div className={styles['modal-overlay']} onClick={() => setQuickBookSlot(null)}>
+          <div className={styles['modal-container']} onClick={(e) => e.stopPropagation()}>
+            <div className={styles['modal-header']}>
+              <h2 className={styles['modal-title']}>Book Recommended Slot</h2>
+              <button onClick={() => setQuickBookSlot(null)} className={styles['modal-close'] ?? ''}>&#x2715;</button>
+            </div>
+            <div className={styles['modal-body']}>
+              <div className={styles.quickBookDetails}>
+                <div className={styles.quickBookRow}>
+                  <span className={styles.quickBookLabel}>Doctor</span>
+                  <span className={styles.quickBookValue}>{selection?.doctor?.name || quickBookSlot.doctorName}</span>
+                </div>
+                <div className={styles.quickBookRow}>
+                  <span className={styles.quickBookLabel}>Facility</span>
+                  <span className={styles.quickBookValue}>{selection?.facility?.name || quickBookSlot.facilityName}</span>
+                </div>
+                <div className={styles.quickBookRow}>
+                  <span className={styles.quickBookLabel}>Specialty</span>
+                  <span className={styles.quickBookValue}>{selection?.specialty?.name || quickBookSlot.specialty}</span>
+                </div>
+                <div className={styles.quickBookRow}>
+                  <span className={styles.quickBookLabel}>Date</span>
+                  <span className={styles.quickBookValue}>
+                    {new Date(quickBookSlot.date + 'T00:00:00').toLocaleDateString('en-US', {
+                      weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'
+                    })}
+                  </span>
+                </div>
+                <div className={styles.quickBookRow}>
+                  <span className={styles.quickBookLabel}>Time</span>
+                  <span className={styles.quickBookValue}>{quickBookSlot.startTime} - {quickBookSlot.endTime}</span>
+                </div>
+                <div className={styles.quickBookRow}>
+                  <span className={styles.quickBookLabel}>Duration</span>
+                  <span className={styles.quickBookValue}>{quickBookSlot.durationMinutes} minutes</span>
+                </div>
+              </div>
+
+              <div style={{ marginTop: 16 }}>
+                <div className={styles.fieldLabel}>Chief Complaints <span style={{ color: '#c0392b' }}>*</span></div>
+                <textarea
+                  className={styles.inputField}
+                  placeholder="Briefly describe the patient's chief complaints"
+                  value={quickBookComplaints}
+                  onChange={(e) => {
+                    setQuickBookComplaints(e.target.value);
+                    if (quickBookError) setQuickBookError(null);
+                  }}
+                  rows={3}
+                />
+                {quickBookError && <div className={styles.errorText}>{quickBookError}</div>}
+              </div>
+
+              <div style={{ marginTop: 16, display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                <button
+                  className={styles.viewAppointmentsBtn}
+                  onClick={() => setQuickBookSlot(null)}
+                >
+                  Cancel
+                </button>
+                <button
+                  className={styles.continueBtn}
+                  onClick={() => {
+                    if (!quickBookComplaints || !quickBookComplaints.trim()) {
+                      setQuickBookError('Please enter the chief complaints to proceed');
+                      return;
+                    }
+                    try {
+                      // Convert 24-hour format time to 12-hour format with AM/PM
+                      const convert24To12Hour = (time24: string) => {
+                        const match = time24.match(/(\d{1,2}):(\d{2})/);
+                        if (!match) return time24;
+                        let hours = parseInt(match[1], 10);
+                        const minutes = match[2];
+                        const ampm = hours >= 12 ? 'PM' : 'AM';
+                        hours = hours % 12 || 12;
+                        return `${hours}:${minutes} ${ampm}`;
+                      };
+                      
+                      const payload = {
+                        ...selection,
+                        date: quickBookSlot.date,
+                        time: convert24To12Hour(quickBookSlot.startTime),
+                        duration: quickBookSlot.durationMinutes,
+                        doctorAvailabilityId: quickBookSlot.doctorAvailabilityId,
+                        chiefComplaints: quickBookComplaints.trim(),
+                      };
+                      sessionStorage.setItem('bookingSelection', JSON.stringify(payload));
+                    } catch {}
+                    router.push('/protected/patient?tab=confirmation');
+                  }}
+                >
+                  Continue to Confirmation
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

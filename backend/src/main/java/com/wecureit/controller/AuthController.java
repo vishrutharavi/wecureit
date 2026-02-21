@@ -3,8 +3,11 @@ package com.wecureit.controller;
 import java.util.Map;
 import java.util.Optional;
 
+import java.util.List;
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -13,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseToken;
 import com.wecureit.dto.request.SignupRequest;
+import com.wecureit.dto.response.StateResponse;
 import com.wecureit.entity.Admin;
 import com.wecureit.entity.Doctor;
 import com.wecureit.entity.Patient;
@@ -20,6 +24,7 @@ import com.wecureit.repository.AdminRepository;
 import com.wecureit.repository.DoctorRepository;
 import com.wecureit.repository.PatientRepository;
 import com.wecureit.service.AuthService;
+import com.wecureit.service.StateService;
 
 import jakarta.servlet.http.HttpServletRequest;
 
@@ -33,12 +38,19 @@ public class AuthController {
     private final DoctorRepository doctorRepo;
     private final PatientRepository patientRepo;
     private final AdminRepository adminRepo;
+    private final StateService stateService;
 
-    public AuthController(AuthService authService, DoctorRepository doctorRepo, PatientRepository patientRepo, AdminRepository adminRepo) {
+    public AuthController(AuthService authService, DoctorRepository doctorRepo, PatientRepository patientRepo, AdminRepository adminRepo, StateService stateService) {
         this.authService = authService;
         this.doctorRepo = doctorRepo;
         this.patientRepo = patientRepo;
         this.adminRepo = adminRepo;
+        this.stateService = stateService;
+    }
+
+    @GetMapping("/states")
+    public List<StateResponse> getStates() {
+        return stateService.getAllStates();
     }
 
     @PostMapping("/signup")

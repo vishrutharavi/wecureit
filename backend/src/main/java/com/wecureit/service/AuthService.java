@@ -11,9 +11,11 @@ import com.wecureit.dto.request.SignupRequest;
 import com.wecureit.entity.Admin;
 import com.wecureit.entity.Doctor;
 import com.wecureit.entity.Patient;
+import com.wecureit.entity.State;
 import com.wecureit.repository.AdminRepository;
 import com.wecureit.repository.DoctorRepository;
 import com.wecureit.repository.PatientRepository;
+import com.wecureit.repository.StateRepository;
 
 @Service
 public class AuthService {
@@ -21,15 +23,18 @@ public class AuthService {
     private final PatientRepository patientRepository;
     private final DoctorRepository doctorRepository;
     private final AdminRepository adminRepository;
+    private final StateRepository stateRepository;
 
     public AuthService(
             PatientRepository patientRepository,
             DoctorRepository doctorRepository,
-            AdminRepository adminRepository
+            AdminRepository adminRepository,
+            StateRepository stateRepository
     ) {
         this.patientRepository = patientRepository;
         this.doctorRepository = doctorRepository;
         this.adminRepository = adminRepository;
+        this.stateRepository = stateRepository;
     }
 
     public void signup(SignupRequest request) {
@@ -99,7 +104,10 @@ public class AuthService {
         patient.setDob(request.getDob());
         patient.setGender(request.getGender());
         patient.setCity(request.getCity());
-        patient.setState(request.getState());
+        State state = stateRepository.findById(request.getState())
+                .orElseThrow(() -> new IllegalArgumentException("Invalid state code: " + request.getState()));
+        patient.setState(state);
+        patient.setAddress(request.getAddress());
         patient.setZip(request.getZip());
 
         patientRepository.save(patient);

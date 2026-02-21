@@ -21,6 +21,25 @@
 }
 }
 
+/* Content container to center and constrain width */
+.content {
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+@media (max-width: 1400px) {
+  .content {
+    max-width: 1100px;
+  }
+}
+
+@media (max-width: 1200px) {
+  .content {
+    max-width: 1000px;
+  }
+}
+
 .title {
   font-size: 2rem;
   font-weight: 800;
@@ -774,5 +793,170 @@
   border-radius: 12px;
   padding: 1.25rem 1.5rem;
   box-shadow: 0 18px 36px rgba(239,68,68,0.04);
+}
+
+/* ── Create Referral Modal ── */
+
+.referralSection {
+  margin-bottom: 1.25rem;
+}
+
+.referralSectionLabel {
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: var(--doctor-dark);
+  margin-bottom: 6px;
+}
+
+.required {
+  color: var(--doctor-primary);
+}
+
+.referralPatientName {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #111;
+}
+
+.recommendedDoctorList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.recommendedDoctorItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid rgba(239,68,68,0.1);
+  border-radius: 10px;
+  background: linear-gradient(180deg, #fff 0%, #fff5f5 100%);
+  cursor: pointer;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+
+  &:hover {
+    border-color: rgba(239,68,68,0.3);
+  }
+
+  &.selected {
+    border-color: var(--doctor-primary);
+    box-shadow: 0 0 0 2px rgba(239,68,68,0.15);
+    transform: none;
+  }
+
+  input[type="radio"] {
+    margin-top: 3px;
+    accent-color: var(--doctor-primary);
+  }
+}
+
+.recommendedDoctorInfo {
+  flex: 1;
+}
+
+.recommendedDoctorName {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: #111;
+}
+
+.recommendedDoctorMeta {
+  font-size: 0.8rem;
+  color: #666;
+  margin-top: 2px;
+}
+
+.recommendedDoctorReason {
+  font-size: 0.75rem;
+  color: var(--doctor-primary);
+  margin-top: 3px;
+  font-style: italic;
+}
+
+.referralSearchRow {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.referralReasonTextarea {
+  width: 100%;
+  border: 1px solid rgba(239,68,68,0.15);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 0.9rem;
+  resize: vertical;
+  min-height: 70px;
+  font-family: inherit;
+  transition: border-color 150ms ease;
+
+  &:focus {
+    outline: none;
+    border-color: var(--doctor-primary);
+    box-shadow: 0 0 0 2px rgba(239,68,68,0.1);
+  }
+}
+
+.referralSelectedDoctor {
+  font-weight: 600;
+  color: var(--doctor-primary);
+  padding: 6px 10px;
+  background: var(--doctor-light);
+  border-radius: 6px;
+  display: inline-block;
+}
+
+.referralError {
+  color: var(--doctor-primary);
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-top: 8px;
+  padding: 8px 10px;
+  background: rgba(239,68,68,0.06);
+  border-radius: 6px;
+}
+
+.referralSuccessMsg {
+  text-align: center;
+  padding: 2rem;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #16a34a;
+}
+
+.modalCloseBtn {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: #999;
+  padding: 0 4px;
+  line-height: 1;
+
+  &:hover {
+    color: #333;
+  }
+}
+
+/* ── Referral Modal Tabs ── */
+
+.referralTabRow {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 1rem;
+}
+
+.referralReasonDisplay {
+  font-size: 0.82rem;
+  color: #555;
+  margin-top: 4px;
+  padding: 4px 0;
+  border-top: 1px solid rgba(0,0,0,0.04);
+}
+
+.cancelledBadge {
+  background: #fca5a5 !important;
+  color: #7f1d1d !important;
 }
 

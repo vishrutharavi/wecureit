@@ -1,10 +1,10 @@
 "use client";
 
-import React from "react";
+import { useState, useEffect, useCallback } from "react";
 import styles from "../doctor.module.scss";
-import { Calendar, Clock, FileText, Share2, Mail } from "lucide-react";
+import { Calendar, Clock, FileText, Share2 } from "lucide-react";
 import ReferralModal from "./Referral/ReferralModal";
-import MessageModal from "./Message/MessageModal";
+import { getIncomingReferrals } from "@/lib/doctor/doctorApi";
 
 type Tab = "schedule" | "availability" | "notes";
 
@@ -14,30 +14,35 @@ type Props = {
 };
 
 export default function DoctorTabs({ active, onChange }: Props) {
-  const [showReferrals, setShowReferrals] = React.useState(false);
-  const [showMessages, setShowMessages] = React.useState(false);
+  const [showReferrals, setShowReferrals] = useState(false);
+  const [referralCount, setReferralCount] = useState(0);
 
-  // sample referrals; in future this should come from an API
-  const sampleReferrals = [
-    {
-      id: 'r1',
-      referringDoctor: 'Dr. Alice Park',
-      referringDoctorEmail: 'alice.park@example.com',
-      facility: 'Downtown Medical Center',
-      patient: 'Sarah Wilson',
-      speciality: 'Cardiology',
-      date: '2026-01-18',
-    },
-    {
-      id: 'r2',
-      referringDoctor: 'Dr. Bob Lee',
-      referringDoctorEmail: 'bob.lee@example.com',
-      facility: 'Bethesda Health Center',
-      patient: 'John Smith',
-      speciality: 'Orthopedics',
-      date: '2026-01-12',
-    },
-  ];
+  const getDoctorId = useCallback(() => {
+    try {
+      const raw = localStorage.getItem("doctorProfile");
+      if (raw) return JSON.parse(raw).id;
+    } catch {}
+    return null;
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    async function fetchCount() {
+      const doctorId = getDoctorId();
+      if (!doctorId) return;
+      try {
+        const incoming = await getIncomingReferrals(doctorId);
+        if (mounted && Array.isArray(incoming)) {
+          const pending = incoming.filter((r: { status: string }) => r.status === "PENDING");
+          setReferralCount(pending.length);
+        }
+      } catch {
+        // ignore
+      }
+    }
+    fetchCount();
+    return () => { mounted = false; };
+  }, [getDoctorId, showReferrals]);
 
   return (
     <div className={styles.tabs}>
@@ -65,18 +70,12 @@ export default function DoctorTabs({ active, onChange }: Props) {
       </div>
 
       <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 12 }}>
-        <button className={`${styles.tab} ${showMessages ? styles.active : ''}`} onClick={() => setShowMessages(true)} title="Messages">
-          <Mail size={14} style={{ marginRight: 8 }} /> Messages
-        </button>
-
         <button className={`${styles.tab} ${showReferrals ? styles.active : ''}`} onClick={() => setShowReferrals(true)} title="View Referrals">
-          <Share2 size={14} style={{ marginRight: 8 }} /> Referrals {sampleReferrals.length ? <span style={{ marginLeft: 6 }} className={styles.smallBadge}>{sampleReferrals.length}</span> : null}
+          <Share2 size={14} style={{ marginRight: 8 }} /> Referrals {referralCount > 0 ? <span style={{ marginLeft: 6 }} className={styles.smallBadge}>{referralCount}</span> : null}
         </button>
       </div>
 
-      <ReferralModal open={showReferrals} onClose={() => setShowReferrals(false)} items={sampleReferrals} />
-      <MessageModal open={showMessages} onClose={() => setShowMessages(false)} />
+      <ReferralModal open={showReferrals} onClose={() => setShowReferrals(false)} />
     </div>
   );
 }
-

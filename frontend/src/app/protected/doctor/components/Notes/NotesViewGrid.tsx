@@ -3,7 +3,8 @@
 import { useMemo, useState, useEffect } from "react";
 import CompletedAppointmentCard from "./CompletedAppointmentCard";
 import styles from "../../doctor.module.scss";
-import { apiFetch } from "../../../../../lib/api";
+import { getCompletedAppointments } from "@/lib/doctor/doctorApi";
+import { toLocalIso } from "../../../../../lib/dateUtils";
 
 type UIAppointment = {
 	patientName?: string;
@@ -60,11 +61,11 @@ export default function NotesGrid() {
 				// fetch completed appointments in a single request (server reads appointment_history)
 				const days = LOOKBACK_DAYS;
 				const today = new Date();
-				const end = today.toISOString().slice(0, 10);
+				const end = toLocalIso(today);
 				const startDate = new Date(today);
 				startDate.setDate(today.getDate() - (days - 1));
-				const start = startDate.toISOString().slice(0, 10);
-				const res = await apiFetch(`/api/doctors/${doctorId}/completed-appointments?startDate=${start}&endDate=${end}`, localStorage.getItem('doctorToken') ?? undefined);
+				const start = toLocalIso(startDate);
+				const res = await getCompletedAppointments(doctorId, start, end, localStorage.getItem('doctorToken') ?? undefined);
 				const combined: Record<string, unknown>[] = [];
 				if (res) {
 					if (Array.isArray(res)) {

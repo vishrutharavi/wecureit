@@ -57,6 +57,10 @@ public class Appointment {
     private Speciality speciality;
 
 
+    @ManyToOne
+    @JoinColumn(name = "room_id", referencedColumnName = "id")
+    private Room room;
+
     @Column(name = "is_active")
     private Boolean isActive = Boolean.TRUE;
 

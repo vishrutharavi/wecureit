@@ -12,6 +12,25 @@
   padding: 1rem;
 }
 
+/* Content container to center and constrain width */
+.content {
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+@media (max-width: 1400px) {
+  .content {
+    max-width: 1100px;
+  }
+}
+
+@media (max-width: 1200px) {
+  .content {
+    max-width: 1000px;
+  }
+}
+
 .subtitle {
   color: var(--patient-dark);
   margin-top: 6px;
@@ -379,6 +398,11 @@
 }
 
 /* Clear button used in booking dropdown header */
+.bookingLeftStack {
+  display: grid;
+  gap: 18px;
+}
+
 .clearButton {
   background: linear-gradient(135deg, var(--patient-primary), var(--patient-dark));
   color: #fff;
@@ -851,6 +875,71 @@
   box-shadow: none;
 }
 
+/* class-based disabled helper (used by JS when composing classes) */
+.timeSlotBtnDisabled {
+  opacity: 0.55 !important;
+  cursor: not-allowed !important;
+  background: linear-gradient(180deg, #fafafa, #fff) !important;
+  color: #9ca3af !important;
+  box-shadow: none !important;
+  pointer-events: none !important;
+}
+
+/* Block helpers for multi-slot selections */
+.timeSlotBtnBlock {
+  /* ensure in-block slots use same visual as active */
+  background: linear-gradient(135deg, var(--patient-primary), var(--patient-dark));
+  color: #fff;
+  box-shadow: 0 12px 30px rgba(16,24,40,0.08);
+}
+
+.timeSlotBtnBlockStart {
+  border-top-left-radius: 12px;
+  border-bottom-left-radius: 12px;
+}
+
+.timeSlotBtnBlockEnd {
+  border-top-right-radius: 12px;
+  border-bottom-right-radius: 12px;
+}
+
+.timeSlotBtnBlockMiddle {
+  border-radius: 0;
+}
+
+/* New block button style for duration-sized tiles */
+.timeBlockBtn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 18px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(224,224,224,0.6);
+  background: linear-gradient(180deg, #fff, #fff);
+  color: var(--patient-dark);
+  font-weight: 800;
+  min-height: 68px;
+  box-shadow: 0 10px 24px rgba(239,68,68,0.04);
+}
+
+.timeBlockBtnActive {
+  background: linear-gradient(135deg, var(--patient-primary), var(--patient-dark));
+  color: #fff;
+  box-shadow: 0 18px 36px rgba(239,68,68,0.12);
+}
+
+/* disabled state for block buttons */
+.timeBlockBtn:disabled,
+.timeBlockBtnDisabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  background: linear-gradient(180deg, #fafafa, #fff);
+  color: #9ca3af;
+  box-shadow: none;
+  pointer-events: none;
+}
+
 /* Selected summary row shown under available time slots when a start time is chosen */
 /* selected summary removed - sidebar shows the appointment selection */
 
@@ -1106,4 +1195,114 @@
   transform: translateY(-2px);
 }
 
+.manualDivider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #6b7280;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
 
+.manualDivider::before,
+.manualDivider::after {
+  content: "";
+  height: 1px;
+  flex: 1;
+  background: rgba(239, 68, 68, 0.2);
+}
+
+/* Optimal Slot Suggestions Panel */
+.suggestionsPanel {
+  margin-top: 24px;
+  margin-bottom: 24px;
+  padding: 20px;
+  /* Red-themed gradient to match patient portal palette */
+  background: linear-gradient(135deg, var(--patient-primary) 0%, var(--patient-dark) 100%);
+  border-radius: 12px;
+  color: white;
+}
+
+.suggestionGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.suggestionCard {
+  /* lighter, elevated card so it stands out against the red panel */
+  background: rgba(255, 230, 230, 0.92); /* pale red / near-white */
+  backdrop-filter: none;
+  border-radius: 10px;
+  padding: 18px;
+  cursor: pointer;
+  transition: transform 0.16s ease, box-shadow 0.16s ease, background 0.12s ease;
+  position: relative;
+  border: 1px solid rgba(0,0,0,0.06);
+  box-shadow: 0 12px 30px rgba(16,24,40,0.06);
+  color: var(--patient-dark);
+
+  &:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 20px 40px rgba(16,24,40,0.10);
+  }
+}
+
+.suggestionBadge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--patient-dark);
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.suggestionDate {
+  font-size: 16px;
+  font-weight: 800;
+  margin-bottom: 6px;
+  color: var(--patient-dark);
+}
+
+.suggestionTime {
+  font-size: 18px;
+  font-weight: 900;
+  margin-bottom: 8px;
+  color: var(--patient-dark);
+}
+
+.suggestionReason {
+  font-size: 13px;
+  opacity: 0.95;
+  line-height: 1.4;
+  color: rgba(17,29,29,0.85);
+}
+
+.quickBookDetails {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  background: linear-gradient(135deg, #fff5f5, #ffecec);
+  border-radius: 8px;
+}
+.quickBookRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.quickBookLabel {
+  font-size: 0.85rem;
+  color: #6b7280;
+  font-weight: 500;
+}
+.quickBookValue {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--patient-dark, #1e293b);
+}

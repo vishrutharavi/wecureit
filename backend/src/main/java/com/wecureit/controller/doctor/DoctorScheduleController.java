@@ -205,6 +205,10 @@ public class DoctorScheduleController {
         } catch (Exception e) {
             // ignore
         }
+        if (a.getRoom() != null) {
+            resp.setRoomId(a.getRoom().getId());
+            resp.setRoomNumber(a.getRoom().getRoomNumber());
+        }
         // status will be set by caller where we have access to computed completedIds map
         return resp;
     }

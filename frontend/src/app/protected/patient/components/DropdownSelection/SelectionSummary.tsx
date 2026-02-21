@@ -10,19 +10,20 @@ type Props = {
   doctor?: Doctor | null;
   facility?: Facility | null;
   specialty?: Specialty | null;
+  duration?: number | null;
 };
 
-export default function SelectionSummary({ doctor, facility, specialty }: Props) {
+export default function SelectionSummary({ doctor, facility, specialty, duration }: Props) {
   const router = useRouter();
 
   const handleContinue = React.useCallback(() => {
     try {
-      sessionStorage.setItem("bookingSelection", JSON.stringify({ doctor, facility, specialty }));
+      sessionStorage.setItem("bookingSelection", JSON.stringify({ doctor, facility, specialty, duration }));
     } catch {
       // ignore
     }
     router.push('/protected/patient?tab=datetimeselection');
-  }, [doctor, facility, specialty, router]);
+  }, [doctor, facility, specialty, duration, router]);
 
   return (
     <div className={styles.summaryWrapper}>
@@ -48,6 +49,11 @@ export default function SelectionSummary({ doctor, facility, specialty }: Props)
         <div className={styles.summaryCard}>
           <div className={styles.labelMuted}>Specialty</div>
           <div className={styles.contentPrimary}>{specialty ? specialty.name : "No specialty selected"}</div>
+        </div>
+
+        <div className={styles.summaryCard}>
+          <div className={styles.labelMuted}>Duration</div>
+          <div className={styles.contentPrimary}>{duration ? `${duration} minutes` : "30 minutes (default)"}</div>
         </div>
 
         {doctor && facility && specialty && (

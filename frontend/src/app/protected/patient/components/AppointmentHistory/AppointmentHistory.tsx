@@ -3,6 +3,7 @@
 import React, { useMemo, useState } from "react";
 import styles from "@/app/protected/patient/patient.module.scss";
 import { FiSearch, FiCalendar, FiClock, FiMapPin, FiFileText } from "react-icons/fi";
+import { getAppointmentHistory } from "@/lib/patient/patientApi";
 
 type Appointment = {
   id: string;
@@ -36,7 +37,7 @@ export default function AppointmentHistory() {
       // apiFetch handles non-JSON responses and friendly error messages.
       (async () => {
         try {
-          const data = await (await import("@/lib/api")).apiFetch(`/appointments/history/byPatient?patientId=${patientId}`);
+          const data = await getAppointmentHistory(patientId);
           if (!data || !Array.isArray(data)) return;
           const arr = data as Array<Record<string, unknown>>;
           const mapped: Appointment[] = arr.map((h, idx) => ({

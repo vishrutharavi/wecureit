@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { login } from "@/lib/auth";
-import { apiFetch, showInlineToast } from "@/lib/api";
+import { showInlineToast } from "@/lib/api";
+import { linkIdentity, getPatientMe } from "@/lib/auth/authApi";
 import styles from "./login.module.scss";
 import { User, Eye, EyeOff } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -23,7 +24,7 @@ export default function PatientLogin() {
 
       // Best-effort: link Firebase identity to a patient record so server can set role claim.
       try {
-        await apiFetch('/api/auth/link', idToken, { method: 'POST', body: JSON.stringify({ portal: 'PATIENT' }) });
+        await linkIdentity(idToken, 'PATIENT');
         try {
           const fresh = await (user as FirebaseUser).getIdToken(true);
           try { localStorage.setItem('patientToken', fresh); } catch {}
@@ -35,7 +36,7 @@ export default function PatientLogin() {
         console.warn('Linking Firebase identity to patient failed', linkErr);
       }
 
-        let me = await apiFetch("/api/patient/me");
+        let me = await getPatientMe();
         console.log(me);
 
         // If backend hasn't yet linked the firebase UID to a patient record, retry briefly
@@ -46,7 +47,7 @@ export default function PatientLogin() {
               try { localStorage.setItem('patientToken', fresh); } catch {}
               try { localStorage.setItem('idToken', fresh); } catch {}
             } catch {}
-            try { me = await apiFetch('/api/patient/me'); } catch (e) { console.warn('Retrying /api/patient/me failed', e); }
+            try { me = await getPatientMe(); } catch (e) { console.warn('Retrying /api/patient/me failed', e); }
           }
         }
 

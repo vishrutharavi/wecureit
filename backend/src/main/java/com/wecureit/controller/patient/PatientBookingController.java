@@ -7,19 +7,29 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 
+import com.wecureit.dto.request.OptimalSlotRequest;
 import com.wecureit.dto.response.BookingDropdownResponse;
+import com.wecureit.dto.response.SlotSuggestion;
+import com.wecureit.service.OptimalSlotSuggestionService;
 import com.wecureit.service.PatientBookingService;
+
+import java.time.LocalDate;
+import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/patients")
 public class PatientBookingController {
 
     private final PatientBookingService bookingService;
-    
+    private final OptimalSlotSuggestionService optimalSlotService;
 
     @Autowired
-    public PatientBookingController(PatientBookingService bookingService) {
+    public PatientBookingController(
+            PatientBookingService bookingService,
+            OptimalSlotSuggestionService optimalSlotService) {
         this.bookingService = bookingService;
+        this.optimalSlotService = optimalSlotService;
     }
 
     @GetMapping("/booking/dropdown-data")
@@ -41,15 +51,54 @@ public class PatientBookingController {
     public ResponseEntity<?> getBookingAvailability(
         @RequestParam(value = "doctorId") UUID doctorId,
         @RequestParam(value = "facilityId", required = false) UUID facilityId,
-        @RequestParam(value = "date") String dateStr
-        , @RequestParam(value = "duration", required = false) Integer duration
+        @RequestParam(value = "date") String dateStr,
+        @RequestParam(value = "duration", required = false) Integer duration,
+        @RequestParam(value = "specialityCode", required = false) String specialityCode
     ) {
         try {
             java.time.LocalDate d = java.time.LocalDate.parse(dateStr);
-            var resp = bookingService.getAvailabilitySlots(doctorId, facilityId, d, duration);
+            var resp = bookingService.getAvailabilitySlots(doctorId, facilityId, d, duration, specialityCode);
             return ResponseEntity.ok(resp);
         } catch (java.time.format.DateTimeParseException ex) {
             return ResponseEntity.badRequest().body(java.util.Map.of("error", "Invalid date format. Use YYYY-MM-DD"));
+        }
+    }
+
+    @PostMapping("/booking/suggest-optimal-slots")
+    public ResponseEntity<?> suggestOptimalSlots(@RequestBody OptimalSlotRequest request) {
+        try {
+            // Validate inputs
+            if (request.getDoctorId() == null || request.getFacilityId() == null) {
+                return ResponseEntity.badRequest()
+                        .body(Map.of("error", "doctorId and facilityId are required"));
+            }
+
+            // Set defaults
+            LocalDate startDate = request.getDateRangeStart() != null
+                    ? LocalDate.parse(request.getDateRangeStart())
+                    : LocalDate.now();
+
+            LocalDate endDate = request.getDateRangeEnd() != null
+                    ? LocalDate.parse(request.getDateRangeEnd())
+                    : startDate.plusDays(14);
+
+            int duration = request.getDuration() != null ? request.getDuration() : 30;
+
+            // Call service
+            List<SlotSuggestion> suggestions = optimalSlotService.suggestOptimalSlots(
+                    request.getDoctorId(),
+                    request.getFacilityId(),
+                    request.getSpecialtyCode(),
+                    duration,
+                    startDate,
+                    endDate
+            );
+
+            return ResponseEntity.ok(suggestions);
+
+        } catch (Exception e) {
+            return ResponseEntity.status(500)
+                    .body(Map.of("error", "Failed to generate suggestions: " + e.getMessage()));
         }
     }
 
