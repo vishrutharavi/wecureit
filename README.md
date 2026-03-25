@@ -12,7 +12,6 @@ This README explains what the project does and how to run it locally.
 
 - `backend/` — Spring Boot application (JDK 21, Maven). See [backend/README.md](backend/README.md) for backend-specific details and Neo4j seeding instructions.
 - `frontend/` — Next.js app. See [frontend/README.md](frontend/README.md) for frontend-specific details.
-- `e2e/` — Playwright tests and Playwright config.
 
 ## Quick start (development)
 
