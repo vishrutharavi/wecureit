@@ -1,4 +1,4 @@
-# wecureit
+# WeCureIt
 
 Wecureit provides a backend analytics service and a Next.js frontend focused on referral workflows between healthcare providers. It includes:
 
