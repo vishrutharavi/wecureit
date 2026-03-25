@@ -1,6 +1,6 @@
 # wecureit
 
-Wecureit is a demo / reference implementation that provides a backend analytics service and a Next.js frontend focused on referral workflows between healthcare providers. It includes:
+Wecureit provides a backend analytics service and a Next.js frontend focused on referral workflows between healthcare providers. It includes:
 
 - A Spring Boot (Maven) backend (`backend/`) with REST APIs, Neo4j analytics integration and DB seeding scripts.
 - A Next.js frontend (`frontend/`) for UI and admin flows.
