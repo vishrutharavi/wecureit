@@ -58,3 +58,50 @@ build/
 Thumbs.db
 *.bak
 *.tmp
+
+# ---------- Sensitive files (added for public release) ----------
+# Common environment & credential files
+*.env.local
+.env.*.local
+.env
+.env.*
+
+# Generic key/certificate files
+*.key
+*.pem
+*.p12
+*.pfx
+*.jks
+*.crt
+*.cer
+
+# Keystore / private keys
+keystore.jks
+id_rsa
+id_rsa.pub
+
+# Service account / credential JSON files (explicit patterns to avoid hiding all JSONs)
+google-services.json
+*-service-account.json
+*-credentials.json
+service-account.json
+
+# AWS / Azure credentials
+.aws/credentials
+.azure/*
+
+# NPM / Git creds
+.npmrc
+.netrc
+
+# Application config files that often contain secrets (please review before changing)
+**/application.properties
+**/application-*.yml
+**/application-*.yaml
+
+# Misc sensitive files
+*.secret
+secrets.json
+
+# If you need to keep any of the above tracked for legitimate reasons,
+# remove the specific entry and ensure secrets are rotated before publishing.
