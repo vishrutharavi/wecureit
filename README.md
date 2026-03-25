@@ -4,9 +4,6 @@ Wecureit provides a backend analytics service and a Next.js frontend focused on 
 
 - A Spring Boot (Maven) backend (`backend/`) with REST APIs, Neo4j analytics integration and DB seeding scripts.
 - A Next.js frontend (`frontend/`) for UI and admin flows.
-- Playwright end-to-end tests in `e2e/` and test scenarios / seed scripts in `backend/scripts/`.
-
-This README explains what the project does and how to run it locally.
 
 **Project Structure**
 
